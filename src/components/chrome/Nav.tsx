@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useLogout } from '@/hooks/useAuth';
 import { Icon } from '@/lib/icons';
 
 export function Nav() {
   const { user } = useAuth();
+  const logout = useLogout();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -165,7 +166,15 @@ export function Nav() {
                     {unread > 0 ? <span className="pill">{unread}</span> : null}
                   </Link>
                   <div className="dropdown-divider" />
-                  <div className="dropdown-item">🚪 退出登录</div>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      setOpen(false);
+                      logout();
+                    }}
+                  >
+                    🚪 退出登录
+                  </div>
                 </div>
               ) : null}
             </div>

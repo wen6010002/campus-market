@@ -153,3 +153,29 @@
 **下阶段是否受影响**
 
 - B3 作品依赖 `requireCreator()`（已就绪）与「userId → creatorProfile.id」解析（`requireCreator` 已返回 `creatorProfileId`）。上传 presign 的权限走 `hasPermission(role,'upload')` + `requireCreator`。
+
+---
+
+## 阶段 1 — 鉴权页（F1）
+
+**做了什么**
+
+- `/login`：教育邮箱 + 密码 → `POST /auth/login` → 失效 `['me']` → 跳回 `?from=`（默认 `/`）。
+- `/register`：edu 邮箱 + 发送验证码（60s 倒计时 + NOT_EDU/RATE_LIMITED 文案）→ 验证码 + 用户名 + 密码 + 学校/学院/专业/年级 → `POST /auth/register` → 跳回。
+- `hooks/useAuth.ts` 扩展：`useLogout()`（POST /auth/logout + 清 `['me']` + 跳首页）。
+- Nav「退出登录」接通 useLogout。
+- 表单复用原型 `.field/.input/.input-group/.card/.btn` 类，视觉与设计 token 一致（鉴权页为原型新增页）。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：`/login`、`/register` 均 200，表单字段齐全
+
+**遇到的问题**
+
+- `useSearchParams` 在 Next 14 静态页需 Suspense 包裹，改用 `window.location.search` 读 `from` 参数，避免额外 Suspense 包装。
+
+**下阶段是否受影响**
+
+- 无。F2 作品列表/详情直接复用 `apiFetch`/`useAuth`/common 组件。

@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import type { AuthUser } from '@/lib/types';
 
@@ -28,4 +29,19 @@ export function useAuth() {
 export function useInvalidateMe() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries({ queryKey: ['me'] });
+}
+
+export function useLogout() {
+  const qc = useQueryClient();
+  const router = useRouter();
+  return async () => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' });
+    } catch {
+      /* 忽略：本地已清态 */
+    }
+    qc.setQueryData(['me'], null);
+    qc.invalidateQueries({ queryKey: ['me'] });
+    router.push('/');
+  };
 }
