@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
 import { toast } from '@/stores/ui';
+import { useAuth } from '@/hooks/useAuth';
+import { Empty } from '@/components/common/Empty';
 
 type PendingWork = { id: string; title: string; course: string; author: { username: string } };
 type Report = {
@@ -20,14 +23,17 @@ type Report = {
 export default function AdminPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<'works' | 'reports'>('works');
+  const { user, isLoading: authLoading } = useAuth();
 
   const pending = useQuery({
     queryKey: ['admin', 'works', 'pending'],
     queryFn: () => apiFetch<PendingWork[]>('/admin/works/pending'),
+    enabled: user?.role === 'ADMIN',
   });
   const reports = useQuery({
     queryKey: ['admin', 'reports'],
     queryFn: () => apiFetch<Report[]>('/admin/reports'),
+    enabled: user?.role === 'ADMIN',
   });
 
   const audit = useMutation({
@@ -47,6 +53,40 @@ export default function AdminPage() {
       toast('已处理', 'ok');
     },
   });
+
+  if (authLoading) return <main className="page">加载中…</main>;
+  if (!user) {
+    return (
+      <main className="page">
+        <Empty
+          icon="🔒"
+          title="请先登录"
+          desc="管理后台需要登录后才能访问"
+          action={
+            <Link className="btn btn-primary" href="/login?from=/admin">
+              去登录
+            </Link>
+          }
+        />
+      </main>
+    );
+  }
+  if (user.role !== 'ADMIN') {
+    return (
+      <main className="page">
+        <Empty
+          icon="🚫"
+          title="需要管理员权限"
+          desc={`当前账号「${user.username}」不是管理员，无法访问管理后台`}
+          action={
+            <Link className="btn btn-primary" href="/">
+              返回首页
+            </Link>
+          }
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="page">
