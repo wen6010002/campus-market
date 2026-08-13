@@ -245,3 +245,35 @@
 **下阶段是否受影响**
 
 - F3 交易 UI 复用 `work/[id]` 页的「操作区」占位，接入 OrderModal/下载。B4 需先实现 order/payment 服务。
+
+---
+
+## 阶段 4 — 交易支付（B4）
+
+**做了什么**
+
+- `algos/income.ts`：`splitFee`（以「分」整数运算避免浮点误差）+ `settleAt`（T+7），纯函数。
+- `lib/zod/order.ts`：`createOrderSchema`（payMethod 枚举）。
+- `payment/*`：`crypto.ts`(RSA-SHA256 签名/验签 + AES-256-GCM 解密，node:crypto 自封)、`index.ts`(PayProvider 抽象 + `getProvider` 按 PAYMENT_MODE 分发)、`mock.ts`(下单即成功)、`wechat.ts`(v3 Native + 回调验签/解密，真实下单需部署时接商户号/证书)、`alipay.ts`(RSA2 电脑网站支付 + 回调验签)。
+- `services/order.service.ts`：`createOrder`(幂等：已购/已下载→access，PENDING 复用)、`pay`(二次发起)、`get`(查单)、`markPaid`(§8.2 支付成功事务：订单 PAID→Download→CreatorIncome→Wallet.pending→Work.downloads+→通知，幂等)、`download`(hasAccess 校验 + 免费首次计数 + presigned GET)。
+- 路由：`/works/[id]/order`、`/works/[id]/download`、`/orders/[id]`、`/orders/[id]/pay`、`/webhooks/pay/{wechat,alipay}`（失败不 ack 让提供方重试）。
+- 测试：`income.test.ts`(抽成/结算)、`payment-crypto.test.ts`(自签证书 RSA/AES 往返)、`order.service.test.ts`(mock 下单/幂等回调/下载权限/免费计数)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（47/47：9 文件）
+
+**遇到的问题**
+
+1. **支付回调幂等键设计**：`Order.transactionId`/`idempotencyKey` 均 unique，`markPaid` 先查 `payStatus==='PAID'` 早退，再写 PAID，天然幂等；`CreatorIncome.orderId` unique 兜底防重复收益。
+2. **收益的 creatorId 是 CreatorProfile.id 非用户 id**：`markPaid` 里 `work.authorId`(用户)→`creatorProfile.findUnique({userId})` 解析出 profile id 再写收益/钱包（B1 已预警，此处落地）。
+
+**反思（阶段 4 命题：回调验签失败如何排错？对账差异如何发现？）**
+
+- 验签失败：webhook 路由 `logger.error` 记整笔错误 + 返回非 200 不 ack，支付方会重试；验签/解密逻辑拆成纯函数（`crypto.ts`）可单独用自签证书单测。对账差异：`Order.transactionId` 唯一 + `idempotencyKey` 兜底，配合 B10 的 `pay-reconcile` 定时任务（`queryOrder` 查单兜底）可发现「支付方已付、我方未落账」的差异；对账脚本入口留待部署文档。
+
+**下阶段是否受影响**
+
+- F3 交易 UI 依赖 `createOrder` 返回的 `pay.provider` 分支（mock 立即成功 / wechat 二维码 / alipay 跳转）+ `orders/:id` 轮询，B4 已就绪。B5 评分复用 `Download`/`Order(PAID)` 做 hasAccess 资格判断。
