@@ -236,3 +236,39 @@ export interface Payout {
   completedAt: string | null;
   rejectedReason: string | null;
 }
+
+export interface WorkWithStats {
+  id: string;
+  title: string;
+  course: string;
+  coverIcon: string;
+  coverTheme: string;
+  isFree: boolean;
+  price: string;
+  status: WorkStatus;
+  quality: Quality;
+  rating: string;
+  ratingCount: number;
+  downloads: number;
+  favs: number;
+  views: number;
+  earnings: string;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatorDataWork {
+  id: string;
+  title: string;
+  views: number;
+  downloads: number;
+  favs: number;
+  rating: string;
+  price: string;
+  isFree: boolean;
+  earnings: string;
+}
+
+export interface CreatorData {
+  works: CreatorDataWork[];
+}

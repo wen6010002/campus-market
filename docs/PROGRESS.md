@@ -457,3 +457,35 @@
 **下阶段是否受影响**
 
 - F6 创作者中心/收益中心用 `income/creator` API；B8 搜索/排行/质量用 `Work` 的计数/评分字段。
+
+---
+
+## 阶段 7 — 创作者中心/收益/个人中心（F6）
+
+**做了什么**
+
+- `hooks/useIncome.ts`：`useIncomeSummary`/`useIncomeTransactions`/`usePayouts`/`usePayout`/`useCreatorOverview`/`useCreatorData`/`useMyWorks`。
+- `components/form/WithdrawModal.tsx`：提现（金额校验 ≤ 可提现余额 + 微信零钱）。
+- `/income`：4 卡(累计/本月/待结算/可提现) + Tab(收益明细/提现记录) + 提现弹窗。
+- `/creator-center`：概览(6 卡) + Tab(概览/我的作品含审核状态/数据中心)。
+- `/me`：侧边卡(用户信息+5 Tab 导航) + 内容(library/favs/orders/ratings/notif)。
+- `lib/types.ts` 补 `WorkWithStats`/`CreatorData` 类型。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：`/income`、`/creator-center`、`/me`、`/me?tab=orders` 均 200
+
+**遇到的问题**
+
+1. **`useSearchParams` 需 Suspense**：Next 14 静态页 `useSearchParams` 直接调用会报错，`/me` 用 `Suspense` 包裹 `MeContent`。
+2. **`WorkWithStats`/`CreatorData` 类型缺失**：types.ts 未定义，已补。
+
+**反思（阶段 7 命题：数据/明细/提现是否闭环？）**
+
+- 收益明细/提现记录来自 `income` API，提现走 `POST /me/income/payout`（B7 事务迁移钱包），提现后失效 `['income']` 刷新四卡与记录。闭环成立。
+
+**下阶段是否受影响**
+
+- F7 搜索/排行复用 `useWorks`（搜索）+ 榜单 hook；B8 需先实现 search/rank/quality service。
