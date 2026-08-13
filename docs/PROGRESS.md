@@ -489,3 +489,33 @@
 **下阶段是否受影响**
 
 - F7 搜索/排行复用 `useWorks`（搜索）+ 榜单 hook；B8 需先实现 search/rank/quality service。
+
+---
+
+## 阶段 8 — 搜索/排行/质量（B8）
+
+**做了什么**
+
+- `services/search.service.ts`：搜索作品(title/desc/course/tags `contains insensitive`) + 创作者(username/direction)，返回 `{works, creators, total}`。
+- `services/rank.service.ts`：`ranks(type)` — help(创作者按 Σ下载)、rate(按 rate 加权)、fav(作品按 favs)、creator(按 fans*works)，top6。
+- `services/quality.service.ts`：`refreshQuality` — NORMAL→HIGH（rating≥4.8 ∧ ratingCount≥20 ∧ downloads≥500），HIGH→NORMAL（跌破阈值，SELECTED 不自动动）。
+- 路由：`/search`、`/ranks/[type]`。
+- 测试：`search.service.test.ts`(标题/标签/创作者召回、排行榜、质量升降级)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（74/74：14 文件）
+
+**遇到的问题**
+
+1. **rank 返回联合类型**：fav 返回 `work`、其余返回 `creator`，测试断言 `help[0].creator` 需断言收窄（`as {creator?}`）。
+
+**反思（阶段 8 命题：pg_trgm 中文分词是否需 zhparser/jieba？）**
+
+- 现用 `contains insensitive` 做子串匹配，未加 pg_trgm；中文无分词下 `contains` 只能整段子串命中，无法「数据库 → 数据库期末押题」之外的语义召回。**结论：先 `contains` 满足功能，预留 pg_trgm（英文/前缀）+ Meilisearch/zhparser（中文分词）升级路径**。排行榜 Redis 缓存（TTL 1h）留待 B10 与定时任务一起落地，当前按需计算。
+
+**下阶段是否受影响**
+
+- F7 搜索/排行用 `/search`/`/ranks/:type`；B9 治理需 admin 审核/举报/提现审批 API。
