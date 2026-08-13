@@ -45,6 +45,31 @@ function safeParse(text: string): any {
   }
 }
 
+/** 分页端点：返回完整 { data, pagination } */
+export async function apiFetchPage<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{
+  data: T;
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}> {
+  const res = await fetch(`/api/v1${path}`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    ...init,
+  });
+  const json = safeParse(await res.text());
+  if (!res.ok) {
+    throw new ApiError(
+      json?.error?.code ?? 'INTERNAL',
+      res.status,
+      json?.error?.message ?? '请求失败',
+      json?.error?.details,
+    );
+  }
+  return { data: json?.data as T, pagination: json?.pagination };
+}
+
 /** 仅用于文件直传（二进制 PUT 到 presigned URL），不走 /api/v1 */
 export async function uploadFile(url: string, file: File, onProgress?: (pct: number) => void) {
   return new Promise<void>((resolve, reject) => {

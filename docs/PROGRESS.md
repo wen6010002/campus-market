@@ -213,3 +213,35 @@
 **下阶段是否受影响**
 
 - B4 交易依赖 `Work` 的 `isFree/price/status` 与「hasAccess」判断（Download/Order），B3 已把 myAccess 逻辑在详情里实现，B4 复用。B5 评分复用 `WORK_LIST_INCLUDE` 与聚合模式。
+
+---
+
+## 阶段 3 — 作品列表/详情（F2）
+
+**做了什么**
+
+- 组件：`work/WorkCard.tsx`(对应 `.work-card`)、`work/FineCard.tsx`(`.fine-card`)、`work/RatingBars.tsx`(`.rating-dist`)、`work/ReviewItem.tsx`(`.review-item`)，严格还原原型 workCard/fineCard/ratingDist/review-item 结构。
+- hooks：`useWorks`(分页列表，`apiFetchPage` 取完整 data+pagination)、`useWork`(详情)。
+- `lib/api/client.ts` 增 `apiFetchPage`（分页端点返回 `{data,pagination}`）。
+- 首页 `/`：今日免费推荐(WorkCard grid) + 精品专区(FineCard grid)，空态引导。
+- 作品详情 `/work/[id]`：面包屑 + 返回/分享/收藏/举报、左栏(封面 meta + 预览目录 + 评价分布 + 相关推荐)、右栏(信息卡 + 操作区占位 + 作者信任卡)，严格对齐 work.html 结构。
+- 下载/购买/评价按钮 F2 为占位 toast（F3/F4 接入真实交易/评分）。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：`/`、`/work/w_db1` 均 200（数据客户端加载，API 前序已验证）
+
+**遇到的问题**
+
+1. **RatingDist 索引类型**：`dist[String(star)]` 用 string 索引 `RatingDist` 报 TS7053。改用 `['5','4','3','2','1'] as const` 字符串键。
+2. **评价列表暂空**：种子未建 `WorkRating` 记录（B1 只落 Work 聚合字段），评价列表显示空态；B5 评分落地后列表才有数据。评分分布(RatingBars)从 `ratingDist` 正常渲染。
+
+**反思（阶段 3 命题：布局/预览/评分分布是否与原型一致？）**
+
+- WorkCard/FineCard 结构逐字段对齐原型；预览区用「目录 + 预览/可读」标记还原原型「前 2 页清晰、后续模糊」的语义（`previewOnly` 驱动），真实文件预览图留待后续接 MinIO 下载。评分分布横条与原型 `.rd-row/.bar` 一致。
+
+**下阶段是否受影响**
+
+- F3 交易 UI 复用 `work/[id]` 页的「操作区」占位，接入 OrderModal/下载。B4 需先实现 order/payment 服务。
