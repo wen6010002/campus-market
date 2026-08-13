@@ -23,7 +23,7 @@
 - ✅ `pnpm lint` 通过（0 警告 0 错误）
 - ✅ `pnpm test` 通过（3/3）
 - ✅ `pnpm dev` 启动，`/api/health` 返回 200，首页 200
-- ⏳ `docker compose up -d` 三服务 healthy —— **被本机 Docker Desktop 阻塞**（见下）
+- ✅ `docker compose up -d` 三服务 healthy（postgres/redis/minio 均 healthy，`createbuckets` 自动建桶 `campus-market`）
 
 **遇到的问题**
 
@@ -40,3 +40,37 @@
 **下阶段是否受影响**
 
 - 无。阶段 1（数据模型）只需 PG 可用；若 Docker 授权尚未完成，将先写 `prisma/schema.prisma` 与迁移 SQL，待引擎就绪再执行 `migrate`。
+
+---
+
+## 阶段 0 — 前端脚手架（F0）
+
+**做了什么**
+
+- `src/styles/globals.css`：原型 `assets/style.css`（743 行）**整体复制** + 末尾追加 next/font 注入块，设计 token/组件类零改动。
+- 字体：`next/font/google` 自托管 Plus Jakarta Sans + Noto Sans SC，注入 `--font-jakarta`/`--font-noto`，覆盖原型 Google Fonts `<link>`。
+- 路由结构：根 `layout.tsx`(html/body/字体/Providers) + `(site)/layout.tsx`(Nav+Footer) + `(site)/page.tsx`(占位首页)。
+- 前端基建：`lib/api/client.ts`(apiFetch/ApiError/uploadFile 直传)、`lib/api/errors.ts`(错误码→文案)、`lib/format.ts`(formatCny/formatNum/timeAgo)、`lib/icons.tsx`(原型 ICONS 提取 + Star)、`lib/types.ts`(契约 §3 共享类型，待 zod 落地后切换)。
+- 组件：`chrome/Nav.tsx`、`chrome/Footer.tsx`（严格还原原型 navHTML/footHTML，含登录/未登录态、未读红点、dropdown）；`common/`(Modal/ModalHead/ModalBody/ModalFoot、Toast、Stars、Stepper、Empty、Tabs、StatCard、Tag/Chip)。
+- 状态：`stores/ui.ts`(Zustand toast)、`app/providers.tsx`(QueryClient + ToastHost)、`hooks/useAuth.ts`(401→null 的登录态 hook，F1 完善)。
+- 目录按 `FRONTEND.md §2.2` 建好。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过（0 警告 0 错误）
+- ✅ `pnpm test` 通过（3/3）
+- ✅ `pnpm dev` 首页 200，next/font 自托管字体变量注入成功（HTML 含 `__variable_*`）
+
+**遇到的问题**
+
+1. **`.next` 缓存残留旧类型**：删除根 `page.tsx` 移入 `(site)/` 后，`.next/types/app/page.ts` 仍指向旧路径导致 typecheck 报 `TS2307`。已 `rm -rf .next` 解决。
+2. **根 page 与 (site) 路由冲突**：`src/app/page.tsx` 与 `src/app/(site)/page.tsx` 映射同一 URL `/`，两者并存会报错。已删除根 `page.tsx`。
+
+**反思（阶段 0 命题：布局/字体是否与原型像素级一致？）**
+
+- 样式整体复制保证 token 一致；next/font 自托管避免外网依赖且验证可加载。Nav 在「未登录」态额外增加登录/注册按钮（原型恒为已登录态），这是真实应用的必要扩展，不破坏视觉。
+
+**下阶段是否受影响**
+
+- `lib/types.ts` 是临时类型源，B1/B2 落地 zod 后需把 `import type` 切换到 `@/lib/zod/*` 的 `z.infer`，字段名已按契约对齐，切换成本低。
