@@ -74,3 +74,46 @@
 **下阶段是否受影响**
 
 - `lib/types.ts` 是临时类型源，B1/B2 落地 zod 后需把 `import type` 切换到 `@/lib/zod/*` 的 `z.infer`，字段名已按契约对齐，切换成本低。
+
+---
+
+## 阶段 1 — 数据模型（B1）
+
+**做了什么**
+
+- `prisma/schema.prisma`：全量 model + enum（User/StudentProfile/CreatorProfile/Work/Tag/WorkTag/WorkRating/RatingTag/WorkRatingTag/Comment/Order/Download/Follow/Favorite/Like/Dynamic/Wallet/CreatorIncome/Payout/Notification/Report/AuditLog/Achievement/UserAchievement/VerificationToken），金额 Decimal、计数冗余、软删除、唯一约束、索引齐全。
+- 迁移 `20260813070228_init` 已生成并应用到 dev 库。
+- `src/server/db.ts`：Prisma 单例。
+- `prisma/seed.ts`：生产种子（6 成就 + 10 评分标签 + 6 用户[5 创作者+演示用户温昊璇] + 20 作品 + 33 标签 + 演示用户社交态[关注/收藏/下载/订单/收益流水/通知]），幂等 upsert，数据沿用原型 app.js。
+- `prisma/seed.test.ts` + `tests/helpers/flush.ts` + `tests/integration/schema.test.ts`：测试种子 + 清表 + 行数/唯一约束测试。
+- 测试库 `campus_market_test` 已建并同步 schema。
+
+**测试清单结果**
+
+- ✅ `prisma generate` 通过（49 校验错误 → 修复后 0）
+- ✅ `prisma migrate dev --name init` 迁移应用成功
+- ✅ `pnpm db:seed` 完成（6 用户 / 20 作品 / 6 成就 / 10 标签 / 33 tags）
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（7/7：3 单测 + 4 集成；重复关注/评分/用户名均触发 P2002）
+
+**遇到的问题**
+
+1. **Prisma 枚举必须多行**：文档 §5.2 用单行简写（`enum Role { STUDENT CREATOR ADMIN }`），真实 Prisma 语法需每值一行。已全部展开。
+2. **本机 Homebrew PostgreSQL 占用 5432**：`localhost:5432` 被本机 PG(16.9) 抢占，Prisma 连到了非 docker 的库报 P1010「denied access」。已将 docker 宿主端口改为 **5433**（`5433:5432`），`.env`/`.env.example`/compose 注释同步。
+3. **文档 schema 的几处自身矛盾**（已按意图修正，非改表设计）：
+   - `Work` 同时有 `likes Int`(计数) 与 `likes Like[]`(关系) 重名 → 关系改名 `likes_rel Like[]`（与 `downloads_rel` 一致）。
+   - `Report.works Work[]`/`Work.reports Report[]` 试图用关系建模多态 target（WORK/COMMENT/USER）→ 移除，保留 `targetType+targetId` 字符串，反查走查询。
+   - `Payout` 同时外键到 `CreatorProfile` 与 `User` → 只保留 `CreatorProfile`（与 Wallet/CreatorIncome 一致），移除 `User.payouts`。
+   - `Dynamic.creator` 是 `User` 关系，但文档写在 `CreatorProfile.dynamics` → 移到 `User.dynamics`。
+   - `Account/Session`（JWT 策略下 DB adapter 可省）→ 省略，保留 `VerificationToken`。
+4. **`CreatorIncome.creatorId` 引用 `CreatorProfile.id` 而非用户 id**：种子首跑报 P2003。已先解析 `creatorProfile` 再建订单收益。这也提醒 B7 收益服务需统一「userId → creatorProfile.id」解析。
+
+**反思（阶段 1 命题：计数冗余是否齐全？索引是否覆盖列表查询？）**
+
+- 计数冗余：`rating/ratingCount/ratingDist/downloads/favs/likes/views` 均落 `Work` 字段（事务维护），符合「避免高频聚合」。
+- 索引：`Work(status,quality,publishedAt)`、`Work(authorId,status)`、`Work(course)`、`WorkRating(workId,createdAt)`、`Order(workId,payStatus)`/`Order(buyerId,createdAt)`、`Follow(followingId)`、`Notification(userId,read,createdAt)` 覆盖主要列表/详情/动态查询；`creator_incomes(status,settleAt)` 覆盖结算任务扫描。搜索（title/desc 模糊）留待 B8 加 `pg_trgm`。
+
+**下阶段是否受影响**
+
+- B2 鉴权需「userId → creatorProfile.id」解析能力，且种子用户当前是占位密码 hash（不可登录），B2 需为演示用户补真实 bcrypt hash（或独立 dev 登录入口）。

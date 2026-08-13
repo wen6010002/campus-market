@@ -7,7 +7,8 @@ services:
       POSTGRES_PASSWORD: cm
       POSTGRES_DB: campus_market
     ports:
-      - "5432:5432"
+      # 宿主端口 5433，避开本机常驻的 Homebrew PostgreSQL(5432)
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

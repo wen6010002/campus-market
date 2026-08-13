@@ -1,0 +1,550 @@
+// Campus Market — Prisma Schema（对应 BACKEND.md §5）
+// 设计原则：金额 Decimal(10,2)；计数落字段冗余；软删除 deletedAt；枚举用原生 enum；唯一约束防重。
+// 注：JWT 会话策略，不引入 Account/Session（DB adapter 可省）；VerificationToken 保留备用。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== 枚举 =====================
+enum Role {
+  STUDENT
+  CREATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
+enum EduVerifyStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum WorkStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+  TAKEN_DOWN
+}
+
+enum Quality {
+  NORMAL
+  HIGH
+  SELECTED
+}
+
+enum FileType {
+  PDF
+  DOC
+  DOCX
+  PPT
+  PPTX
+  ZIP
+  IMAGE
+  OTHER
+}
+
+enum PayMethod {
+  WECHAT
+  ALIPAY
+  MOCK
+}
+
+enum PayStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CLOSED
+  FAILED
+}
+
+enum OrderBizType {
+  PURCHASE
+}
+
+enum IncomeStatus {
+  PENDING
+  SETTLED
+  WITHDRAWN
+}
+
+enum PayoutStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum FollowStatus {
+  ACTIVE
+}
+
+enum ReportReason {
+  INFRINGEMENT
+  PIRACY
+  MISMATCH
+  PORN_GAMBLE_ILLEGAL
+  SPAM
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  PROCESSING
+  RESOLVED
+}
+
+enum ReportTargetType {
+  WORK
+  COMMENT
+  USER
+}
+
+enum AuditAction {
+  APPROVE
+  REJECT
+  TAKE_DOWN
+  REQUEST_CHANGES
+}
+
+enum DynamicType {
+  PUBLISH
+  UPDATE
+  CHECKIN
+}
+
+enum NotificationType {
+  FOLLOW_NEW_WORK
+  INCOME
+  ARRIVED
+  RATING_REPLIED
+  AUDIT_RESULT
+  SYSTEM
+}
+
+enum AchievementKey {
+  HELP_50
+  HELP_1000
+  FIRST_FIVE_STAR
+  WEEKLY_HOT
+  COLLEGE_EXCELLENT
+  FIRST_INCOME
+}
+
+// ===================== 用户与档案 =====================
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  username      String       @unique
+  passwordHash  String
+  passwordPepper String?
+  role          Role         @default(STUDENT)
+  status        UserStatus   @default(ACTIVE)
+  avatarColor   String       @default("#FF6B4A")
+  bannedAt      DateTime?
+  bannedReason  String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  student       StudentProfile?
+  creator       CreatorProfile?
+
+  works         Work[]       @relation("AuthoredWorks")
+  orders        Order[]      @relation("BuyerOrders")
+  downloads     Download[]
+  favorites     Favorite[]
+  likesWork     Like[]
+  follows       Follow[]     @relation("Follower")
+  followings    Follow[]     @relation("Following")
+  ratings       WorkRating[]
+  comments      Comment[]
+  notifications Notification[]
+  reports       Report[]     @relation("Reporter")
+  dynamics      Dynamic[]
+  achievements  UserAchievement[]
+  auditActions  AuditLog[]   @relation("AuditReviewer")
+
+  @@index([status])
+  @@map("users")
+}
+
+model StudentProfile {
+  id             String          @id @default(cuid())
+  userId         String          @unique
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eduEmail       String          @unique
+  school         String
+  college        String
+  major          String
+  grade          String
+  studentCardKey String?
+  verifyStatus   EduVerifyStatus @default(UNVERIFIED)
+  verifiedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  @@map("student_profiles")
+}
+
+model CreatorProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio        String   @db.VarChar(500)
+  direction  String
+  honor      String?
+  verified   Boolean  @default(false)
+  appliedAt  DateTime?
+  reviewedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  wallet    Wallet?
+  incomes   CreatorIncome[]
+  payouts   Payout[]
+
+  @@map("creator_profiles")
+}
+
+// ===================== 作品与内容 =====================
+model Work {
+  id               String      @id @default(cuid())
+  authorId         String
+  author           User        @relation("AuthoredWorks", fields: [authorId], references: [id])
+  title            String      @db.VarChar(120)
+  description      String      @db.VarChar(800)
+  course           String
+  fileType         FileType
+  fileKey          String
+  fileSize         Int
+  fileSha          String?
+  pages            Int         @default(0)
+  coverIcon        String      @default("📄")
+  coverTheme       String      @default("g-default")
+  isFree           Boolean     @default(true)
+  price            Decimal     @default(0) @db.Decimal(10, 2)
+  oldPrice         Decimal?    @db.Decimal(10, 2)
+  status           WorkStatus  @default(DRAFT)
+  quality          Quality     @default(NORMAL)
+  copyrightAccepted Boolean    @default(false)
+  applyMajor       String?
+  applyGrade       String?
+  applyCrowd       String?
+  previewToc       Json
+  rating           Decimal     @default(0) @db.Decimal(3, 1)
+  ratingCount      Int         @default(0)
+  ratingDist       Json        @default("{\"5\":0,\"4\":0,\"3\":0,\"2\":0,\"1\":0}")
+  downloads        Int         @default(0)
+  favs             Int         @default(0)
+  likes            Int         @default(0)
+  views            Int         @default(0)
+  publishedAt      DateTime?
+  rejectedReason   String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+
+  tags          WorkTag[]
+  ratings       WorkRating[]
+  comments      Comment[]
+  orders        Order[]
+  downloads_rel Download[]
+  favorites     Favorite[]
+  likes_rel     Like[]
+  dynamics      Dynamic[]
+  auditLogs     AuditLog[]
+
+  @@index([status, quality, publishedAt(sort: Desc)])
+  @@index([authorId, status])
+  @@index([course])
+  @@map("works")
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  works WorkTag[]
+  @@map("tags")
+}
+
+model WorkTag {
+  id     String @id @default(cuid())
+  workId String
+  tagId  String
+  work   Work   @relation(fields: [workId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id])
+  @@unique([workId, tagId])
+  @@map("work_tags")
+}
+
+// ===================== 评分与评论 =====================
+model WorkRating {
+  id           String    @id @default(cuid())
+  workId       String
+  userId       String
+  work         Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id])
+  stars        Int
+  text         String    @db.VarChar(600)
+  helpfulCount Int       @default(0)
+  creatorReply String?   @db.VarChar(600)
+  repliedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tags         WorkRatingTag[]
+  @@unique([workId, userId])
+  @@index([workId, createdAt(sort: Desc)])
+  @@map("work_ratings")
+}
+
+model RatingTag {
+  id         String          @id @default(cuid())
+  name       String          @unique
+  isPositive Boolean         @default(true)
+  ratings    WorkRatingTag[]
+  @@map("rating_tags")
+}
+
+model WorkRatingTag {
+  id       String     @id @default(cuid())
+  ratingId String
+  tagId    String
+  rating   WorkRating @relation(fields: [ratingId], references: [id], onDelete: Cascade)
+  tag      RatingTag  @relation(fields: [tagId], references: [id])
+  @@unique([ratingId, tagId])
+  @@map("work_rating_tags")
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  workId    String
+  userId    String
+  parentId  String?
+  content   String    @db.VarChar(600)
+  likes     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  work      Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  @@index([workId, createdAt(sort: Desc)])
+  @@map("comments")
+}
+
+// ===================== 交易与权限 =====================
+model Order {
+  id             String       @id @default(cuid())
+  workId         String
+  buyerId        String
+  bizType        OrderBizType @default(PURCHASE)
+  amount         Decimal      @db.Decimal(10, 2)
+  platformFee    Decimal      @db.Decimal(10, 2)
+  creatorAmount  Decimal      @db.Decimal(10, 2)
+  payMethod      PayMethod
+  payStatus      PayStatus    @default(PENDING)
+  transactionId  String?      @unique
+  idempotencyKey String?      @unique
+  paidAt         DateTime?
+  refundedAt     DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  work           Work         @relation(fields: [workId], references: [id])
+  buyer          User         @relation("BuyerOrders", fields: [buyerId], references: [id])
+  income         CreatorIncome?
+  @@index([workId, payStatus])
+  @@index([buyerId, createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  workId    String
+  userId    String
+  orderId   String?
+  ip        String?
+  createdAt DateTime @default(now())
+  work      Work     @relation(fields: [workId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  @@unique([workId, userId])
+  @@map("downloads")
+}
+
+// ===================== 社交 =====================
+model Follow {
+  id          String       @id @default(cuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  follower    User         @relation("Follower", fields: [followerId], references: [id])
+  following   User         @relation("Following", fields: [followingId], references: [id])
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  workId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  work      Work     @relation(fields: [workId], references: [id])
+  @@unique([userId, workId])
+  @@map("favorites")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  workId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  work      Work     @relation(fields: [workId], references: [id])
+  @@unique([userId, workId])
+  @@map("likes")
+}
+
+model Dynamic {
+  id        String      @id @default(cuid())
+  creatorId String
+  type      DynamicType
+  workId    String?
+  createdAt DateTime    @default(now())
+  creator   User        @relation(fields: [creatorId], references: [id])
+  work      Work?       @relation(fields: [workId], references: [id])
+  @@index([creatorId, createdAt(sort: Desc)])
+  @@map("dynamics")
+}
+
+// ===================== 创作者经济 =====================
+model Wallet {
+  id        String    @id @default(cuid())
+  creatorId String    @unique
+  balance   Decimal   @default(0) @db.Decimal(10, 2)
+  pending   Decimal   @default(0) @db.Decimal(10, 2)
+  withdrawn Decimal   @default(0) @db.Decimal(10, 2)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  creator   CreatorProfile @relation(fields: [creatorId], references: [id])
+  @@map("wallets")
+}
+
+model CreatorIncome {
+  id        String       @id @default(cuid())
+  creatorId String
+  orderId   String       @unique
+  amount    Decimal      @db.Decimal(10, 2)
+  status    IncomeStatus @default(PENDING)
+  settleAt  DateTime?
+  settledAt DateTime?
+  createdAt DateTime     @default(now())
+  creator   CreatorProfile @relation(fields: [creatorId], references: [id])
+  order     Order        @relation(fields: [orderId], references: [id])
+  @@index([status, settleAt])
+  @@map("creator_incomes")
+}
+
+model Payout {
+  id             String       @id @default(cuid())
+  creatorId      String
+  amount         Decimal      @db.Decimal(10, 2)
+  method         PayMethod    @default(WECHAT)
+  status         PayoutStatus @default(REQUESTED)
+  channelTxId    String?
+  requestedAt    DateTime     @default(now())
+  completedAt    DateTime?
+  rejectedReason String?
+  creator        CreatorProfile @relation(fields: [creatorId], references: [id])
+  @@index([creatorId, requestedAt(sort: Desc)])
+  @@map("payouts")
+}
+
+// ===================== 通知 / 举报 / 审核 / 成就 =====================
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  text      String
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, read, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model Report {
+  id         String           @id @default(cuid())
+  reporterId String
+  targetType ReportTargetType
+  targetId   String
+  reason     ReportReason
+  detail     String?          @db.VarChar(600)
+  status     ReportStatus     @default(OPEN)
+  handlerId  String?
+  handleNote String?
+  handledAt  DateTime?
+  createdAt  DateTime         @default(now())
+  reporter   User             @relation("Reporter", fields: [reporterId], references: [id])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String       @id @default(cuid())
+  workId     String
+  action     AuditAction
+  reviewerId String
+  note       String?
+  createdAt  DateTime     @default(now())
+  work       Work         @relation(fields: [workId], references: [id])
+  reviewer   User         @relation("AuditReviewer", fields: [reviewerId], references: [id])
+  @@index([workId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model Achievement {
+  id    String         @id @default(cuid())
+  key   AchievementKey @unique
+  emoji String
+  title String
+  users UserAchievement[]
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id])
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// ===================== Auth.js 备用（JWT 策略下可省 Account/Session） =====================
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expiresAt  DateTime
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
