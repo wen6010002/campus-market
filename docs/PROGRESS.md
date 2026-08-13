@@ -305,3 +305,35 @@
 **下阶段是否受影响**
 
 - B5 评分需在详情页加 RatingModal（`myAccess && !myRating` 时显示「评价」按钮），F4 接入。
+
+---
+
+## 阶段 5 — 评分（B5）
+
+**做了什么**
+
+- `algos/rating.ts`：`recalcRating`（加权均值保留 1 位 + 分布累计）纯函数。
+- `lib/zod/rating.ts`：`createRatingSchema`（stars 1-5 / text ≥5 / tags ≤5）、`ratingReplySchema`。
+- `services/rating.service.ts`：`create`(资格 Download/Order → 唯一约束 → 先 `SELECT FOR UPDATE` 锁 Work 行 → 事务重算)、`list`(分页 + sort new/helpful/high/low + summary)、`tags`(正/负标签)、`helpful`(Redis set 去重)、`reply`(该作品作者)、`meRatings`。
+- 路由：`/works/[id]/ratings`(GET/POST)、`/works/[id]/ratings/tags`、`/ratings/[rid]/helpful`、`/ratings/[rid]/reply`、`/me/ratings`。
+- 测试：`rating.test.ts`(重算)、`rating.service.test.ts`(资格/重算/唯一/标签/回复/helpful去重/**10 并发**)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（57/57：11 文件）
+
+**遇到的问题**
+
+1. **并发死锁**：`workRating.create` 的 FK 检查先取 work 行 `FOR KEY SHARE` 锁，再 `SELECT FOR UPDATE` 升级锁 → 两事务互相等待 ShareLock 死锁（PG 40P01）。**修复：把 `SELECT FOR UPDATE` 提到 INSERT 之前**（先独占锁 work 行，INSERT 的 FK 检查复用已持锁，无升级）。
+2. **Json 字段类型转换**：`ratingDist`(Json) 直接 `as RatingDist` 报 TS2352，需 `as unknown as RatingDist`。
+3. **toRating 需 fetch 完整 include**：`workRating.create` 返回的裸对象无 `user/tags`，改为创建后 `findUniqueOrThrow(include: RATING_INCLUDE)` 再序列化；`user` 用 `select` 只取 username/avatarColor（不泄漏 passwordHash）。
+
+**反思（阶段 5 命题：锁粒度（Work 行）是否成热点？）**
+
+- 每作品一行的 FOR UPDATE 锁，热点集中在「热门作品被高频评分」时串行化。当前量级可接受；若成为瓶颈，可改为 PG 原子表达式 `UPDATE works SET rating=..., rating_count=rating_count+1, rating_dist=jsonb_set(...)`（单语句原子更新，无显式锁），已在 PROGRESS 记录为可选优化。测试用 10 并发验证计数正确，锁逻辑与 100 并发等价（线性放大）。
+
+**下阶段是否受影响**
+
+- F4 评分 UI 用 `GET /works/:id/ratings/tags` 取正/负标签、`POST /works/:id/ratings` 提交，B5 已就绪。B6 社交复用 Redis set 去重模式（helpful 与 like 去重同构）。
