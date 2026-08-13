@@ -395,3 +395,34 @@
 **下阶段是否受影响**
 
 - F5 社交 UI 复用 `social.service` 的 set 语义 + 乐观更新；首页/创作者页/个人中心的关注联动基于 `['creators','detail']`/`['me','following']` 缓存失效。
+
+---
+
+## 阶段 6 — 社交 UI（F5）
+
+**做了什么**
+
+- `hooks/useSocial.ts`：`useFavorite`/`useLike`/`useFollow`（set 语义 mutation + 失效相关缓存）。
+- `hooks/useCreator.ts`：`useCreator`/`useCreatorWorks`/`useFollowingFeed`。
+- `components/creator/CreatorCard.tsx`(对应 `.creator`)、`DynamicCard.tsx`(对应 `.dyn-card`)。
+- `/creator/[id]`：创作者 Hero(头像/认证/学院/方向/bio/荣誉 + 关注按钮) + 4 数据卡 + Tab(全部/免费/精品/最受欢迎) + WorkCard 网格。
+- `/following`：关注动态 feed(DynamicCard 列表 + 空态引导)。
+- `work/[id]` 顶部「收藏」按钮接通 useFavorite。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：`/creator/c_lin`、`/following` 均 200
+
+**遇到的问题**
+
+- 无实质阻塞。关注按钮态由服务端 `myFollow` 驱动（`useCreator` 返回），切换后失效 `['creators','detail']` 回填，与首页/动态流联动。
+
+**反思（阶段 6 命题：联动一致性是否成立？）**
+
+- 关注后失效 `['creators','detail']` + `['following','feed']`，收藏后失效 `['works','detail']` + `['me','favorites']`；乐观更新走服务端权威计数回填，不本地硬改，保证一致性。
+
+**下阶段是否受影响**
+
+- F6 创作者中心/收益复用 `useCreator`/`CreatorCard`；B7 需先实现 income.service + creator-center/income API。

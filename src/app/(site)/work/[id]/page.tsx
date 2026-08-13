@@ -15,6 +15,7 @@ import { OrderModal } from '@/components/form/OrderModal';
 import { RatingModal } from '@/components/form/RatingModal';
 import { useDownload } from '@/hooks/useOrder';
 import { useRatings } from '@/hooks/useRatings';
+import { useFavorite } from '@/hooks/useSocial';
 import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
 import { toast } from '@/stores/ui';
@@ -30,6 +31,7 @@ export default function WorkDetailPage() {
   const [reviewSort, setReviewSort] = useState('new');
   const download = useDownload(id);
   const ratings = useRatings(id, reviewSort);
+  const favorite = useFavorite(id);
 
   const related = useQuery({
     queryKey: ['works', 'related', id],
@@ -87,7 +89,7 @@ export default function WorkDetailPage() {
           <button className="btn btn-light btn-sm" onClick={() => toast('链接已复制', 'ok')}>
             分享
           </button>
-          <button className="btn btn-light btn-sm" onClick={() => toast('收藏功能开发中')}>
+          <button className="btn btn-light btn-sm" onClick={() => favorite.mutate(!work.myFav)}>
             {work.myFav ? '♥ 已收藏' : '♡ 收藏'}
           </button>
           <button
