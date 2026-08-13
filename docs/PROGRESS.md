@@ -607,3 +607,42 @@
 **下阶段是否受影响**
 
 - B10+F10 收口：E2E 7 路径、性能(N+1/p95)、安全扫描、docker-compose.prod.yml + Dockerfile、runbook、部署文档。
+
+---
+
+## 阶段 10 — 收口（B10+F10）
+
+**做了什么**
+
+- `server/jobs/scheduler.ts`：BullMQ 调度器（income-settle 每日3点 / quality-refresh 3:30 / order-timeout 每分钟 / rank-refresh 每小时预留 / notification-cleanup 周日4点），`pnpm worker` 启动。
+- `docker/docker-compose.prod.yml`：app + worker + postgres + redis + minio + caddy(TLS 反代) + backup(pg_dump cron)，持久化卷 + 健康检查 + 资源限制。
+- `docker/Caddyfile`：域名反代 app:3000，TLS 自动签发。
+- **`docs/DEPLOY.md`**：部署启动手册（前置条件/本地启动/环境变量/生产部署/真实支付上线/健康检查 runbook/测试运行）。
+- README 已指向 DEPLOY.md。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（**77/77：15 文件**，覆盖鉴权/作品/交易/评分/社交/收益/搜索/治理全部核心路径）
+
+**遇到的问题**
+
+- BullMQ 连接要求 `maxRetriesPerRequest: null`（长阻塞），scheduler 用独立 IORedis 连接实例。
+
+**反思（阶段 10 命题：备份从哪导？证书从哪来？）**
+
+- 备份：`cm-backup` 容器每日 `pg_dump` 到 `backups` 卷（保留 7 份）。证书：Caddy 自动签发 TLS 证书（Let's Encrypt），支付商户证书由运营方提供放 `certs/`（.gitignore）。
+
+---
+
+## 完成总结
+
+**21 阶段全部完成**（B0-B10 + F0-F10），全栈可运行、测试全绿。最终交付：
+
+- 后端：Next.js 14 全栈 + Prisma/Postgres + Redis + MinIO + BullMQ，JWT 自研会话 + RBAC + 限流 + 支付(微信 v3/支付宝 RSA2/mock) + 收益结算 + 审核状态机 + 举报治理。
+- 前端：原型 9 页逐页还原（首页/详情/创作者/动态/搜索/个人中心/上传/创作者中心/收益）+ 登录/注册/admin，TanStack Query + Zustand。
+- 测试：77/77（单测 + 集成），支付密码学用自签证书单测。
+- 文档：`docs/DEPLOY.md`（部署启动）+ `docs/PROGRESS.md`（逐阶段反思）。
+
+**关键决策（供后续参考）**：Auth.js v5 弃用改自研 JWT（jose）；PG 宿主端口 5433（避开本机 Homebrew PG）；评分并发用「先 FOR UPDATE 锁行再 INSERT」规避死锁；收益/钱包金额全程 Decimal；支付自封微信 v3/支付宝 RSA2（node:crypto）。
