@@ -547,3 +547,33 @@
 **下阶段是否受影响**
 
 - B9 治理（举报/审核/封号）后 F8+F9 做发布流程 + admin 后台。
+
+---
+
+## 阶段 9 — 治理（B9）
+
+**做了什么**
+
+- `services/report.service.ts`：`create`(举报→OPEN)、`adminList`(举报队列)、`adminHandle`(处置 status/note)。
+- `services/admin.service.ts`：`auditPayout`(complete→到账 / reject→**回滚钱包** balance+/withdrawn-)、`auditCreator`(认证审核 verified)。
+- 路由：`/reports`(POST)、`/admin/reports`(GET)、`/admin/reports/[id]`(POST)、`/admin/payouts/[id]`(POST)、`/admin/creators/[id]/audit`(POST)。
+- 版权强制在 B3 已做（`copyrightAccepted` 必填）；封号拦截在 B2 已做（登录 `status==='BANNED'`→FORBIDDEN）。
+- 测试：`report.service.test.ts`(举报/处置/提现拒绝回滚/创作者认证)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（77/77：15 文件）
+
+**遇到的问题**
+
+- 无实质阻塞。提现拒绝回滚用 `$transaction`（wallet balance+/withdrawn- + payout REJECTED），金额走 Decimal 运算。
+
+**反思（阶段 9 命题：举报阈值如何配置化？）**
+
+- 当前举报人工处置（无自动阈值），符合「人工审核」定位；重复侵权/自动下架策略可配置化（如「同 target 累计 N 次 OPEN→自动下架」），留待部署阶段作为策略开关。审计日志 B3 已落 `AuditLog`（作品审核），提现/举报处置暂未写独立 audit 表，可后续补。
+
+**下阶段是否受影响**
+
+- F8 发布流程（上传 presign + 5 步 stepper + 提交审核）依赖 B3 的 upload/work API + B9 的 admin 审核；F9 admin 后台用 B9 的 reports/payouts/creators 审核 API。
