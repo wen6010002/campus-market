@@ -1,0 +1,312 @@
+import { prisma } from '../db';
+import { appError } from '../lib/errors';
+
+const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
+
+/** 收藏（幂等 set：value=true 收藏 / false 取消） */
+async function setFavorite(userId: string, workId: string, value: boolean) {
+  return prisma.$transaction(async (tx) => {
+    const work = await tx.work.findFirst({ where: { id: workId, deletedAt: null } });
+    if (!work) throw appError('NOT_FOUND', '作品不存在');
+    const existing = await tx.favorite.findUnique({ where: { userId_workId: { userId, workId } } });
+    if (value && !existing) {
+      await tx.favorite.create({ data: { userId, workId } });
+      await tx.work.update({ where: { id: workId }, data: { favs: { increment: 1 } } });
+    } else if (!value && existing) {
+      await tx.favorite.delete({ where: { userId_workId: { userId, workId } } });
+      await tx.work.update({ where: { id: workId }, data: { favs: { decrement: 1 } } });
+    }
+    return {
+      favorited: value,
+      favs: (await tx.work.findUniqueOrThrow({ where: { id: workId } })).favs,
+    };
+  });
+}
+
+/** 点赞（幂等 set） */
+async function setLike(userId: string, workId: string, value: boolean) {
+  return prisma.$transaction(async (tx) => {
+    const work = await tx.work.findFirst({ where: { id: workId, deletedAt: null } });
+    if (!work) throw appError('NOT_FOUND', '作品不存在');
+    const existing = await tx.like.findUnique({ where: { userId_workId: { userId, workId } } });
+    if (value && !existing) {
+      await tx.like.create({ data: { userId, workId } });
+      await tx.work.update({ where: { id: workId }, data: { likes: { increment: 1 } } });
+    } else if (!value && existing) {
+      await tx.like.delete({ where: { userId_workId: { userId, workId } } });
+      await tx.work.update({ where: { id: workId }, data: { likes: { decrement: 1 } } });
+    }
+    return {
+      liked: value,
+      likes: (await tx.work.findUniqueOrThrow({ where: { id: workId } })).likes,
+    };
+  });
+}
+
+/** 关注（幂等 set） */
+async function setFollow(userId: string, creatorId: string, value: boolean) {
+  return prisma.$transaction(async (tx) => {
+    const creator = await tx.user.findUnique({ where: { id: creatorId } });
+    if (!creator) throw appError('NOT_FOUND', '创作者不存在');
+    if (creatorId === userId) throw appError('CONFLICT', '不能关注自己');
+    const existing = await tx.follow.findUnique({
+      where: { followerId_followingId: { followerId: userId, followingId: creatorId } },
+    });
+    const fans = () => tx.follow.count({ where: { followingId: creatorId } });
+    if (value && !existing) {
+      await tx.follow.create({ data: { followerId: userId, followingId: creatorId } });
+    } else if (!value && existing) {
+      await tx.follow.delete({
+        where: { followerId_followingId: { followerId: userId, followingId: creatorId } },
+      });
+    }
+    return { followed: value, fans: await fans() };
+  });
+}
+
+const CREATOR_INCLUDE = { creator: true, student: true };
+
+export const socialService = {
+  favorite: (userId: string, workId: string) => setFavorite(userId, workId, true),
+  unfavorite: (userId: string, workId: string) => setFavorite(userId, workId, false),
+  like: (userId: string, workId: string) => setLike(userId, workId, true),
+  unlike: (userId: string, workId: string) => setLike(userId, workId, false),
+  follow: (userId: string, creatorId: string) => setFollow(userId, creatorId, true),
+  unfollow: (userId: string, creatorId: string) => setFollow(userId, creatorId, false),
+
+  /** 关注动态 feed（聚合关注创作者的最新动态） */
+  async followingFeed(userId: string) {
+    const follows = await prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+    const ids = follows.map((f) => f.followingId);
+    if (!ids.length) return [];
+    const dynamics = await prisma.dynamic.findMany({
+      where: { creatorId: { in: ids } },
+      include: {
+        creator: { include: { creator: true, student: true } },
+        work: {
+          include: { author: { include: { creator: true } }, tags: { include: { tag: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+    return dynamics.map((d) => ({
+      id: d.id,
+      type: d.type,
+      createdAt: d.createdAt.toISOString(),
+      creator: {
+        id: d.creator.id,
+        username: d.creator.username,
+        avatarColor: d.creator.avatarColor,
+        bio: d.creator.creator?.bio ?? '',
+        direction: d.creator.creator?.direction ?? '',
+        honor: d.creator.creator?.honor ?? null,
+        college: d.creator.student?.college ?? '',
+        major: d.creator.student?.major ?? '',
+        verified: d.creator.creator?.verified ?? false,
+        helped: 0,
+        fans: 0,
+        works: 0,
+        rate: '0.0',
+      },
+      work: d.work
+        ? {
+            id: d.work.id,
+            title: d.work.title,
+            description: d.work.description,
+            course: d.work.course,
+            fileType: d.work.fileType,
+            fileSize: d.work.fileSize,
+            pages: d.work.pages,
+            coverIcon: d.work.coverIcon,
+            coverTheme: d.work.coverTheme,
+            isFree: d.work.isFree,
+            price: d.work.price.toFixed(2),
+            oldPrice: d.work.oldPrice?.toFixed(2) ?? null,
+            quality: d.work.quality,
+            status: d.work.status,
+            rating: ratingStr(d.work.rating),
+            ratingCount: d.work.ratingCount,
+            downloads: d.work.downloads,
+            favs: d.work.favs,
+            likes: d.work.likes,
+            views: d.work.views,
+            tags: d.work.tags.map((t) => t.tag.name),
+            author: {
+              id: d.work.author.id,
+              username: d.work.author.username,
+              avatarColor: d.work.author.avatarColor,
+              verified: d.work.author.creator?.verified ?? false,
+            },
+            publishedAt: d.work.publishedAt?.toISOString() ?? null,
+            updatedAt: d.work.updatedAt.toISOString(),
+          }
+        : undefined,
+    }));
+  },
+
+  /** 我的收藏（分页） */
+  async myFavorites(userId: string, page: number, pageSize: number) {
+    const where = { userId };
+    const [total, favorites] = await Promise.all([
+      prisma.favorite.count({ where }),
+      prisma.favorite.findMany({
+        where,
+        include: {
+          work: {
+            include: { author: { include: { creator: true } }, tags: { include: { tag: true } } },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return {
+      data: favorites.map((f) => {
+        const w = f.work;
+        return {
+          id: w.id,
+          title: w.title,
+          description: w.description,
+          course: w.course,
+          fileType: w.fileType,
+          fileSize: w.fileSize,
+          pages: w.pages,
+          coverIcon: w.coverIcon,
+          coverTheme: w.coverTheme,
+          isFree: w.isFree,
+          price: w.price.toFixed(2),
+          oldPrice: w.oldPrice?.toFixed(2) ?? null,
+          quality: w.quality,
+          status: w.status,
+          rating: ratingStr(w.rating),
+          ratingCount: w.ratingCount,
+          downloads: w.downloads,
+          favs: w.favs,
+          likes: w.likes,
+          views: w.views,
+          tags: w.tags.map((t) => t.tag.name),
+          author: {
+            id: w.author.id,
+            username: w.author.username,
+            avatarColor: w.author.avatarColor,
+            verified: w.author.creator?.verified ?? false,
+          },
+          publishedAt: w.publishedAt?.toISOString() ?? null,
+          updatedAt: w.updatedAt.toISOString(),
+        };
+      }),
+      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
+  },
+
+  /** 创作者详情 */
+  async creatorDetail(creatorId: string, viewerId?: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: creatorId },
+      include: CREATOR_INCLUDE,
+    });
+    if (!user) throw appError('NOT_FOUND', '创作者不存在');
+
+    const [helped, fans, works, avgRating, myFollow] = await Promise.all([
+      prisma.work.aggregate({ where: { authorId: creatorId }, _sum: { downloads: true } }),
+      prisma.follow.count({ where: { followingId: creatorId } }),
+      prisma.work.count({ where: { authorId: creatorId, status: 'PUBLISHED', deletedAt: null } }),
+      prisma.work.aggregate({
+        where: { authorId: creatorId, ratingCount: { gt: 0 } },
+        _avg: { rating: true },
+      }),
+      viewerId
+        ? prisma.follow.findUnique({
+            where: { followerId_followingId: { followerId: viewerId, followingId: creatorId } },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      id: user.id,
+      username: user.username,
+      avatarColor: user.avatarColor,
+      bio: user.creator?.bio ?? '',
+      direction: user.creator?.direction ?? '',
+      honor: user.creator?.honor ?? null,
+      college: user.student?.college ?? '',
+      major: user.student?.major ?? '',
+      verified: user.creator?.verified ?? false,
+      helped: helped._sum.downloads ?? 0,
+      fans,
+      works,
+      rate: ratingStr(avgRating._avg.rating ?? 0),
+      myFollow: !!myFollow,
+    };
+  },
+
+  /** 创作者作品（filter=free|fine|hot） */
+  async creatorWorks(creatorId: string, filter?: string) {
+    const where: any = { authorId: creatorId, status: 'PUBLISHED', deletedAt: null };
+    if (filter === 'free') where.isFree = true;
+    if (filter === 'fine') where.isFree = false;
+    const orderBy =
+      filter === 'hot' ? [{ downloads: 'desc' as const }] : [{ publishedAt: 'desc' as const }];
+    const works = await prisma.work.findMany({
+      where,
+      include: { author: { include: { creator: true } }, tags: { include: { tag: true } } },
+      orderBy,
+      take: 50,
+    });
+    return works.map((w) => ({
+      id: w.id,
+      title: w.title,
+      description: w.description,
+      course: w.course,
+      fileType: w.fileType,
+      fileSize: w.fileSize,
+      pages: w.pages,
+      coverIcon: w.coverIcon,
+      coverTheme: w.coverTheme,
+      isFree: w.isFree,
+      price: w.price.toFixed(2),
+      oldPrice: w.oldPrice?.toFixed(2) ?? null,
+      quality: w.quality,
+      status: w.status,
+      rating: ratingStr(w.rating),
+      ratingCount: w.ratingCount,
+      downloads: w.downloads,
+      favs: w.favs,
+      likes: w.likes,
+      views: w.views,
+      tags: w.tags.map((t) => t.tag.name),
+      author: {
+        id: w.author.id,
+        username: w.author.username,
+        avatarColor: w.author.avatarColor,
+        verified: w.author.creator?.verified ?? false,
+      },
+      publishedAt: w.publishedAt?.toISOString() ?? null,
+      updatedAt: w.updatedAt.toISOString(),
+    }));
+  },
+
+  /** 创作者统计 */
+  async creatorStats(creatorId: string) {
+    const [helped, fans, works, avgRating] = await Promise.all([
+      prisma.work.aggregate({ where: { authorId: creatorId }, _sum: { downloads: true } }),
+      prisma.follow.count({ where: { followingId: creatorId } }),
+      prisma.work.count({ where: { authorId: creatorId, status: 'PUBLISHED', deletedAt: null } }),
+      prisma.work.aggregate({
+        where: { authorId: creatorId, ratingCount: { gt: 0 } },
+        _avg: { rating: true },
+      }),
+    ]);
+    return {
+      helped: helped._sum.downloads ?? 0,
+      fans,
+      works,
+      avgRating: ratingStr(avgRating._avg.rating ?? 0),
+    };
+  },
+};

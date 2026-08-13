@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { headObject } from '../storage/minio';
+import { notifyService } from './notify.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
 import { WorkStatus, Quality } from '@/lib/constants';
 
@@ -340,6 +341,11 @@ export const workService = {
       });
       return w;
     });
+
+    // 上架：写 Dynamic(PUBLISH) + 通知粉丝
+    if (action === 'APPROVE') {
+      await notifyService.onWorkPublished(work.authorId, work.id, work.title);
+    }
 
     return toListItem(
       await prisma.work.findUniqueOrThrow({

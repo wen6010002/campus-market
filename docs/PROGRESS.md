@@ -364,3 +364,34 @@
 **下阶段是否受影响**
 
 - B6 社交后 F5 接收藏/关注/点赞全局联动；详情页顶部「收藏」按钮仍是占位，F5 接通。
+
+---
+
+## 阶段 6 — 社交（B6）
+
+**做了什么**
+
+- `services/notify.service.ts`：`createNotification`/`createDynamic`/`onWorkPublished`(Dynamic(PUBLISH) + 通知粉丝)。
+- `services/social.service.ts`：`favorite`/`unfavorite`/`like`/`unlike`/`follow`/`unfollow`(**幂等 set 语义**，POST=确保收藏/DELETE=确保取消，事务保证计数一致)、`followingFeed`(关注动态聚合)、`myFavorites`(分页)、`creatorDetail`(helped/fans/works/rate/myFollow 聚合)、`creatorWorks`(free/fine/hot)、`creatorStats`。
+- `work.service.adminAudit` APPROVE 接通 `notifyService.onWorkPublished`（上架写动态+通知粉丝）。
+- 路由：`/works/[id]/{favorite,like}`(POST/DELETE)、`/creators/[id]/{follow,works,stats}`、`/creators/[id]`、`/me/following/feed`、`/me/favorites`。
+- 测试：`social.service.test.ts`(切换幂等/计数一致/关注自己 CONFLICT/动态推送/通知生成/feed)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（63/63：12 文件）
+
+**遇到的问题**
+
+1. **收藏/关注/点赞是「幂等 set」而非「toggle」**：契约 §0.4「重复收藏返回 favorited:true」，前端 POST/DELETE 分离。初版写成 toggle 会在重复 POST 时反向取消，已改为 setFavorite/setLike/setFollow(value)，POST=true/DELETE=false。
+2. **followingFeed 的 include 漏 student**：动态里 creator 需 college/major，`include` 漏 `student:true` 报 TS2339。
+
+**反思（阶段 6 命题：关注流大粉丝量下的分页性能？）**
+
+- `followingFeed` 用 `creatorId IN (关注列表)` 查 Dynamic，`Dynamic(creatorId, createdAt desc)` 索引覆盖；当前 take=30 无游标分页。大粉丝量（关注数百创作者）时 IN 列表变长，可改为「粉丝时间线物化（发布时写 feed 表）」或游标分页，留待 B10 性能优化。
+
+**下阶段是否受影响**
+
+- F5 社交 UI 复用 `social.service` 的 set 语义 + 乐观更新；首页/创作者页/个人中心的关注联动基于 `['creators','detail']`/`['me','following']` 缓存失效。
