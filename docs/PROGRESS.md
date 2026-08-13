@@ -179,3 +179,37 @@
 **下阶段是否受影响**
 
 - 无。F2 作品列表/详情直接复用 `apiFetch`/`useAuth`/common 组件。
+
+---
+
+## 阶段 3 — 作品（B3）
+
+**做了什么**
+
+- `server/storage/minio.ts`：S3 兼容客户端 + presignPut/presignGet/headObject（MinIO）。
+- `services/upload.service.ts`：presign（类型白名单 + 200MB 上限 + `works/{userId}/{uuid}.{ext}` 生成 fileKey）。
+- `lib/zod/work.ts`：`WorkInput`（title/desc/course/fileType/fileKey/fileSize/tags≤5/previewToc/copyrightAccepted + 金额字符串正则）+ `WorkQuery`（分页/过滤/排序 complex|hot|rate|new|price）。
+- `services/work.service.ts`：list(仅 PUBLISHED + 过滤/排序)、get(浏览+1 + myFav/myAccess/myRating/author 聚合)、create(DRAFT + 版权强制)、update(owner + 仅 DRAFT/REJECTED)、publish(headObject 校验 + PENDING)、remove(软删)、related(同作者/同标签)、adminPending、adminAudit(状态机 + AuditLog)。
+- 路由：`/works`(GET/POST)、`/works/[id]`(GET/PUT/DELETE)、`/works/[id]/publish`、`/works/[id]/related`、`/uploads/presign`、`/admin/works/pending`、`/admin/works/[id]/audit`。
+- 测试：`upload.service.test.ts`(类型/大小校验) + `work.service.test.ts`(版权/CRUD 权限/状态机/列表/浏览计数)，mock MinIO。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（36/36：6 文件）
+- ✅ `pnpm dev` 冒烟：`GET /works`(分页/过滤/排序 + 金额字符串/评分 1 位小数)、`GET /works/:id`(详情 + 聚合 author)
+
+**遇到的问题**
+
+1. **`Request` 类型无 `nextUrl`**：`withErrorHandler` 用原生 `Request`，`req.nextUrl` 是 Next 的 `NextRequest` 专有属性。改用 `new URL(req.url).searchParams`。
+2. **`AuditLog.reviewerId` FK 需有效用户**：测试早期传了不存在的 `admin_x` 触发 P2003。审核服务层不校验角色（角色在 `requireAdmin` 路由层校验），reviewerId 只需有效 User id。
+3. **`WORK_LIST_INCLUDE` 需含 student**：author 聚合里的 `college/major` 来自 StudentProfile，`as const` 冻结后 include 里漏了 `student:true` 导致 TS 报 `student` 不存在。
+
+**反思（阶段 3 命题：列表复合排序 SQL 是否走索引？）**
+
+- `Work(status,quality,publishedAt)` 联合索引覆盖「status 过滤 + quality 排序 + publishedAt 排序」的 complex/new 排序；`Work(course)` 覆盖 course 过滤。但 `downloads/rating` 排序（hot/rate）无索引（非选择性列，PG 不会用索引排序，走 seq scan + sort 对小到中量数据可接受；大表可加 `(status,downloads desc)` 部分索引）。搜索模糊 `contains` 未走索引，留待 B8 加 `pg_trgm`。
+
+**下阶段是否受影响**
+
+- B4 交易依赖 `Work` 的 `isFree/price/status` 与「hasAccess」判断（Download/Order），B3 已把 myAccess 逻辑在详情里实现，B4 复用。B5 评分复用 `WORK_LIST_INCLUDE` 与聚合模式。
