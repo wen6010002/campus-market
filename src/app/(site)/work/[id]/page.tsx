@@ -1,14 +1,17 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useState } from 'react';
 import { useWork } from '@/hooks/useWork';
 import { apiFetch } from '@/lib/api/client';
 import { Stars } from '@/components/common/Stars';
 import { RatingBars } from '@/components/work/RatingBars';
 import { FineCard } from '@/components/work/FineCard';
 import { Empty } from '@/components/common/Empty';
+import { OrderModal } from '@/components/form/OrderModal';
+import { useDownload } from '@/hooks/useOrder';
 import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
 import { toast } from '@/stores/ui';
@@ -17,7 +20,10 @@ import type { WorkListItem } from '@/lib/types';
 export default function WorkDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const qc = useQueryClient();
   const { data: work, isLoading } = useWork(id);
+  const [orderOpen, setOrderOpen] = useState(false);
+  const download = useDownload(id);
 
   const related = useQuery({
     queryKey: ['works', 'related', id],
@@ -44,6 +50,15 @@ export default function WorkDetailPage() {
 
   const qb =
     work.quality === 'SELECTED' ? '🏅 平台精选' : work.quality === 'HIGH' ? '⭐ 高评分' : '';
+
+  function doDownload() {
+    download.mutate(undefined, {
+      onSuccess: (result) => {
+        toast('下载已开始', 'ok');
+        window.open(result.url, '_blank');
+      },
+    });
+  }
 
   return (
     <main className="page" style={{ paddingTop: 18 }}>
@@ -242,16 +257,17 @@ export default function WorkDetailPage() {
             </div>
             <div className="info-actions">
               {work.isFree ? (
-                <button
-                  className="btn btn-mint btn-block btn-lg"
-                  onClick={() => toast('下载功能开发中（F3 完成）')}
-                >
+                <button className="btn btn-mint btn-block btn-lg" onClick={doDownload}>
                   {work.myAccess ? '再次下载' : '免费下载'}
+                </button>
+              ) : work.myAccess ? (
+                <button className="btn btn-primary btn-block btn-lg" onClick={doDownload}>
+                  下载作品
                 </button>
               ) : (
                 <button
                   className="btn btn-primary btn-block btn-lg"
-                  onClick={() => toast('购买功能开发中（F3 完成）')}
+                  onClick={() => setOrderOpen(true)}
                 >
                   ¥{work.price} 立即购买
                 </button>
@@ -319,6 +335,16 @@ export default function WorkDetailPage() {
           </div>
         </div>
       </div>
+
+      <OrderModal
+        open={orderOpen}
+        work={work}
+        onClose={() => setOrderOpen(false)}
+        onSuccess={() => {
+          setOrderOpen(false);
+          qc.invalidateQueries({ queryKey: ['works', 'detail', id] });
+        }}
+      />
     </main>
   );
 }

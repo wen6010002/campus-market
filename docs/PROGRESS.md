@@ -277,3 +277,31 @@
 **下阶段是否受影响**
 
 - F3 交易 UI 依赖 `createOrder` 返回的 `pay.provider` 分支（mock 立即成功 / wechat 二维码 / alipay 跳转）+ `orders/:id` 轮询，B4 已就绪。B5 评分复用 `Download`/`Order(PAID)` 做 hasAccess 资格判断。
+
+---
+
+## 阶段 4 — 交易 UI（F3）
+
+**做了什么**
+
+- `hooks/useOrder.ts`：`useCreateOrder`(下单 mutation)、`useOrder`(订单轮询：非终态每 2s 刷新)、`useDownload`(下载 + 失效详情缓存)。
+- `components/form/OrderModal.tsx`：支付方式选择(微信/支付宝) + 实付金额 + `pay.provider` 分支（mock→立即成功、wechat→二维码占位、alipay→跳转），对应原型 openPurchase。
+- `work/[id]/page.tsx` 操作区接通：免费→`doDownload`(下载+window.open presigned URL)、付费未购→OrderModal、已购→下载作品；购买成功后失效 `['works','detail',id]` 回填 myAccess。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：登录 demo → mock 下单（幂等返回 access:true）→ 下载返回真实 MinIO presigned URL
+
+**遇到的问题**
+
+- 无实质阻塞。`useDownload.mutate(undefined, { onSuccess })` 回调拿到的 result 类型需 `DownloadResult`，已正确标注。
+
+**反思（阶段 4 命题：mock 购买全链路是否完整？）**
+
+- 完整：OrderModal 选支付 → `POST /works/:id/order`（后端 mock 已同步完成 8.2 事务）→ `pay.provider==='mock'` 前端视为成功 → 失效详情 → 按钮变「下载作品」→ `POST /works/:id/download` 拿 presigned URL。wechat 二维码渲染留待生产（需真实 codeUrl）。
+
+**下阶段是否受影响**
+
+- B5 评分需在详情页加 RatingModal（`myAccess && !myRating` 时显示「评价」按钮），F4 接入。
