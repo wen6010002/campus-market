@@ -426,3 +426,34 @@
 **下阶段是否受影响**
 
 - F6 创作者中心/收益复用 `useCreator`/`CreatorCard`；B7 需先实现 income.service + creator-center/income API。
+
+---
+
+## 阶段 7 — 创作者经济（B7）
+
+**做了什么**
+
+- `services/income.service.ts`：`summary`(total/month/pending/withdrawable)、`transactions`(收益流水含作品/买家)、`payout`(余额校验 + 事务迁移 wallet balance-→withdrawn+ + 建 Payout)、`payouts`、`settleDueIncomes`(PENDING+settleAt<=now → SETTLED + wallet pending-→balance+)。
+- `services/creator.service.ts`：`overview`(helped/income/fans/avgRating/works/freeWorks/fineWorks)、`works`(含审核状态+收益)、`data`(作品表现)。
+- `services/me.service.ts`：`library`(all/bought/download/fav/rated)、`orders`、`notifications`、`markAllRead`。
+- 路由：`/me/creator/{overview,works,data}`、`/me/income/{summary,transactions,payout,payouts}`、`/me/{library,orders,notifications}`、`/me/notifications/read-all`。
+- 测试：`income.service.test.ts`(汇总/结算迁移/提现超额/余额内提现/非创作者 FORBIDDEN)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（68/68：13 文件）
+
+**遇到的问题**
+
+1. **Work 无 income 关系**：`Work` 与 `CreatorIncome` 无直接关系（收益挂在 `Order.income`），`creator.service.works()` 误写 `include:{income}` 报 TS2353，已移除（收益走 `CreatorIncome.aggregate where order.workId`）。
+2. **CreatorIncome.orderId FK**：测试直接给不存在的 orderId 报 P2003，需先建 Order 再建收益（收益始终来自订单）。
+
+**反思（阶段 7 命题：Decimal 运算精度）**
+
+- 金额全程 Prisma `Decimal(10,2)`，`splitFee` 用「分」整数运算，`settleDueIncomes`/`payout` 用 `decrement/increment` 走 DB Decimal 运算，不做 JS 浮点加减；`money()`/`toFixed(2)` 仅序列化用。结论：无浮点精度问题。
+
+**下阶段是否受影响**
+
+- F6 创作者中心/收益中心用 `income/creator` API；B8 搜索/排行/质量用 `Work` 的计数/评分字段。
