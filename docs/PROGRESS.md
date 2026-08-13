@@ -519,3 +519,31 @@
 **下阶段是否受影响**
 
 - F7 搜索/排行用 `/search`/`/ranks/:type`；B9 治理需 admin 审核/举报/提现审批 API。
+
+---
+
+## 阶段 8 — 搜索/排行 UI（F7）
+
+**做了什么**
+
+- `hooks/useSearch.ts`：`useSearch`(q)、`useRank`(type)。
+- `/search`：读 `?q=`，Tab(全部/资料/创作者) + 结果网格(WorkCard/CreatorCard) + 空态。
+- 首页 `/` 增加「排行榜」分区：Tab(助人/好评/收藏/创作者) + 榜单列表(rank + 头像 + 指标)。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：`/search?q=数据库` 200（编码后），搜索 API 召回 w_db1，首页含榜单 200
+
+**遇到的问题**
+
+- curl 直传中文 query 未编码导致 400，是 curl 端问题，非代码；`encodeURIComponent` 后正常。
+
+**反思（阶段 8 命题：筛选/排序/榜单是否可用？）**
+
+- 搜索按 q 召回作品+创作者；首页榜单用 `useRank` 切 4 榜。质量徽标在 WorkCard 已展示（F2 完成），HIGH/SELECTED 徽标由 `quality` 字段驱动，与 B8 quality.service 一致。
+
+**下阶段是否受影响**
+
+- B9 治理（举报/审核/封号）后 F8+F9 做发布流程 + admin 后台。
