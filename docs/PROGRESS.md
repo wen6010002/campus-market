@@ -117,3 +117,39 @@
 **下阶段是否受影响**
 
 - B2 鉴权需「userId → creatorProfile.id」解析能力，且种子用户当前是占位密码 hash（不可登录），B2 需为演示用户补真实 bcrypt hash（或独立 dev 登录入口）。
+
+---
+
+## 阶段 2 — 鉴权（B2）
+
+**做了什么**
+
+- **鉴权方案决策**：未采用 Auth.js v5 runtime。Auth.js v5 beta 在 Next 14 App Router 下（credentials provider + 自定义 `/api/v1/auth/*` 端点 + RSC session 注入）摩擦大，且契约暴露的是自定义端点而非 Auth.js 端点。按文档授权回退，用 **`jose` 自研 JWT 会话**（httpOnly cookie `cm_token`、SameSite=Lax、生产 Secure、HS256、载荷 `{userId, role, creatorProfileId}`），完全对齐契约。移除 `next-auth`/`@auth/core`（死依赖）。
+- `server/lib/*`：`errors.ts`(ErrorCode 全量 + AppError + httpStatus 映射)、`redis.ts`(ioredis 单例)、`ratelimit.ts`(Redis 原子 Lua 滑动窗口)、`mailer.ts`(nodemailer + mailhog)、`logger.ts`(pino 脱敏)、`http.ts`(withErrorHandler/ok/okPage/readJson)。
+- `server/auth/*`：`password.ts`(bcrypt cost=12 + pepper)、`verify-code.ts`(Redis 6 位码 TTL10min + edu 正则)、`session.ts`(jose sign/verify + getSession/requireUser/requireCreator/requireAdmin)、`rbac.ts`(权限矩阵)。
+- `lib/zod/common.ts` + `lib/zod/auth.ts`：分页/排序/枚举 + 鉴权请求响应 schema（即契约）。
+- `services/auth.service.ts`：sendCode(防枚举)/register/login(防枚举统一文案+封号拦截)/applyCreator/buildAuthUser。
+- 路由：`/api/v1/auth/{send-code,register,login,logout,me}` + `/api/v1/me/creator/apply`。
+- `middleware.ts`：`/api/v1` 粗粒度首道防线（公开路由放行，其余无 cookie → 401）。
+- 种子：演示账号 `demo@szu.edu.cn` / `demo1234`（真实 bcrypt hash，供联调/E2E）。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm test` 通过（25/25：3 单测文件 + 2 集成文件）
+- ✅ `pnpm dev` 冒烟：登录 demo 账号返回 AuthUser + set-cookie，`me` 带 cookie 成功、无 cookie 401，非 edu 邮箱 send-code 返回 NOT_EDU
+
+**遇到的问题**
+
+1. **Auth.js v5 弃用**：见上「鉴权方案决策」。`next/headers` 的 `cookies()` 只在请求上下文可用，故 session.ts 里 `signSession/verifySession`（纯 JWT）与 `getSession`（读 cookie）同文件，但单元测试只 import 前者，无 Next 上下文问题。
+2. **种子 `passwordPepper` 残留**：首版种子给用户写了 `passwordPepper:'seed'`，登录按 per-user pepper 校验导致与全局 pepper 哈希不匹配（INVALID_CREDENTIAL）。已把 `update` 子句补 `passwordPepper:null` + email 更新，重跑种子修复。
+3. **edu 正则只支持一级子域名**：契约 `^[^@]+@([a-zA-Z0-9-]+\.)?edu\.cn$` 匹配 `x@szu.edu.cn` 但不匹配 `x@cs.tsinghua.edu.cn`（两级）。按契约原样实现，测试预期已对齐。
+
+**反思（阶段 2 命题：JWT 续期策略是否会并发丢会话？）**
+
+- 当前会话固定 7 天、无滑动续期。并发请求同时触发续期不会丢会话（JWT 是无状态签名，写 cookie 是幂等的「覆盖写」，不存在读-改-写竞态）；但会多一次重签。**结论：不丢会话，只是冗余重签**。滑动续期（剩余 <1/3 时重签）留待 B10 统一实现。
+
+**下阶段是否受影响**
+
+- B3 作品依赖 `requireCreator()`（已就绪）与「userId → creatorProfile.id」解析（`requireCreator` 已返回 `creatorProfileId`）。上传 presign 的权限走 `hasPermission(role,'upload')` + `requireCreator`。

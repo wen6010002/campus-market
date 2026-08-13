@@ -1,5 +1,6 @@
 // 生产种子：学校/学院/专业（落 StudentProfile 字段）+ Achievement 字典 + 评分标签 + 5 示例创作者 + 作品。
 // 幂等：全部 upsert，可重复执行。数据沿用原型 campus-market-v3/assets/app.js。
+import 'dotenv/config';
 import {
   PrismaClient,
   Role,
@@ -9,8 +10,12 @@ import {
   PayStatus,
   IncomeStatus,
 } from '@prisma/client';
+import { hashPassword } from '../src/server/auth/password';
 
 const prisma = new PrismaClient();
+
+// 演示账号统一密码：demo1234（供前端联调/E2E 登录）
+export const DEMO_PASSWORD = 'demo1234';
 
 // ---------- 工具 ----------
 function toBytes(s: string): number {
@@ -765,23 +770,27 @@ async function main() {
   }
 
   // 3. 创作者 + 演示用户
+  const demoHash = await hashPassword(DEMO_PASSWORD);
   const users = [...CREATORS, DEMO_USER];
   for (const c of users) {
     const isDemo = c.id === 'u0';
     await prisma.user.upsert({
       where: { id: c.id },
-      update: {},
+      update: {
+        passwordHash: demoHash,
+        passwordPepper: null,
+        email: isDemo ? 'demo@szu.edu.cn' : `${c.id}@stu.edu.cn`,
+      },
       create: {
         id: c.id,
-        email: `${c.id}@stu.edu.cn`,
+        email: isDemo ? 'demo@szu.edu.cn' : `${c.id}@stu.edu.cn`,
         username: c.name,
-        passwordHash: '$2a$12$seedplaceholderhashnotforloginseedplaceholder', // 占位，不可登录
-        passwordPepper: 'seed',
-        role: isDemo ? Role.CREATOR : Role.CREATOR,
+        passwordHash: demoHash,
+        role: Role.CREATOR,
         avatarColor: c.color,
         student: {
           create: {
-            eduEmail: `${c.id}@stu.edu.cn`,
+            eduEmail: isDemo ? 'demo@szu.edu.cn' : `${c.id}@stu.edu.cn`,
             school: '深圳大学',
             college: c.college,
             major: c.major,
@@ -922,7 +931,8 @@ async function main() {
       link: '/income',
     },
   ]) {
-    await prisma.notification.create({ data: { userId: 'u0', ...n } });
+    const exists = await prisma.notification.findFirst({ where: { userId: 'u0', text: n.text } });
+    if (!exists) await prisma.notification.create({ data: { userId: 'u0', ...n } });
   }
 
   const counts = {

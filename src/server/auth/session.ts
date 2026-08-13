@@ -1,0 +1,80 @@
+import { SignJWT, jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
+import { prisma } from '../db';
+import { appError } from '../lib/errors';
+import type { Role } from '@/lib/constants';
+
+const COOKIE = process.env.JWT_COOKIE_NAME ?? 'cm_token';
+const SECRET = new TextEncoder().encode(
+  process.env.AUTH_SECRET ?? 'dev-secret-32-bytes-minimum-length',
+);
+const SESSION_DAYS = 7;
+
+export interface Session {
+  userId: string;
+  role: Role;
+  creatorProfileId?: string;
+}
+
+export async function signSession(s: Session): Promise<string> {
+  return new SignJWT({ role: s.role, creatorProfileId: s.creatorProfileId })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(s.userId)
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_DAYS}d`)
+    .sign(SECRET);
+}
+
+export async function verifySession(token: string): Promise<Session | null> {
+  try {
+    const { payload } = await jwtVerify(token, SECRET);
+    if (!payload.sub) return null;
+    return {
+      userId: payload.sub,
+      role: payload.role as Role,
+      creatorProfileId: payload.creatorProfileId as string | undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 从 cookie 解析当前会话（不查库，仅 JWT 声明） */
+export async function getSession(): Promise<Session | null> {
+  const token = cookies().get(COOKIE)?.value;
+  if (!token) return null;
+  return verifySession(token);
+}
+
+export async function requireUser(): Promise<Session> {
+  const s = await getSession();
+  if (!s) throw appError('UNAUTHENTICATED', '请先登录');
+  return s;
+}
+
+export async function requireAdmin(): Promise<Session> {
+  const s = await requireUser();
+  if (s.role !== 'ADMIN') throw appError('FORBIDDEN', '需要管理员权限');
+  return s;
+}
+
+/** 要求创作者：角色≥CREATOR 且 CreatorProfile.verified=true（ADMIN 直接放行） */
+export async function requireCreator(): Promise<Session & { creatorProfileId: string }> {
+  const s = await requireUser();
+  if (s.role === 'ADMIN') return { ...s, creatorProfileId: s.creatorProfileId ?? '' };
+  if (s.role !== 'CREATOR') throw appError('FORBIDDEN', '需要创作者权限');
+  const cp = await prisma.creatorProfile.findUnique({ where: { userId: s.userId } });
+  if (!cp || !cp.verified) throw appError('FORBIDDEN', '创作者尚未认证');
+  return { ...s, creatorProfileId: cp.id };
+}
+
+/** 会话 cookie 配置（httpOnly + SameSite=Lax + 生产 Secure） */
+export const sessionCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: SESSION_DAYS * 24 * 60 * 60,
+};
+
+export const SESSION_COOKIE = COOKIE;
