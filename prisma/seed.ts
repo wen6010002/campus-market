@@ -11,11 +11,38 @@ import {
   IncomeStatus,
 } from '@prisma/client';
 import { hashPassword } from '../src/server/auth/password';
+import { putObject, objectExists } from '../src/server/storage/minio';
 
 const prisma = new PrismaClient();
 
 // 演示账号统一密码：demo1234（供前端联调/E2E 登录）
 export const DEMO_PASSWORD = 'demo1234';
+
+/** 生成最小合法 PDF（种子作品占位文件，下载后可正常打开） */
+function makeDemoPdf(): Buffer {
+  const stream = 'BT /F1 20 Tf 72 720 Td (Campus Market - Demo File) Tj ET';
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n',
+    `4 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  for (const obj of objects) {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += obj;
+  }
+  const xref = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 0; i < objects.length; i++) {
+    pdf += `${String(offsets[i + 1]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
 
 // ---------- 工具 ----------
 function toBytes(s: string): number {
@@ -881,6 +908,11 @@ async function main() {
         publishedAt: new Date('2026-08-01T00:00:00Z'),
       },
     });
+    // 上传占位文件（幂等：已存在则跳过），否则下载会报 NoSuchKey
+    const seedFileKey = `works/seed/${w.id}.pdf`;
+    if (!(await objectExists(seedFileKey))) {
+      await putObject(seedFileKey, makeDemoPdf(), 'application/pdf');
+    }
     // 作品标签
     for (const t of w.tags) {
       const tag = await prisma.tag.upsert({ where: { name: t }, update: {}, create: { name: t } });

@@ -37,4 +37,29 @@ export async function headObject(key: string) {
   return s3.send(cmd);
 }
 
+/** 直接上传对象（种子/测试用） */
+export async function putObject(
+  key: string,
+  content: string | Buffer,
+  contentType = 'application/octet-stream',
+) {
+  const cmd = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: typeof content === 'string' ? Buffer.from(content, 'utf8') : content,
+    ContentType: contentType,
+  });
+  return s3.send(cmd);
+}
+
+/** 判断对象是否存在 */
+export async function objectExists(key: string): Promise<boolean> {
+  try {
+    await headObject(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const S3_BUCKET = bucket;
