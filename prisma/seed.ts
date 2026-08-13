@@ -813,6 +813,31 @@ async function main() {
     });
   }
 
+  // 管理员账号（供 admin 后台联调）
+  await prisma.user.upsert({
+    where: { id: 'u_admin' },
+    update: { passwordHash: demoHash },
+    create: {
+      id: 'u_admin',
+      email: 'admin@szu.edu.cn',
+      username: '平台管理员',
+      passwordHash: demoHash,
+      role: Role.ADMIN,
+      avatarColor: '#1A1D23',
+      student: {
+        create: {
+          eduEmail: 'admin@szu.edu.cn',
+          school: '深圳大学',
+          college: '平台运营',
+          major: '-',
+          grade: '-',
+          verifyStatus: 'VERIFIED',
+          verifiedAt: new Date(),
+        },
+      },
+    },
+  });
+
   // 4. 作品 + 标签
   for (const w of WORKS) {
     await prisma.work.upsert({

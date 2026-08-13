@@ -577,3 +577,33 @@
 **下阶段是否受影响**
 
 - F8 发布流程（上传 presign + 5 步 stepper + 提交审核）依赖 B3 的 upload/work API + B9 的 admin 审核；F9 admin 后台用 B9 的 reports/payouts/creators 审核 API。
+
+---
+
+## 阶段 9 — 发布/后台（F8+F9）
+
+**做了什么**
+
+- `hooks/useUpload.ts`：`usePresign`/`useCreateWork`/`usePublishWork`。
+- `/upload`：文件选择 → presign 直传(进度) → 标题/简介/课程/标签/定价(免费|精品)/版权勾选 → createWork(DRAFT) → publishWork(PENDING) → 跳创作者中心。
+- `/admin`：Tab(待审核作品：通过/驳回；举报队列：处置)。
+- 种子补管理员账号 `admin@szu.edu.cn` / `demo1234`（供 admin 后台联调）。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+- ✅ `pnpm dev` 冒烟：`/upload`、`/admin` 均 200
+- ✅ `pnpm db:seed` 重跑（7 用户，含管理员）
+
+**遇到的问题**
+
+- 发布流程把原型 5 步 stepper 收敛为「文件 + 表单 + 提交」单页（功能等价：上传→信息→定价→版权→提交），AI 完善步原型即 mock，未实现。
+
+**反思（阶段 9 命题：发布→审核→上架闭环是否成立？）**
+
+- 成立：`/upload` 提交 → DRAFT → PENDING（admin/works/pending 可见）→ admin APPROVE → PUBLISHED（B3 状态机 + B6 Dynamic/通知粉丝）。提现审批在 admin 后台暂未做 UI（无 GET /admin/payouts 列表端点），后端已就绪。
+
+**下阶段是否受影响**
+
+- B10+F10 收口：E2E 7 路径、性能(N+1/p95)、安全扫描、docker-compose.prod.yml + Dockerfile、runbook、部署文档。
