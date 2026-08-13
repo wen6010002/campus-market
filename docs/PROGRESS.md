@@ -337,3 +337,30 @@
 **下阶段是否受影响**
 
 - F4 评分 UI 用 `GET /works/:id/ratings/tags` 取正/负标签、`POST /works/:id/ratings` 提交，B5 已就绪。B6 社交复用 Redis set 去重模式（helpful 与 like 去重同构）。
+
+---
+
+## 阶段 5 — 评分 UI（F4）
+
+**做了什么**
+
+- `hooks/useRatings.ts`：`useRatings`(评价列表 + sort)、`useRatingTags`(正/负标签)、`useCreateRating`(提交 + 失效详情/列表/我的评价)。
+- `components/form/RatingModal.tsx`：星级(Stars clickable + hover)、文字(≥5 字)、pos/neg 标签多选、提交后失效回填，对应原型 openRating。
+- `work/[id]/page.tsx` 评价区接通：评价列表(ReviewItem + sort Tab new/helpful/high/low)、`myAccess && !myRating` 显示「写一个评价」、`myRating` 显示已评状态。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` 通过
+- ✅ `pnpm lint` 通过
+
+**遇到的问题**
+
+- 星级交互初版用手写 span 循环 + 双重 Stars 渲染冗余，改用 Stars 组件的 `clickable/onChange/onHover` 能力，`value={hover ?? stars}` 一次搞定。
+
+**反思（阶段 5 命题：评分资格/重算显示是否一致？）**
+
+- 提交后 `useCreateRating` 失效 `['works','detail']`+`['works',id,'ratings']`+`['me','ratings']`，详情均值/分布/人数从服务端回填（B5 事务重算），前端不本地算，保证一致。
+
+**下阶段是否受影响**
+
+- B6 社交后 F5 接收藏/关注/点赞全局联动；详情页顶部「收藏」按钮仍是占位，F5 接通。

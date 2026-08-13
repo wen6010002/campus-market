@@ -9,9 +9,12 @@ import { apiFetch } from '@/lib/api/client';
 import { Stars } from '@/components/common/Stars';
 import { RatingBars } from '@/components/work/RatingBars';
 import { FineCard } from '@/components/work/FineCard';
+import { ReviewItem } from '@/components/work/ReviewItem';
 import { Empty } from '@/components/common/Empty';
 import { OrderModal } from '@/components/form/OrderModal';
+import { RatingModal } from '@/components/form/RatingModal';
 import { useDownload } from '@/hooks/useOrder';
+import { useRatings } from '@/hooks/useRatings';
 import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
 import { toast } from '@/stores/ui';
@@ -23,7 +26,10 @@ export default function WorkDetailPage() {
   const qc = useQueryClient();
   const { data: work, isLoading } = useWork(id);
   const [orderOpen, setOrderOpen] = useState(false);
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [reviewSort, setReviewSort] = useState('new');
   const download = useDownload(id);
+  const ratings = useRatings(id, reviewSort);
 
   const related = useQuery({
     queryKey: ['works', 'related', id],
@@ -174,8 +180,44 @@ export default function WorkDetailPage() {
               </div>
               <RatingBars dist={work.ratingDist} total={work.ratingCount} />
             </div>
+            {work.myAccess && !work.myRating ? (
+              <div style={{ margin: '6px 0 14px' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => setRatingOpen(true)}>
+                  ⭐ 写一个评价
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--ink-soft)', marginLeft: 10 }}>
+                  只有下载/购买过的同学才能评价，确保评分真实可信。
+                </span>
+              </div>
+            ) : work.myRating ? (
+              <div style={{ margin: '6px 0 14px', fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                你已评价 <b style={{ color: 'var(--pri-600)' }}>{work.myRating.stars} 分</b> ·
+                感谢反馈
+              </div>
+            ) : null}
+            <div className="tabs" style={{ marginBottom: 6 }}>
+              {(['new', 'helpful', 'high', 'low'] as const).map((s) => (
+                <button
+                  key={s}
+                  className={`tab-btn ${reviewSort === s ? 'active' : ''}`}
+                  onClick={() => setReviewSort(s)}
+                >
+                  {s === 'new'
+                    ? '最新'
+                    : s === 'helpful'
+                      ? '最有帮助'
+                      : s === 'high'
+                        ? '评分最高'
+                        : '评分最低'}
+                </button>
+              ))}
+            </div>
             <div className="review-list">
-              <Empty icon="✍️" title="还没有评价" desc="成为第一个评价的人吧" />
+              {ratings.data?.length ? (
+                ratings.data.map((r) => <ReviewItem key={r.id} rating={r} />)
+              ) : (
+                <Empty icon="✍️" title="还没有评价" desc="成为第一个评价的人吧" />
+              )}
             </div>
           </div>
 
@@ -344,6 +386,13 @@ export default function WorkDetailPage() {
           setOrderOpen(false);
           qc.invalidateQueries({ queryKey: ['works', 'detail', id] });
         }}
+      />
+      <RatingModal
+        open={ratingOpen}
+        workId={work.id}
+        workTitle={work.title}
+        onClose={() => setRatingOpen(false)}
+        onSuccess={() => setRatingOpen(false)}
       />
     </main>
   );
