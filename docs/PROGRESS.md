@@ -646,3 +646,39 @@
 - 文档：`docs/DEPLOY.md`（部署启动）+ `docs/PROGRESS.md`（逐阶段反思）。
 
 **关键决策（供后续参考）**：Auth.js v5 弃用改自研 JWT（jose）；PG 宿主端口 5433（避开本机 Homebrew PG）；评分并发用「先 FOR UPDATE 锁行再 INSERT」规避死锁；收益/钱包金额全程 Decimal；支付自封微信 v3/支付宝 RSA2（node:crypto）。
+
+---
+
+# 版本二（V2）
+
+## V2-1 — 真实支付与退款
+
+**做了什么**
+
+- `payment/index.ts`：`PayProvider` 新增 `refund(input)`；`OrderSnapshot` 加 `title`（下单 body 的商品描述/标题）。
+- `payment/wechat.ts`：`wechatRequest`（fetch + `WECHATPAY2-SHA256-RSA2048` Authorization 签名头）、`createOrder` 真正调 `/v3/pay/transactions/native`（金额单位分）、`verifyNotify` **补全验签**（未配平台证书直接拒绝，不留跳过分支）、`queryOrder` 查单、`refund` 退款。
+- `payment/alipay.ts`：`buildAlipayMessage`（纯函数，key ASCII 升序拼待签串）、`createOrder` 真正构建 `alipay.trade.page.pay` 表单 + RSA2 签名返回 redirectUrl、`queryOrder`、`refund`。
+- `payment/mock.ts`：补 `refund`。
+- `services/order.service.ts`：`refund(orderId, userId, {reason, isAdmin})` 区分自助退款（未下载 + 24h 内，否则 `REFUND_NOT_ALLOWED`）/ 平台退款（管理员任意已购可退），事务：订单 REFUNDED → 撤销下载权 → 冲减收益（PENDING 冲 pending / SETTLED 冲 balance）→ 通知买家。
+- 错误码 `REFUND_NOT_ALLOWED`（402）。
+- 前端 `OrderModal`：接入 `qrcode` 二维码收银台（微信 code_url → 二维码 + `useOrder` 轮询到 PAID 自动成功；支付宝跳转 redirectUrl；mock 现逻辑）。
+- 路由：`POST /orders/[id]/refund`。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` + `pnpm lint` 通过
+- ✅ `pnpm test` 通过（82/82）：新增签名串格式单测（微信待签串 / 支付宝待签串排序）+ mock 退款集成（自助退款已下载→REFUND_NOT_ALLOWED、平台退款→REFUNDED+撤销下载+冲减收益、未支付→ORDER_CLOSED）
+
+**遇到的问题**
+
+1. **useEffect 依赖 warning**：轮询成功回调 `onClose/onSuccess` 是内联函数，直接进依赖数组会每次重注册；改用 `useRef` 存最新回调，依赖只留 `payStatus`。
+2. **微信下单金额单位**：微信 v3 金额单位是「分」，`Math.round(amount*100)` 转换；支付宝是「元」字符串 `toFixed(2)`，两套单位不能混（已分别处理）。
+
+**反思（V2-1 命题：回调验签失败如何排错？退款时序如何防钱包负数？）**
+
+- 验签失败：webhook 路由 `logger.error` 记整笔 + 返回非 200 不 ack，支付方重试；验签/解密纯函数化可自签证书单测。
+- 退款时序：退款前先查 `CreatorIncome.status`——PENDING 冲 `Wallet.pending`、SETTLED 冲 `Wallet.balance`、已 WITHDRAWN 不再冲（提现后不退收益）；事务内完成，保证钱包不为负。
+
+**下阶段是否受影响**
+
+- V2-2 性能优化独立；真实支付仍需商户号（见 VERSION2.md 0.4.1），本地/E2E 继续 `PAYMENT_MODE=mock`。

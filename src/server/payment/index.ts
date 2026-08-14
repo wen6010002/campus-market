@@ -18,7 +18,15 @@ export interface NotifyResult {
 export interface OrderSnapshot {
   id: string;
   amount: number;
+  title: string; // 商品标题（下单 body 的 description/subject）
   payMethod: PayMethod;
+}
+
+export interface RefundInput {
+  orderId: string; // 商户订单号
+  transactionId: string; // 第三方流水
+  amount: number; // 退款金额（元）
+  reason?: string;
 }
 
 export interface PayProvider {
@@ -28,6 +36,8 @@ export interface PayProvider {
   verifyNotify(req: Request): Promise<NotifyResult>;
   /** 主动查单 */
   queryOrder(outTradeNo: string): Promise<'PAID' | 'PENDING' | 'CLOSED' | 'FAILED'>;
+  /** 退款 */
+  refund(input: RefundInput): Promise<{ refundId: string }>;
   /** 应答字符串（回调后返回给支付方） */
   ack(): { body: string; contentType: string };
 }

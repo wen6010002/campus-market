@@ -1,4 +1,4 @@
-import type { PayProvider, PayParams, NotifyResult } from './index';
+import type { PayProvider, PayParams, NotifyResult, RefundInput } from './index';
 
 /** mock 支付：下单即成功（本地/E2E）。 */
 export const mockProvider: PayProvider = {
@@ -10,6 +10,9 @@ export const mockProvider: PayProvider = {
   },
   async queryOrder(): Promise<'PAID' | 'PENDING' | 'CLOSED' | 'FAILED'> {
     return 'PAID';
+  },
+  async refund(input: RefundInput): Promise<{ refundId: string }> {
+    return { refundId: `mock-refund-${input.orderId}` };
   },
   ack() {
     return { body: 'ok', contentType: 'text/plain' };

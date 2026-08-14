@@ -134,4 +134,60 @@ describe('交易服务（阶段 4）', () => {
     const after = await prisma.work.findUniqueOrThrow({ where: { id: 'work_test' } });
     expect(after.downloads).toBe(before.downloads + 1);
   });
+
+  it('退款：已下载 → 自助退款 REFUND_NOT_ALLOWED', async () => {
+    const order = await prisma.order.findFirstOrThrow({
+      where: { workId: 'paid_work', buyerId: BUYER, payStatus: 'PAID' },
+    });
+    await expect(
+      orderService.refund(order.id, BUYER, { reason: '不想要了' }),
+    ).rejects.toMatchObject({ code: 'REFUND_NOT_ALLOWED' });
+  });
+
+  it('退款：平台退款（管理员）→ REFUNDED + 撤销下载权 + 冲减收益', async () => {
+    const order = await prisma.order.findFirstOrThrow({
+      where: { workId: 'paid_work', buyerId: BUYER, payStatus: 'PAID' },
+    });
+    const wallet = await prisma.wallet.findUniqueOrThrow({
+      where: {
+        creatorId: (await prisma.creatorProfile.findUniqueOrThrow({ where: { userId: CREATOR } }))
+          .id,
+      },
+    });
+    const pendingBefore = Number(wallet.pending);
+
+    await orderService.refund(order.id, 'admin', { reason: '侵权下架', isAdmin: true });
+
+    const after = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect(after.payStatus).toBe('REFUNDED');
+    const dl = await prisma.download.findUnique({
+      where: { workId_userId: { workId: 'paid_work', userId: BUYER } },
+    });
+    expect(dl).toBeNull();
+    const walletAfter = await prisma.wallet.findUniqueOrThrow({
+      where: {
+        creatorId: (await prisma.creatorProfile.findUniqueOrThrow({ where: { userId: CREATOR } }))
+          .id,
+      },
+    });
+    expect(Number(walletAfter.pending)).toBeLessThan(pendingBefore);
+  });
+
+  it('退款：未支付订单 → ORDER_CLOSED', async () => {
+    const order = await prisma.order.create({
+      data: {
+        id: 'o_unpaid',
+        workId: 'paid_work',
+        buyerId: BUYER,
+        amount: 9.9,
+        platformFee: 0.99,
+        creatorAmount: 8.91,
+        payMethod: 'MOCK',
+        payStatus: 'PENDING',
+      },
+    });
+    await expect(orderService.refund(order.id, BUYER, {})).rejects.toMatchObject({
+      code: 'ORDER_CLOSED',
+    });
+  });
 });

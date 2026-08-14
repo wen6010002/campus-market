@@ -53,6 +53,7 @@ export const orderService = {
       const pay = await getProvider(payMethod).createOrder({
         id: pending.id,
         amount: Number(pending.amount),
+        title: work.title,
         payMethod,
       });
       return { orderId: pending.id, pay };
@@ -75,6 +76,7 @@ export const orderService = {
     const pay = await getProvider(payMethod).createOrder({
       id: order.id,
       amount: Number(order.amount),
+      title: work.title,
       payMethod,
     });
 
@@ -88,7 +90,10 @@ export const orderService = {
 
   /** 二次发起支付（owner） */
   async pay(orderId: string, userId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { work: { select: { title: true } } },
+    });
     if (!order) throw appError('NOT_FOUND', '订单不存在');
     if (order.buyerId !== userId) throw appError('FORBIDDEN', '无权操作他人订单');
     if (order.payStatus === 'PAID') return { pay: { provider: 'mock', paid: true } as PayParams };
@@ -100,6 +105,7 @@ export const orderService = {
     const pay = await getProvider(order.payMethod).createOrder({
       id: order.id,
       amount: Number(order.amount),
+      title: order.work.title,
       payMethod: order.payMethod,
     });
     if (pay.provider === 'mock') {
@@ -203,5 +209,70 @@ export const orderService = {
 
     const url = await presignGet(work.fileKey, work.title);
     return { url, expiresIn: 600 };
+  },
+
+  /** 退款（V2-1）：自助退款（未下载+24h）/ 平台退款（管理员，任何已购可退） */
+  async refund(orderId: string, userId: string, opts: { reason?: string; isAdmin?: boolean }) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { work: { select: { title: true } } },
+    });
+    if (!order) throw appError('NOT_FOUND', '订单不存在');
+    if (!opts.isAdmin && order.buyerId !== userId) throw appError('FORBIDDEN', '无权退款他人订单');
+    if (order.payStatus !== 'PAID') throw appError('ORDER_CLOSED', '订单未支付，无需退款');
+
+    // 自助退款：未下载 + 24h 内
+    if (!opts.isAdmin) {
+      const downloaded = await prisma.download.findUnique({
+        where: { workId_userId: { workId: order.workId, userId: order.buyerId } },
+      });
+      const within24h = order.paidAt && Date.now() - order.paidAt.getTime() < 24 * 3600_000;
+      if (downloaded || !within24h) {
+        throw appError('REFUND_NOT_ALLOWED', '已下载或超过 24 小时，不可自助退款');
+      }
+    }
+
+    // 调 provider 退款
+    await getProvider(order.payMethod).refund({
+      orderId: order.id,
+      transactionId: order.transactionId ?? '',
+      amount: Number(order.amount),
+      reason: opts.reason,
+    });
+
+    // 事务：订单 REFUNDED + 撤销下载权 + 冲减收益 + 通知买家
+    return prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { payStatus: 'REFUNDED', refundedAt: new Date() },
+      });
+      await tx.download.deleteMany({ where: { workId: order.workId, userId: order.buyerId } });
+
+      const income = await tx.creatorIncome.findUnique({ where: { orderId } });
+      if (income) {
+        if (income.status === 'PENDING') {
+          await tx.wallet.update({
+            where: { creatorId: income.creatorId },
+            data: { pending: { decrement: income.amount } },
+          });
+        } else if (income.status === 'SETTLED') {
+          await tx.wallet.update({
+            where: { creatorId: income.creatorId },
+            data: { balance: { decrement: income.amount } },
+          });
+        }
+        await tx.creatorIncome.update({ where: { id: income.id }, data: { status: 'WITHDRAWN' } });
+      }
+
+      await tx.notification.create({
+        data: {
+          userId: order.buyerId,
+          type: 'SYSTEM',
+          text: `你的订单《${order.work.title}》已退款。`,
+          link: `/work/${order.workId}`,
+        },
+      });
+      return { ok: true };
+    });
   },
 };

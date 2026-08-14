@@ -1,6 +1,8 @@
 import { generateKeyPairSync, createCipheriv } from 'node:crypto';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { rsaSign, rsaVerify, aesGcmDecrypt } from '@/server/payment/crypto';
+import { buildWechatMessage } from '@/server/payment/wechat';
+import { buildAlipayMessage } from '@/server/payment/alipay';
 
 let publicKey: string;
 let privateKey: string;
@@ -41,5 +43,23 @@ describe('支付密码学（自封微信 v3 / 支付宝 RSA2）', () => {
       transaction_id: 'tx1',
       trade_state: 'SUCCESS',
     });
+  });
+
+  it('微信 v3 待签串格式（method\\npath\\ntimestamp\\nnonce\\nbody\\n）', () => {
+    expect(buildWechatMessage('POST', '/v3/pay/transactions/native', '123', 'abc', '{}')).toBe(
+      'POST\n/v3/pay/transactions/native\n123\nabc\n{}\n',
+    );
+  });
+
+  it('支付宝待签串：按 key ASCII 升序 + 去掉 sign/sign_type', () => {
+    const msg = buildAlipayMessage({
+      app_id: '123',
+      method: 'alipay.trade.page.pay',
+      biz_content: '{"a":1}',
+      sign: 'xxx',
+      sign_type: 'RSA2',
+    });
+    // app_id < biz_content < method（ASCII）
+    expect(msg).toBe('app_id=123&biz_content={"a":1}&method=alipay.trade.page.pay');
   });
 });
