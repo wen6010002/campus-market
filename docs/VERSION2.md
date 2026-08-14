@@ -49,6 +49,54 @@
 
 ---
 
+## 0.4 关键业务决策（收款 / 退款 / 原创保护）
+
+> 这三条是**业务规则**，不是纯代码问题。执行 V2-1/V2-5 前必须先读。
+
+### 0.4.1 收款方与分账
+
+**钱怎么走**：
+
+```
+买家付款 → 进入【平台商户号】(微信/支付宝，需营业执照)
+        → 平台抽成 10%（PLATFORM_FEE_RATE）
+        → 剩余 90% 记入创作者钱包（Wallet，平台内记账）
+        → 创作者提现 → 平台从商户号打款到创作者（企业付款/转账）
+```
+
+**硬性前置条件**：微信支付/支付宝的收款方必须是**商户主体**（营业执照），个人/学生无法申请商户号。因此：
+
+| 场景               | 收款方案                                                           |
+| ------------------ | ------------------------------------------------------------------ |
+| 演示 / 毕设 / 学习 | `PAYMENT_MODE=mock`（现状），或微信/支付宝**沙箱**环境             |
+| 真实上线           | 需一个营业执照主体（学校创业园 / 导师公司 / 家人个体户）申请商户号 |
+
+**提现打款**（真实上线时）：
+
+- 微信：企业付款到零钱（商户号开通）或分账能力
+- 支付宝：转账 `alipay.fund.trans.toaccount.transfer`
+
+> **结论**：V2-1 完成的是「下单/回调/退款」的**代码**；真实收款仍**必须有一个商户号主体**，这不是代码能解决的。代码层面分账/提现逻辑已就绪（`Wallet` / `Payout` / `adminService.auditPayout`），只缺商户号与打款通道。
+
+### 0.4.2 退款规则（数字商品）
+
+资料是虚拟商品，**下载即完成交付，无法「退回」**。退款分两类：
+
+| 类型     | 触发者 | 条件                                                | 结果                                |
+| -------- | ------ | --------------------------------------------------- | ----------------------------------- |
+| 自助退款 | 买家   | 支付后**未下载** + 24h 内 + `payStatus=PAID`        | 退款 + 撤销下载权                   |
+| 平台退款 | 管理员 | 侵权下架 / 内容与描述严重不符 / 文件损坏 / 重复扣款 | 退款 + 撤销下载权 + 冲减收益 + 通知 |
+
+**核心原则**：已下载 → 原则上**不可自助退款**；特殊情况（侵权 / 货不对板 / 文件损坏）由平台核实后**主动退**（管理员触发，见 V2-3 的提现审批旁新增「订单退款」管理入口）。
+
+### 0.4.3 原创保护与防重复上架
+
+1. **原创标签**：`Work` 加 `isOriginal Boolean @default(true)`（上传时用户声明「原创 / 整理 / 转载」），前端展示「原创」徽标。
+2. **文件指纹去重**：上传时前端计算文件 SHA256（`crypto.subtle.digest`）→ 后端校验 `work.fileSha` 是否已存在 → 重复则拒绝上架（「该文件已在平台」），防止购买后转卖重复上传。
+3. **举报闭环**：已有 `Report`（侵权）→ 平台下架 + 退购买者款 + 封号（重复侵权加重）。
+
+---
+
 ## V2-1 真实支付与退款
 
 ### 目标
@@ -86,12 +134,12 @@
 
 #### 1.4 退款服务（改 `src/server/services/order.service.ts`）
 
-- 新增 `refund(orderId, userId, reason?)`：
-  1. 查订单，校验 `buyerId === userId` 或管理员；`payStatus === 'PAID'`。
-  2. `getProvider(payMethod).refund(...)`。
-  3. 事务：`Order.payStatus = 'REFUNDED', refundedAt`；若已结算收益则 `Wallet.balance -= creatorAmount`（或冲减 pending）；`Download` 保留或撤销（按产品决策：撤销下载权限 `delete Download`）。
-  4. 通知买家。
-- 路由：`POST /api/v1/orders/:id/refund`（owner/admin）。
+- 新增 `refund(orderId, userId, { reason, isAdmin })`，按 0.4.2 退款规则区分：
+  - **自助退款**（非管理员）：校验「未下载（无 `Download` 记录）+ `paidAt` 在 24h 内 + `payStatus=PAID`」，不满足抛新错误码 `REFUND_NOT_ALLOWED`（402）。
+  - **平台退款**（管理员）：任何 PAID 订单可退（侵权下架 / 内容严重不符 / 文件损坏 / 重复扣款）。
+  - 事务：`Order.payStatus='REFUNDED', refundedAt` → 撤销下载权 `download.delete` → 冲减收益（未结算冲 `Wallet.pending`、已结算冲 `Wallet.balance`，`CreatorIncome.status='WITHDRAWN'`）→ 通知买家。
+- 新增错误码 `REFUND_NOT_ALLOWED`（`errors.ts` + 前端 `errors.ts` 文案）。
+- 路由：`POST /api/v1/orders/:id/refund`（owner 自助 / admin 平台）；管理端「订单退款」入口并入 V2-3 后台。
 
 #### 1.5 前端收银台（改 `src/components/form/OrderModal.tsx` + 新增二维码组件）
 
@@ -255,11 +303,11 @@
 
 ---
 
-## V2-5 功能补全（评论 / 通知 / 成就）
+## V2-5 功能补全（评论 / 通知 / 成就 / 原创保护）
 
 ### 目标
 
-补数据模型已建但逻辑未落地的三个能力。
+补数据模型已建但逻辑未落地的能力 + 原创保护（防重复上架）。
 
 ### 改动清单
 
@@ -282,9 +330,17 @@
 - 统一封装 `achievementService.grant(userId, key)`（幂等：`user_achievements` 唯一约束兜底 + 查重）。
 - 前端：创作者中心「成就墙」（`GET /me/achievements` 返回已获成就 + 字典）。
 
+#### 5.4 原创保护与文件去重（改 schema + upload + 前端）
+
+- `prisma/schema.prisma`：`Work` 加 `isOriginal Boolean @default(true)` + 新迁移；`fileSha` 字段 V1 已建（`String?`），本阶段真正启用。
+- `upload.service.presign` 输入已有 `sha` 字段：校验若 `work.findFirst({ where:{ fileSha:sha, deletedAt:null } })` 存在 → 抛 `CONFLICT`「该文件已在平台」。
+- 前端 `/upload`：用 `crypto.subtle.digest('SHA-256', file)` 计算哈希 → 传给 presign + createWork；新增「原创 / 整理 / 转载」单选 → 映射 `isOriginal`。
+- 前端展示：作品卡 `WorkCard` / 详情页标题旁「原创」徽标（`isOriginal` 驱动）。
+- 测试：重复 `fileSha` 拒绝上架（CONFLICT）；`isOriginal` 默认 true。
+
 ### 测试清单
 
-- [ ] 集成：评论 CRUD + 权限（非作者删除 403）+ sanitize；成就幂等（重复触发只一次）；通知 read-all。
+- [ ] 集成：评论 CRUD + 权限（非作者删除 403）+ sanitize；成就幂等（重复触发只一次）；通知 read-all；**重复 fileSha 拒绝 + 原创徽标字段**。
 - [ ] `pnpm test` 全绿。
 
 ### 反思问题
