@@ -3632,3 +3632,68 @@ footer {
     var(--font-jakarta), var(--font-noto), system-ui, -apple-system, 'PingFang SC',
     'Microsoft YaHei', sans-serif;
 }
+
+/* ============ 视觉放大与布局修复（覆盖原型偏小字号） ============ */
+body {
+  font-size: 16px;
+}
+.page-head h1 {
+  font-size: 26px;
+}
+.page-head .sub {
+  font-size: 14px;
+}
+.btn {
+  font-size: 14px;
+}
+.btn-lg {
+  font-size: 15px;
+}
+.btn-sm {
+  font-size: 13px;
+}
+/* 作品卡 / 精品卡 */
+.work-card h4,
+.fine-card h4 {
+  font-size: 16px;
+}
+.work-desc,
+.fine-card .desc {
+  font-size: 14px;
+}
+.work-foot .wa-name,
+.fine-author {
+  font-size: 13px;
+}
+/* 详情页右栏 */
+.info-card h1 {
+  font-size: 22px;
+}
+.info-rows {
+  font-size: 14px;
+}
+.info-trust {
+  font-size: 12px;
+}
+/* 详情页封面缩小 + 防横向溢出（紫色封面不再占满、下载按钮不再被挤出） */
+.wd,
+.wd-left {
+  min-width: 0;
+}
+.wd-cover .cover-top {
+  height: 160px;
+}
+@media (max-width: 1180px) {
+  .wd {
+    grid-template-columns: 1fr;
+  }
+  .wd-right {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .wd-right > * {
+    flex: 1;
+    min-width: 280px;
+  }
+}
