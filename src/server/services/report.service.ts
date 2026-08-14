@@ -1,9 +1,11 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { sanitize } from '../lib/sanitize';
+import { enforceRateLimit } from '../lib/ratelimit';
 import type { ReportTargetType, ReportReason, ReportStatus } from '@/lib/constants';
 
 export const reportService = {
-  /** 举报（登录） */
+  /** 举报（登录，每用户 5/小时限流） */
   async create(
     reporterId: string,
     input: {
@@ -13,13 +15,14 @@ export const reportService = {
       detail?: string;
     },
   ) {
+    await enforceRateLimit(`rl:report:${reporterId}`, 5, 3600_000);
     const report = await prisma.report.create({
       data: {
         reporterId,
         targetType: input.targetType,
         targetId: input.targetId,
         reason: input.reason,
-        detail: input.detail ?? null,
+        detail: input.detail ? sanitize(input.detail) : null,
         status: 'OPEN',
       },
     });

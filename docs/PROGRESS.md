@@ -748,3 +748,29 @@
 **下阶段是否受影响**
 
 - V2-4 安全加固（CSRF/XSS/限流）独立。
+
+## V2-4 — 安全加固
+
+**做了什么**
+
+- `lib/sanitize.ts`：`sanitize`（sanitize-html 白名单：允许 b/strong/i/em/br，剥离 script/img/事件属性）。
+- `lib/http.ts`：`assertSameOrigin`（非 GET/HEAD 校验 Origin/Referer 同源，无 Origin/Referer 的 curl/服务端调用放行）；`withErrorHandler` 统一在 handler 前过 CSRF（webhook 走验签不经此函数）。
+- 接入：`rating.service`（评价 text + 作者回复 creatorReply）、`report.service`（举报 detail）写入前 sanitize。
+- 限流补全：`upload.presign` 每用户 10/小时、`report.create` 每用户 5/小时（复用 enforceRateLimit）。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` + `pnpm lint` 通过
+- ✅ `pnpm test` 通过（91/91）：新增 sanitize（script 剥离/b 保留/img 剥离）+ CSRF（GET 跳过/跨源拒/无 Origin 放行）
+
+**遇到的问题**
+
+- sanitize-html 会把 `<br>` 规范成 `<br />`，测试断言需匹配 self-closing 形式。
+
+**反思（V2-4 命题：sanitize 白名单是否覆盖所有用户输入点？）**
+
+- 已覆盖评价 text、作者回复、举报 detail；用户名/标题在 zod 层限长且 React 默认转义（渲染层无 dangerouslySetInnerHTML），通知 text 是内部生成（含 `<b>`，前端 dangerouslySetInnerHTML 渲染，来源可控）。后续评论功能（V2-5）需同样在写入前 sanitize。
+
+**下阶段是否受影响**
+
+- V2-5 评论功能：`comment.content` 写入前必须 sanitize（复用 lib/sanitize.ts）。

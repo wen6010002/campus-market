@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { redis } from '../lib/redis';
 import { appError } from '../lib/errors';
+import { sanitize } from '../lib/sanitize';
 import type { CreateRatingInput } from '@/lib/zod/rating';
 import type { RatingDist } from '../algos/rating';
 
@@ -63,7 +64,7 @@ export const ratingService = {
         Math.round(((Number(w.rating) * w.ratingCount + input.stars) / newCount) * 10) / 10;
 
       const rating = await tx.workRating.create({
-        data: { workId, userId, stars: input.stars, text: input.text },
+        data: { workId, userId, stars: input.stars, text: sanitize(input.text) },
       });
 
       // 标签
@@ -165,7 +166,7 @@ export const ratingService = {
 
     const updated = await prisma.workRating.update({
       where: { id: ratingId },
-      data: { creatorReply: text, repliedAt: new Date() },
+      data: { creatorReply: sanitize(text), repliedAt: new Date() },
       include: RATING_INCLUDE,
     });
     return toRating(updated);
