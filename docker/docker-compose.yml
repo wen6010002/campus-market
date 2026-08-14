@@ -28,6 +28,7 @@ services:
       POOL_MODE: transaction
       MAX_CLIENT_CONN: "200"
       DEFAULT_POOL_SIZE: "20"
+      AUTH_TYPE: scram-sha-256
     ports:
       # 宿主端口 6433，避开 5432/5433
       - "6433:5432"
@@ -60,6 +61,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3000,http://127.0.0.1:3000
     ports:
       - "9000:9000"
       - "9001:9001"
