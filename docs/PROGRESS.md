@@ -721,3 +721,30 @@
 **下阶段是否受影响**
 
 - V2-3 管理后台独立；用户管理后端需在 admin.service 加 listUsers/ban/unban/setRole。
+
+## V2-3 — 管理后台完善 + 用户管理 + 数据看板
+
+**做了什么**
+
+- `admin.service` 新增：`listUsers`（分页+筛选+**脱敏** select 不含 passwordHash/passwordPepper）、`banUser`（封管理员被拒）、`unbanUser`、`setRole`、`listPayouts`（REQUESTED 提现列表）、`listPendingCreators`（未认证创作者）、`stats`（数据看板六指标）。
+- 路由：`GET /admin/users`、`POST /admin/users/[id]/{ban,unban,role}`、`GET /admin/payouts`、`GET /admin/creators/pending`、`GET /admin/stats`。
+- 前端 `/admin`：数据看板 6 卡 + Tab 扩到 5 个（待审核作品/举报/提现审批/创作者认证/用户管理），封号（prompt 填原因）/解封/改角色下拉。
+- **封号即时生效**：`requireUser` 增加 DB `status==='ACTIVE'` 校验（JWT 无状态，靠查库拦截 BANNED）。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` + `pnpm lint` 通过
+- ✅ `pnpm test` 通过（85/85）：新增用户列表脱敏、封号后登录 FORBIDDEN、改角色+封管理员被拒
+
+**遇到的问题**
+
+1. **seedTestData 无 admin 用户**：「封管理员被拒」测试最初用 `u_admin`（只存在于 seed.ts），改为先 `setRole('stu_test','ADMIN')` 再 ban 断言 FORBIDDEN，测完恢复 STUDENT。
+2. **requireUser 每次查库的性能权衡**：封号即时生效需查 status，每次请求 +1 轻量 select；可接受（后续可用 Redis 缓存 status 优化）。
+
+**反思（V2-3 命题：封号后 JWT 如何处理？）**
+
+- JWT 无状态，7 天内过期；为「封号即时生效」在 `requireUser` 查 DB status 拦截 BANNED。折中：每请求 +1 轻量查询，换取封号即时生效，符合治理要求。
+
+**下阶段是否受影响**
+
+- V2-4 安全加固（CSRF/XSS/限流）独立。

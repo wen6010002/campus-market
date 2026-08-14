@@ -6,6 +6,8 @@ import { flushDb } from '../helpers/flush';
 import { seedTestData } from '../../prisma/seed.test';
 import { reportService } from '@/server/services/report.service';
 import { adminService } from '@/server/services/admin.service';
+import { authService } from '@/server/services/auth.service';
+import { saveCode } from '@/server/auth/verify-code';
 
 const TEST_URL = process.env.DATABASE_URL_TEST!;
 
@@ -83,5 +85,41 @@ describe('治理服务（阶段 9）', () => {
     });
     const approved = await adminService.auditCreator('stu_test', true);
     expect(approved.verified).toBe(true);
+  });
+
+  it('用户列表脱敏：不含 passwordHash/passwordPepper', async () => {
+    const result = await adminService.listUsers({ page: 1, pageSize: 20 });
+    const raw = JSON.stringify(result.data);
+    expect(raw).not.toContain('passwordHash');
+    expect(raw).not.toContain('passwordPepper');
+    expect(result.data.length).toBeGreaterThan(0);
+  });
+
+  it('封号后登录 → FORBIDDEN', async () => {
+    const email = `ban-${Date.now()}@szu.edu.cn`;
+    await saveCode(email, '123456');
+    const { userId } = await authService.register({
+      email,
+      code: '123456',
+      username: `封测${Date.now()}`,
+      password: 'demo1234',
+      school: '深圳大学',
+      college: '计软',
+      major: '计算机',
+      grade: '大二',
+    });
+    await adminService.banUser(userId, '违规');
+    await expect(authService.login({ email, password: 'demo1234' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('改角色生效 + 封管理员被拒', async () => {
+    await adminService.setRole('stu_test', 'ADMIN');
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: 'stu_test' } })).role).toBe('ADMIN');
+    await expect(adminService.banUser('stu_test', 'x')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await adminService.setRole('stu_test', 'STUDENT'); // 恢复
   });
 });
