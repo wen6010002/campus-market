@@ -252,7 +252,17 @@ export default function AdminPage() {
               {pending.data?.length ? (
                 pending.data.map((w) => (
                   <tr key={w.id}>
-                    <td>{w.title}</td>
+                    <td>
+                      <Link
+                        className="link"
+                        href={`/work/${w.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--pri-600)', fontWeight: 600 }}
+                      >
+                        {w.title}
+                      </Link>
+                    </td>
                     <td>{w.course}</td>
                     <td>{w.author.username}</td>
                     <td>

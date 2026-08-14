@@ -7,7 +7,7 @@ type Ctx = { params: { id: string } };
 
 export const GET = withErrorHandler(async (_req: Request, ctx: Ctx) => {
   const session = await getSession();
-  const work = await workService.get(ctx.params.id, session?.userId);
+  const work = await workService.get(ctx.params.id, session?.userId, session?.role);
   return ok(work);
 });
 

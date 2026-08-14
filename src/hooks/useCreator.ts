@@ -20,9 +20,10 @@ export function useCreatorWorks(id: string, filter: string) {
   });
 }
 
-export function useFollowingFeed() {
+export function useFollowingFeed(enabled = true) {
   return useQuery({
     queryKey: ['following', 'feed'],
     queryFn: () => apiFetch<Dynamic[]>('/me/following/feed'),
+    enabled, // 首页等场景仅登录时请求，避免匿名 401
   });
 }

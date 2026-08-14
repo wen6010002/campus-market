@@ -2,7 +2,7 @@ import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { redis } from '../lib/redis';
 import { cacheGet, cacheSet, cacheDel, cacheDelByPattern } from '../lib/cache';
-import { headObject } from '../storage/minio';
+import { headObject, presignGet } from '../storage/minio';
 import { notifyService } from './notify.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
 import { WorkStatus, Quality } from '@/lib/constants';
@@ -102,8 +102,8 @@ export const workService = {
     return result;
   },
 
-  /** 详情（公开；带会话时回填 myFav/myAccess/myRating） */
-  async get(id: string, viewerId?: string) {
+  /** 详情（公开；带会话时回填 myFav/myAccess/myRating；管理员可查看非 PUBLISHED 用于审核） */
+  async get(id: string, viewerId?: string, viewerRole?: string) {
     const cacheKey = `work:detail:${id}`;
     // 未登录：先读缓存（命中则 +1 浏览并返回）
     if (!viewerId) {
@@ -118,7 +118,10 @@ export const workService = {
       where: { id, deletedAt: null },
       include: WORK_LIST_INCLUDE,
     });
-    if (!work || (work.status !== 'PUBLISHED' && work.authorId !== viewerId)) {
+    if (
+      !work ||
+      (work.status !== 'PUBLISHED' && work.authorId !== viewerId && viewerRole !== 'ADMIN')
+    ) {
       throw appError('NOT_FOUND', '作品不存在');
     }
 
@@ -345,6 +348,14 @@ export const workService = {
       orderBy: { createdAt: 'asc' },
     });
     return works.map((w) => toListItem(w));
+  },
+
+  /** 管理：审核用下载（无视状态/购买门槛，仅预签名返回，不写 Download 记录、不计数） */
+  async adminDownload(id: string) {
+    const work = await prisma.work.findFirst({ where: { id, deletedAt: null } });
+    if (!work) throw appError('NOT_FOUND', '作品不存在');
+    const url = await presignGet(work.fileKey, work.title);
+    return { url, expiresIn: 600 };
   },
 
   /** 管理：审核（状态机 + AuditLog） */

@@ -992,6 +992,34 @@ async function main() {
     if (!exists) await prisma.notification.create({ data: { userId: 'u0', ...n } });
   }
 
+  // 关注动态种子：u0 关注的三位创作者的作品动态（首页关注流演示数据）
+  const DYNAMICS: {
+    creatorId: string;
+    type: 'PUBLISH' | 'UPDATE';
+    workId: string;
+    agoHours: number;
+  }[] = [
+    { creatorId: 'c_lin', type: 'PUBLISH', workId: 'w_guide', agoHours: 5 },
+    { creatorId: 'c_chen', type: 'UPDATE', workId: 'w_dsmap', agoHours: 26 },
+    { creatorId: 'c_he', type: 'PUBLISH', workId: 'w_os', agoHours: 49 },
+    { creatorId: 'c_lin', type: 'PUBLISH', workId: 'w_net', agoHours: 120 },
+  ];
+  for (const d of DYNAMICS) {
+    const exists = await prisma.dynamic.findFirst({
+      where: { creatorId: d.creatorId, workId: d.workId, type: d.type },
+    });
+    if (!exists) {
+      await prisma.dynamic.create({
+        data: {
+          creatorId: d.creatorId,
+          type: d.type,
+          workId: d.workId,
+          createdAt: new Date(Date.now() - d.agoHours * 3600_000),
+        },
+      });
+    }
+  }
+
   const counts = {
     users: await prisma.user.count(),
     works: await prisma.work.count(),
@@ -1003,6 +1031,7 @@ async function main() {
     downloads: await prisma.download.count(),
     orders: await prisma.order.count(),
     notifications: await prisma.notification.count(),
+    dynamics: await prisma.dynamic.count(),
   };
   console.log('✅ 种子完成：', counts);
 }

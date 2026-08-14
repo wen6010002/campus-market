@@ -3697,3 +3697,183 @@ body {
     min-width: 280px;
   }
 }
+
+/* ===== 首页专区导航（2026-08-14 改版） ===== */
+.zone-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 26px;
+  position: sticky;
+  top: 69px;
+  z-index: 30;
+  padding: 10px 0;
+  background: var(--bg);
+}
+.zone-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition:
+    border-color 0.13s,
+    box-shadow 0.13s,
+    transform 0.13s;
+}
+.zone-entry:hover {
+  border-color: var(--ink-faint);
+}
+.zone-entry .ze-ico {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  border-radius: 14px;
+  background: var(--bg-soft);
+  flex: none;
+}
+.zone-entry .ze-txt {
+  min-width: 0;
+}
+.zone-entry .ze-txt b {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.zone-entry .ze-txt small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zone-entry .ze-badge {
+  margin-left: auto;
+  flex: none;
+}
+.zone-entry.campus.active {
+  border-color: var(--pri-600);
+  box-shadow: 0 0 0 3px var(--pri-50);
+}
+.zone-entry.growth.active {
+  border-color: #c99700;
+  box-shadow: 0 0 0 3px rgba(201, 151, 0, 0.12);
+}
+@media (max-width: 880px) {
+  .zone-nav {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 关注动态条 ===== */
+.follow-strip {
+  margin-bottom: 30px;
+}
+.follow-strip .dyn-rail {
+  padding-bottom: 8px;
+}
+.follow-empty {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: #fff;
+  border: 1.5px dashed var(--line-2);
+  border-radius: var(--r-lg);
+}
+.follow-empty .fe-ico {
+  font-size: 26px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-soft);
+  border-radius: 12px;
+  flex: none;
+}
+.follow-empty .fe-txt {
+  flex: 1;
+  min-width: 0;
+}
+.follow-empty .fe-txt b {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.follow-empty .fe-txt small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* ===== 自我提升区价值卡 ===== */
+.growth-value {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.gv-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+.gv-card .gv-ico {
+  display: block;
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+.gv-card b {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.gv-card small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+@media (max-width: 880px) {
+  .growth-value {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 顶栏专区直达 ===== */
+.zone-links {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.zone-links a {
+  padding: 7px 12px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  transition:
+    background 0.13s,
+    color 0.13s;
+}
+.zone-links a:hover {
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+@media (max-width: 1080px) {
+  .zone-links {
+    display: none;
+  }
+}

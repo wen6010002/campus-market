@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/lib/icons';
 import { QualityBadge } from '@/lib/constants';
@@ -10,14 +11,14 @@ interface Props {
   work: WorkListItem;
 }
 
-/** 作品卡（对应原型 .work-card） */
+/** 作品卡（对应原型 .work-card）— 外层用 Link 获得 Next 路由预取 */
 export function WorkCard({ work }: Props) {
   const router = useRouter();
   const h = 150 + (Math.abs(work.title.length * 7) % 50);
   const qb = work.quality === 'SELECTED' ? '🏅 精选' : work.quality === 'HIGH' ? '⭐ 高评' : '';
 
   return (
-    <div className="work-card" onClick={() => router.push(`/work/${work.id}`)}>
+    <Link className="work-card" href={`/work/${work.id}`}>
       <div className={`work-cover ${work.coverTheme}`} style={{ height: h }}>
         <div className="work-badges">
           {work.isFree ? (
@@ -30,7 +31,7 @@ export function WorkCard({ work }: Props) {
         <div className="glyph">{work.coverIcon}</div>
         <div className="watermark">{work.course}</div>
         <div className="work-overlay">
-          <button className="ov-btn primary">查看作品</button>
+          <span className="ov-btn primary">查看作品</span>
         </div>
       </div>
       <div className="work-body">
@@ -61,6 +62,7 @@ export function WorkCard({ work }: Props) {
           <div
             className="work-author"
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               router.push(`/creator/${work.author.id}`);
             }}
@@ -80,6 +82,6 @@ export function WorkCard({ work }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

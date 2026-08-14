@@ -1,16 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Stars } from '@/components/common/Stars';
 import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
 import type { WorkListItem } from '@/lib/types';
 
-/** 精品卡（对应原型 .fine-card） */
+/** 精品卡（对应原型 .fine-card）— 外层用 Link 获得 Next 路由预取 */
 export function FineCard({ work }: { work: WorkListItem }) {
   const router = useRouter();
   return (
-    <div className="fine-card" onClick={() => router.push(`/work/${work.id}`)}>
+    <Link className="fine-card" href={`/work/${work.id}`}>
       <div className={`fine-cover ${work.coverTheme}`}>
         <div className="glyph">{work.coverIcon}</div>
         <div className="watermark">{work.course}</div>
@@ -36,6 +37,7 @@ export function FineCard({ work }: { work: WorkListItem }) {
           <span
             style={{ fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               router.push(`/creator/${work.author.id}`);
             }}
@@ -63,6 +65,6 @@ export function FineCard({ work }: { work: WorkListItem }) {
           </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

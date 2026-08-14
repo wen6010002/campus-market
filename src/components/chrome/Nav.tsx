@@ -50,6 +50,11 @@ export function Nav() {
           </div>
         </Link>
 
+        <div className="zone-links" aria-label="专区">
+          <Link href="/">🏫 校园专区</Link>
+          <Link href="/?zone=growth">🚀 自我提升</Link>
+        </div>
+
         <div className="search">
           <div className="search-box">
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 16, height: 16 }}>
