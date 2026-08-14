@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { cacheGet, cacheSet } from '../lib/cache';
 
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
 
@@ -38,6 +39,11 @@ function toCreator(c: any) {
 export const rankService = {
   /** 排行榜（type=help|rate|fav|creator），返回 top6 */
   async ranks(type: string) {
+    const cacheKey = `rank:${type}`;
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) return cached;
+
+    let result;
     if (type === 'fav') {
       const works = await prisma.work.findMany({
         where: { status: 'PUBLISHED', deletedAt: null },
@@ -45,7 +51,7 @@ export const rankService = {
         orderBy: { favs: 'desc' },
         take: 6,
       });
-      return works.map((w, i) => ({
+      result = works.map((w, i) => ({
         rank: i + 1,
         work: {
           id: w.id,
@@ -64,22 +70,25 @@ export const rankService = {
         },
         metric: w.favs,
       }));
+    } else {
+      const creators = await prisma.user.findMany({
+        where: { role: { in: ['CREATOR', 'ADMIN'] } },
+        include: CREATOR_INCLUDE,
+      });
+
+      const list = creators.map(toCreator);
+      if (type === 'help') list.sort((a, b) => b.helped - a.helped);
+      else if (type === 'creator') list.sort((a, b) => b.fans * b.works - a.fans * a.works);
+      else list.sort((a, b) => Number(b.rate) * b.works - Number(a.rate) * a.works); // rate 加权
+
+      result = list.slice(0, 6).map((c, i) => ({
+        rank: i + 1,
+        creator: c,
+        metric: type === 'help' ? c.helped : type === 'creator' ? c.fans : Number(c.rate),
+      }));
     }
 
-    const creators = await prisma.user.findMany({
-      where: { role: { in: ['CREATOR', 'ADMIN'] } },
-      include: CREATOR_INCLUDE,
-    });
-
-    const list = creators.map(toCreator);
-    if (type === 'help') list.sort((a, b) => b.helped - a.helped);
-    else if (type === 'creator') list.sort((a, b) => b.fans * b.works - a.fans * a.works);
-    else list.sort((a, b) => Number(b.rate) * b.works - Number(a.rate) * a.works); // rate 加权
-
-    return list.slice(0, 6).map((c, i) => ({
-      rank: i + 1,
-      creator: c,
-      metric: type === 'help' ? c.helped : type === 'creator' ? c.fans : Number(c.rate),
-    }));
+    await cacheSet(cacheKey, result, 3600);
+    return result;
   },
 };

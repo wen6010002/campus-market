@@ -1,5 +1,7 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { redis } from '../lib/redis';
+import { cacheGet, cacheSet, cacheDel, cacheDelByPattern } from '../lib/cache';
 import { headObject } from '../storage/minio';
 import { notifyService } from './notify.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
@@ -57,9 +59,19 @@ const SORT_MAP = {
   price: [{ isFree: 'desc' as const }, { price: 'asc' as const }],
 };
 
+/** 作品写操作后失效列表/详情缓存 */
+async function invalidateWorkCaches(workId?: string) {
+  await cacheDelByPattern('works:list:*');
+  if (workId) await cacheDel(`work:detail:${workId}`);
+}
+
 export const workService = {
   /** 列表（公开，仅 PUBLISHED） */
   async list(q: WorkQuery) {
+    const cacheKey = `works:list:${JSON.stringify(q)}`;
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) return cached;
+
     const where: any = { status: 'PUBLISHED', deletedAt: null };
     if (q.creatorId) where.authorId = q.creatorId;
     if (q.isFree !== undefined) where.isFree = q.isFree;
@@ -82,14 +94,26 @@ export const workService = {
     ]);
 
     const totalPages = Math.ceil(total / q.pageSize);
-    return {
+    const result = {
       data: works.map((w) => toListItem(w)),
       pagination: { page: q.page, pageSize: q.pageSize, total, totalPages },
     };
+    await cacheSet(cacheKey, result, 30);
+    return result;
   },
 
   /** 详情（公开；带会话时回填 myFav/myAccess/myRating） */
   async get(id: string, viewerId?: string) {
+    const cacheKey = `work:detail:${id}`;
+    // 未登录：先读缓存（命中则 +1 浏览并返回）
+    if (!viewerId) {
+      const cached = await cacheGet(cacheKey);
+      if (cached) {
+        await redis.incr(`view:${id}`);
+        return cached;
+      }
+    }
+
     const work = await prisma.work.findFirst({
       where: { id, deletedAt: null },
       include: WORK_LIST_INCLUDE,
@@ -98,8 +122,8 @@ export const workService = {
       throw appError('NOT_FOUND', '作品不存在');
     }
 
-    // 浏览 +1
-    await prisma.work.update({ where: { id }, data: { views: { increment: 1 } } });
+    // 浏览异步计数（Redis INCR，view-sync 任务定期回写 DB）
+    await redis.incr(`view:${id}`);
 
     const item = toListItem(work);
     let myFav = false;
@@ -132,7 +156,7 @@ export const workService = {
       where: { authorId: author.id, status: 'PUBLISHED', deletedAt: null },
     });
 
-    return {
+    const result = {
       ...item,
       previewToc: (work.previewToc as string[]) ?? [],
       applyMajor: work.applyMajor,
@@ -168,6 +192,8 @@ export const workService = {
         ),
       },
     };
+    if (!viewerId) await cacheSet(cacheKey, result, 60);
+    return result;
   },
 
   /** 创建（CREATOR，DRAFT） */
@@ -204,6 +230,7 @@ export const workService = {
       },
       include: WORK_LIST_INCLUDE,
     });
+    await invalidateWorkCaches(work.id);
     return toListItem(work);
   },
 
@@ -238,6 +265,7 @@ export const workService = {
       },
       include: WORK_LIST_INCLUDE,
     });
+    await invalidateWorkCaches(id);
     return toListItem(updated);
   },
 
@@ -262,6 +290,7 @@ export const workService = {
       data: { status: 'PENDING' },
       include: WORK_LIST_INCLUDE,
     });
+    await invalidateWorkCaches(id);
     return toListItem(updated);
   },
 
@@ -271,6 +300,7 @@ export const workService = {
     if (!work) throw appError('NOT_FOUND', '作品不存在');
     if (!isAdmin && work.authorId !== userId) throw appError('FORBIDDEN', '无权删除');
     await prisma.work.update({ where: { id }, data: { deletedAt: new Date() } });
+    await invalidateWorkCaches(id);
     return { ok: true };
   },
 
@@ -347,6 +377,7 @@ export const workService = {
       await notifyService.onWorkPublished(work.authorId, work.id, work.title);
     }
 
+    await invalidateWorkCaches(id);
     return toListItem(
       await prisma.work.findUniqueOrThrow({
         where: { id: updated.id },

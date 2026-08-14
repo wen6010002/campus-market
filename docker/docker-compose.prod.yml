@@ -11,10 +11,11 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
+      DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@pgbouncer:5432/${POSTGRES_DB:-campus_market}
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -40,12 +41,34 @@ services:
     command: ["node", "node_modules/tsx/dist/cli.mjs", "src/server/jobs/scheduler.ts"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
+      DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@pgbouncer:5432/${POSTGRES_DB:-campus_market}
       REDIS_URL: redis://redis:6379
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: cm-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${POSTGRES_USER:-cm}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-cm}
+      DB_NAME: ${POSTGRES_DB:-campus_market}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "200"
+      DEFAULT_POOL_SIZE: "20"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "${POSTGRES_USER:-cm}", "-d", "${POSTGRES_DB:-campus_market}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   postgres:
     image: postgres:16-alpine

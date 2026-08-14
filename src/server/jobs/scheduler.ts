@@ -3,6 +3,8 @@
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { prisma } from '../db';
+import { redis } from '../lib/redis';
+import { cacheDel } from '../lib/cache';
 import { incomeService } from '../services/income.service';
 import { qualityService } from '../services/quality.service';
 import { logger } from '../lib/logger';
@@ -20,6 +22,7 @@ const SCHEDULES: Array<[string, string]> = [
   ['order-timeout', '* * * * *'], // 每分钟关闭超时订单
   ['rank-refresh', '0 * * * *'], // 每小时刷新榜单（当前按需计算，此任务预留）
   ['notification-cleanup', '0 4 * * 0'], // 每周日 4 点清理 90 天已读通知
+  ['view-sync', '*/5 * * * *'], // 每 5 分钟回写 views 异步计数到 DB
 ];
 
 async function closeExpiredOrders() {
@@ -36,6 +39,23 @@ async function cleanupNotifications() {
     where: { read: true, createdAt: { lt: cutoff } },
   });
   return res.count;
+}
+
+/** 回写 views 异步计数到 DB（view:* → work.views increment + DEL + 失效详情缓存） */
+async function syncViews() {
+  const keys = await redis.keys('view:*');
+  let synced = 0;
+  for (const key of keys) {
+    const workId = key.slice('view:'.length);
+    const count = Number(await redis.get(key));
+    if (count > 0) {
+      await prisma.work.update({ where: { id: workId }, data: { views: { increment: count } } });
+      await cacheDel(`work:detail:${workId}`);
+      synced++;
+    }
+    await redis.del(key);
+  }
+  return synced;
 }
 
 async function run(jobName: string) {
@@ -58,6 +78,11 @@ async function run(jobName: string) {
     case 'notification-cleanup': {
       const n = await cleanupNotifications();
       if (n > 0) logger.info({ n }, 'notification-cleanup deleted');
+      break;
+    }
+    case 'view-sync': {
+      const n = await syncViews();
+      if (n > 0) logger.info({ n }, 'view-sync flushed');
       break;
     }
     default:

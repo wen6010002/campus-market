@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import { prisma } from '@/server/db';
+import { redis } from '@/server/lib/redis';
 import { flushDb } from '../helpers/flush';
 import { seedTestData } from '../../prisma/seed.test';
 import { workService } from '@/server/services/work.service';
@@ -87,14 +88,14 @@ describe('作品服务（阶段 3）', () => {
 
   it('列表：仅返回 PUBLISHED', async () => {
     const result = await workService.list({ page: 1, pageSize: 20, sort: 'new' } as any);
-    expect(result.data.every((w) => w.status === 'PUBLISHED')).toBe(true);
+    expect(result.data.every((w: any) => w.status === 'PUBLISHED')).toBe(true);
   });
 
-  it('浏览计数：每次 GET +1', async () => {
-    const before = await prisma.work.findUniqueOrThrow({ where: { id: 'work_test' } });
+  it('浏览计数：每次 GET 走 Redis 异步计数', async () => {
+    await redis.del('view:work_test');
     await workService.get('work_test');
     await workService.get('work_test');
-    const after = await prisma.work.findUniqueOrThrow({ where: { id: 'work_test' } });
-    expect(after.views).toBe(before.views + 2);
+    expect(await redis.get('view:work_test')).toBe('2');
+    await redis.del('view:work_test');
   });
 });

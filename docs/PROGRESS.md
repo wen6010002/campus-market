@@ -682,3 +682,42 @@
 **下阶段是否受影响**
 
 - V2-2 性能优化独立；真实支付仍需商户号（见 VERSION2.md 0.4.1），本地/E2E 继续 `PAYMENT_MODE=mock`。
+
+## V2-2 — 性能优化
+
+**做了什么**
+
+- `lib/cache.ts`：Redis 缓存封装（cacheGet/cacheSet/cacheDel/cacheDelByPattern）。
+- `work.service`：`list` 缓存（`works:list:{query}` TTL 30s）、`get` 缓存（`work:detail:{id}` TTL 60s，仅未登录请求可缓存，因 myFav/myAccess/myRating 依赖用户）、写操作（create/update/publish/remove/audit）失效缓存。
+- `rank.service`：`rank:{type}` TTL 1h 缓存。
+- **views 异步计数**：`get` 改为 `redis.incr('view:{id}')`（不再同步写 DB）；scheduler 加 `view-sync` 任务（每 5 分钟回写 DB + 失效详情缓存）。
+- `db.ts`：运行时优先走 `DATABASE_URL_POOLED`（PgBouncer），未配置回退直连。
+- docker：dev/prod compose 加 pgbouncer 服务（transaction 模式，MAX_CLIENT_CONN=200）；`.env.example` 加 `DATABASE_URL_POOLED`。
+- migration `pg_trgm`：`CREATE EXTENSION pg_trgm` + title/description/course 三列 GIN 三元组索引（搜索加速）。
+
+**压测结果（生产 build，对比 V1）**
+
+| 端点 | 并发 | V1 p99        | V2 p99          | V1 吞吐 | V2 吞吐  |
+| ---- | ---- | ------------- | --------------- | ------- | -------- |
+| 列表 | 100  | 254ms         | **50ms**        | 920     | **3085** |
+| 列表 | 200  | 2648ms(2超时) | **83ms(0超时)** | 970     | **3184** |
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` + `pnpm lint` 通过
+- ✅ `pnpm test` 通过（82/82，views 测试改为断言 Redis 计数）
+- ✅ 压测达标：200 并发 p99 83ms（<500ms）、0 超时、吞吐提升 3.3×（>2×）
+
+**遇到的问题**
+
+1. **cacheGet 泛型 `unknown` 导致类型污染**：list/get/rank 返回 `any` 引发调用处隐式 any，改用 `cacheGet<any>` + 测试断言显式 `(w: any)`。
+2. **views 测试失效**：views 改 Redis 后，原「GET 后 DB views+2」断言失败，改为断言 `redis.get('view:work_test')==='2'`。
+3. **pgbouncer 镜像拉取超时**（docker.io 网络问题）：代码已就绪（db.ts 支持 pooled 串 + compose 已配），实际连接池收益留待部署时验证；本地压测主要体现 Redis 缓存收益。
+
+**反思（V2-2 命题：缓存失效粒度会脏读吗？）**
+
+- 读操作 set（TTL 30s/60s），写操作只 `DEL` 相关 key；窗口期最多 30s 旧数据（列表）/60s（详情），对内容型社区可接受。views 异步回写丢失窗口 = 进程崩溃后 `view:*` 未回写，最多丢 5 分钟浏览量，可接受。
+
+**下阶段是否受影响**
+
+- V2-3 管理后台独立；用户管理后端需在 admin.service 加 listUsers/ban/unban/setRole。
