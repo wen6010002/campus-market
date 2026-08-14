@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { AppError, validationError, httpStatusByCode } from './errors';
@@ -48,19 +49,38 @@ export function assertSameOrigin(req: Request): void {
   }
 }
 
-/** 路由薄层统一错误处理：AppError / ZodError / 兜底 500；写操作先过 CSRF 校验 */
+/** 路由薄层统一错误处理：AppError / ZodError / 兜底 500；写操作先过 CSRF 校验 + 访问日志 */
 export function withErrorHandler<C = unknown>(
   handler: (req: Request, ctx: C) => Promise<NextResponse>,
 ) {
   return async (req: Request, ctx: C): Promise<NextResponse> => {
+    const start = Date.now();
+    const requestId = req.headers.get('x-request-id') ?? randomUUID();
+    const path = new URL(req.url).pathname;
     try {
       assertSameOrigin(req);
-      return await handler(req, ctx);
+      const res = await handler(req, ctx);
+      logger.info(
+        { requestId, method: req.method, path, status: res.status, duration: Date.now() - start },
+        'http',
+      );
+      res.headers.set('x-request-id', requestId);
+      return res;
     } catch (e) {
-      if (e instanceof ZodError) return errorResponse(validationError(e));
-      if (e instanceof AppError) return errorResponse(e);
-      logger.error({ err: e }, 'unhandled route error');
-      return errorResponse(new AppError('INTERNAL', 500, '服务端错误'));
+      if (e instanceof ZodError) {
+        const res = errorResponse(validationError(e));
+        res.headers.set('x-request-id', requestId);
+        return res;
+      }
+      if (e instanceof AppError) {
+        const res = errorResponse(e);
+        res.headers.set('x-request-id', requestId);
+        return res;
+      }
+      logger.error({ requestId, err: e, path }, 'unhandled route error');
+      const res = errorResponse(new AppError('INTERNAL', 500, '服务端错误'));
+      res.headers.set('x-request-id', requestId);
+      return res;
     }
   };
 }

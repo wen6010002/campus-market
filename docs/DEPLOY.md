@@ -57,17 +57,18 @@ open http://localhost:8025                     # mailhog 界面查看验证码
 
 必填项标注 `#required`。完整字段见 `.env.example`，关键项：
 
-| 变量                 | 说明                                    | 本地默认                                          |
-| -------------------- | --------------------------------------- | ------------------------------------------------- |
-| `DATABASE_URL`       | PG 连接串                               | `postgresql://cm:cm@localhost:5433/campus_market` |
-| `REDIS_URL`          | Redis 连接                              | `redis://localhost:6379`                          |
-| `AUTH_SECRET`        | JWT 签名密钥（required）                | 随机生成                                          |
-| `PASSWORD_PEPPER`    | 密码 pepper（required）                 | 随机生成                                          |
-| `S3_*`               | MinIO 地址/密钥/桶                      | `localhost:9000` / `minioadmin`                   |
-| `PAYMENT_MODE`       | `mock` \| `wechat` \| `alipay` \| `all` | `mock`                                            |
-| `SMTP_HOST/PORT`     | 邮件（本地 mailhog）                    | `localhost:1025`                                  |
-| `PLATFORM_FEE_RATE`  | 平台抽成                                | `0.1`（10%）                                      |
-| `INCOME_SETTLE_DAYS` | T+N 结算                                | `7`                                               |
+| 变量                  | 说明                                    | 本地默认                                          |
+| --------------------- | --------------------------------------- | ------------------------------------------------- |
+| `DATABASE_URL`        | PG 连接串（直连，迁移用）               | `postgresql://cm:cm@localhost:5433/campus_market` |
+| `DATABASE_URL_POOLED` | 运行时连接串（走 PgBouncer，可选）      | `postgresql://cm:cm@localhost:6433/campus_market` |
+| `REDIS_URL`           | Redis 连接                              | `redis://localhost:6379`                          |
+| `AUTH_SECRET`         | JWT 签名密钥（required）                | 随机生成                                          |
+| `PASSWORD_PEPPER`     | 密码 pepper（required）                 | 随机生成                                          |
+| `S3_*`                | MinIO 地址/密钥/桶                      | `localhost:9000` / `minioadmin`                   |
+| `PAYMENT_MODE`        | `mock` \| `wechat` \| `alipay` \| `all` | `mock`                                            |
+| `SMTP_HOST/PORT`      | 邮件（本地 mailhog）                    | `localhost:1025`                                  |
+| `PLATFORM_FEE_RATE`   | 平台抽成                                | `0.1`（10%）                                      |
+| `INCOME_SETTLE_DAYS`  | T+N 结算                                | `7`                                               |
 
 ---
 
