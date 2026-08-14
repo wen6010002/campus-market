@@ -200,6 +200,14 @@ export const workService = {
   async create(authorId: string, input: WorkInput) {
     if (!input.copyrightAccepted) throw appError('COPYRIGHT_REQUIRED', '请勾选原创/授权声明');
 
+    // 文件指纹去重：防购买后转卖重复上架
+    if (input.fileSha) {
+      const dup = await prisma.work.findFirst({
+        where: { fileSha: input.fileSha, deletedAt: null },
+      });
+      if (dup) throw appError('CONFLICT', '该文件已在平台，请勿重复上架');
+    }
+
     const work = await prisma.work.create({
       data: {
         authorId,
@@ -208,6 +216,7 @@ export const workService = {
         course: input.course,
         fileType: input.fileType,
         fileKey: input.fileKey,
+        fileSha: input.fileSha ?? null,
         fileSize: input.fileSize,
         pages: input.pages ?? 0,
         coverIcon: input.coverIcon ?? '📄',
@@ -218,6 +227,7 @@ export const workService = {
         status: 'DRAFT',
         quality: 'NORMAL',
         copyrightAccepted: true,
+        isOriginal: input.isOriginal,
         applyMajor: input.applyMajor ?? null,
         applyGrade: input.applyGrade ?? null,
         applyCrowd: input.applyCrowd ?? null,

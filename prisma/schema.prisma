@@ -240,6 +240,7 @@ model Work {
   status           WorkStatus  @default(DRAFT)
   quality          Quality     @default(NORMAL)
   copyrightAccepted Boolean    @default(false)
+  isOriginal       Boolean     @default(true)
   applyMajor       String?
   applyGrade       String?
   applyCrowd       String?

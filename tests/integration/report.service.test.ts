@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { prisma } from '@/server/db';
+import { redis } from '@/server/lib/redis';
 import { flushDb } from '../helpers/flush';
 import { seedTestData } from '../../prisma/seed.test';
 import { reportService } from '@/server/services/report.service';
@@ -18,6 +19,9 @@ beforeAll(async () => {
   });
   await flushDb(prisma);
   await seedTestData(prisma);
+  // 清限流 key，避免跨 run 残留导致 RATE_LIMITED
+  const keys = await redis.keys('rl:*');
+  if (keys.length) await redis.del(...keys);
 });
 
 afterAll(async () => {

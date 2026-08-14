@@ -29,6 +29,7 @@ const validInput: WorkInput = {
   isFree: true,
   tags: ['测试'],
   previewToc: ['第一章'],
+  isOriginal: true,
   copyrightAccepted: true,
 };
 

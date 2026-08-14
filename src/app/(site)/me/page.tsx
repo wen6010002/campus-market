@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
@@ -27,6 +27,7 @@ export default function MePage() {
 
 function MeContent() {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const sp = useSearchParams();
   const tab = sp.get('tab') ?? 'library';
 
@@ -224,7 +225,20 @@ function MeContent() {
 
         {tab === 'notif' && (
           <div>
-            <h3 style={{ marginBottom: 14 }}>通知</h3>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ margin: 0 }}>通知</h3>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ marginLeft: 'auto' }}
+                onClick={async () => {
+                  await apiFetch('/me/notifications/read-all', { method: 'POST' });
+                  qc.invalidateQueries({ queryKey: ['me', 'notifications'] });
+                  qc.invalidateQueries({ queryKey: ['me'] });
+                }}
+              >
+                全部已读
+              </button>
+            </div>
             {notifs.data?.length ? (
               notifs.data.map((n) => (
                 <div

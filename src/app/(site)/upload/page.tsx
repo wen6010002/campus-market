@@ -34,6 +34,7 @@ export default function UploadPage() {
     course: '',
     tags: '',
     isFree: true,
+    isOriginal: true,
     price: '',
     copyright: false,
   });
@@ -50,6 +51,14 @@ export default function UploadPage() {
         [k]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value,
       }));
 
+  async function calcSha(f: File): Promise<string> {
+    const buf = await f.arrayBuffer();
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
   async function submit() {
     if (!file) return toast('请先上传文件', 'warn');
     if (!form.title || !form.description || !form.course) return toast('请填写作品信息', 'warn');
@@ -59,7 +68,12 @@ export default function UploadPage() {
     setSubmitting(true);
     try {
       const fileType = detectType(file.name);
-      const { fileKey, putUrl } = await presign.mutateAsync({ fileType, fileSize: file.size });
+      const fileSha = await calcSha(file);
+      const { fileKey, putUrl } = await presign.mutateAsync({
+        fileType,
+        fileSize: file.size,
+        sha: fileSha,
+      });
       await uploadFile(putUrl, file, setProgress);
       const work = await createWork.mutateAsync({
         title: form.title,
@@ -67,6 +81,7 @@ export default function UploadPage() {
         course: form.course,
         fileType,
         fileKey,
+        fileSha,
         fileSize: file.size,
         isFree: form.isFree,
         price: form.isFree ? undefined : form.price,
@@ -75,6 +90,7 @@ export default function UploadPage() {
           .map((t) => t.trim())
           .filter(Boolean),
         previewToc: [],
+        isOriginal: form.isOriginal,
         copyrightAccepted: form.copyright,
       });
       await publishWork.mutateAsync(work.id);
@@ -190,6 +206,31 @@ export default function UploadPage() {
               style={{ marginTop: 10 }}
             />
           ) : null}
+        </div>
+        <div className="field">
+          <label>原创声明</label>
+          <div className="opt-list">
+            <div
+              className={`opt ${form.isOriginal ? 'active' : ''}`}
+              onClick={() => setForm((f) => ({ ...f, isOriginal: true }))}
+            >
+              <span className="opt-radio" />
+              <div className="opt-main">
+                <b>原创</b>
+                <span>我本人创作</span>
+              </div>
+            </div>
+            <div
+              className={`opt ${!form.isOriginal ? 'active' : ''}`}
+              onClick={() => setForm((f) => ({ ...f, isOriginal: false }))}
+            >
+              <span className="opt-radio" />
+              <div className="opt-main">
+                <b>整理 / 转载</b>
+                <span>已获授权</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="field">
           <label

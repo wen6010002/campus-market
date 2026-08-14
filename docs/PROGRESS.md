@@ -774,3 +774,31 @@
 **下阶段是否受影响**
 
 - V2-5 评论功能：`comment.content` 写入前必须 sanitize（复用 lib/sanitize.ts）。
+
+## V2-5 — 功能补全（评论/通知/成就/原创保护）
+
+**做了什么**
+
+- `comment.service.ts`：评论 list/create（sanitize content）/remove（软删，owner/admin），路由 `GET/POST /works/[id]/comments`、`DELETE /comments/[id]`。
+- 通知中心：`/me` 通知 Tab 加「全部已读」按钮（POST read-all + 失效缓存）。
+- `achievement.service.ts`：`grant`（幂等查重 + 唯一约束兜底）+ `listForUser`（成就墙）；`ratingService.create`（五星→FIRST_FIVE_STAR）、`orderService.markPaid`（首次收益→FIRST_INCOME）事务后触发。
+- 原创保护：`Work` 加 `isOriginal`（默认 true）+ migration；`work.service.create` 加 fileSha 去重（重复→CONFLICT「该文件已在平台」）；前端 `/upload` 用 `crypto.subtle.digest` 算 SHA256 + 原创/整理/转载单选。
+- 路由：`GET /me/achievements`。
+
+**测试清单结果**
+
+- ✅ `pnpm typecheck` + `pnpm lint` 通过
+- ✅ `pnpm test` 通过（95/95）：评论 sanitize/权限、成就幂等、fileSha 去重、isOriginal 字段
+
+**遇到的问题**
+
+1. **测试种子缺成就 key**：`grant('FIRST_INCOME')` 因 seed.test 无该成就返回 false，补 FIRST_FIVE_STAR/FIRST_INCOME 到测试种子 + 更新 schema 行数断言（2→4）。
+2. **限流 key 跨 run 残留**：`report.create` 加限流后，测试固定 reporterId 累积超阈值报 RATE_LIMITED，beforeAll 清 `rl:*` keys。
+
+**反思（V2-5 命题：成就触发在事务内还是事务后？）**
+
+- 事务后触发：rating/order 事务返回后再 `grant`（幂等），不拉长事务、不影响主流程正确性；唯一约束 + 查重双保险防重复。
+
+**下阶段是否受影响**
+
+- V2-6 测试与 CI：E2E 7 路径 + 覆盖率 + GitHub Actions。

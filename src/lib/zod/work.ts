@@ -10,6 +10,7 @@ export const workInputSchema = z.object({
   course: z.string().trim().min(1).max(100),
   fileType: z.nativeEnum(FileType),
   fileKey: z.string().trim().min(1),
+  fileSha: z.string().max(64).optional(),
   fileSize: z.number().int().min(0).max(209715200),
   pages: z.number().int().min(0).max(100000).optional(),
   coverIcon: z.string().max(8).optional(),
@@ -22,6 +23,7 @@ export const workInputSchema = z.object({
   applyCrowd: z.string().max(100).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(20)).max(5).default([]),
   previewToc: z.array(z.string().max(200)).max(50).default([]),
+  isOriginal: z.boolean().default(true),
   copyrightAccepted: z.boolean().default(false),
 });
 

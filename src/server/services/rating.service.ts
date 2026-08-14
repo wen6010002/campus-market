@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { redis } from '../lib/redis';
 import { appError } from '../lib/errors';
 import { sanitize } from '../lib/sanitize';
+import { achievementService } from './achievement.service';
 import type { CreateRatingInput } from '@/lib/zod/rating';
 import type { RatingDist } from '../algos/rating';
 
@@ -37,7 +38,7 @@ const SORT_SQL: Record<string, { column: string; dir: 'asc' | 'desc' }> = {
 export const ratingService = {
   /** 提交评分（资格 + 唯一约束 + FOR UPDATE 锁 Work 行事务重算） */
   async create(userId: string, workId: string, input: CreateRatingInput) {
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const work = await tx.work.findFirst({
         where: { id: workId, deletedAt: null, status: 'PUBLISHED' },
       });
@@ -98,6 +99,12 @@ export const ratingService = {
       });
       return toRating(full, userId);
     });
+    // 成就：首个五星（事务后触发，不拉长事务）
+    if (input.stars === 5) {
+      const w = await prisma.work.findUnique({ where: { id: workId }, select: { authorId: true } });
+      if (w) await achievementService.grant(w.authorId, 'FIRST_FIVE_STAR');
+    }
+    return result;
   },
 
   /** 评价列表 + 汇总（公开） */

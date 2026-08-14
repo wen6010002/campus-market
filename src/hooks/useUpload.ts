@@ -10,11 +10,13 @@ export interface WorkCreateInput {
   course: string;
   fileType: FileType;
   fileKey: string;
+  fileSha?: string;
   fileSize: number;
   pages?: number;
   coverIcon?: string;
   coverTheme?: string;
   isFree: boolean;
+  isOriginal?: boolean;
   price?: string;
   oldPrice?: string;
   tags: string[];
@@ -24,7 +26,7 @@ export interface WorkCreateInput {
 
 export function usePresign() {
   return useMutation({
-    mutationFn: (input: { fileType: FileType; fileSize: number }) =>
+    mutationFn: (input: { fileType: FileType; fileSize: number; sha?: string }) =>
       apiFetch<{ fileKey: string; putUrl: string }>('/uploads/presign', {
         method: 'POST',
         body: JSON.stringify(input),

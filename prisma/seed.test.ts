@@ -6,6 +6,8 @@ export async function seedTestData(prisma: PrismaClient) {
   for (const a of [
     { key: 'HELP_50' as const, emoji: '🏆', title: '帮助 50 位同学' },
     { key: 'HELP_1000' as const, emoji: '🏆', title: '帮助 1000 位同学' },
+    { key: 'FIRST_FIVE_STAR' as const, emoji: '⭐', title: '首个五星作品' },
+    { key: 'FIRST_INCOME' as const, emoji: '💰', title: '首次获得收益' },
   ]) {
     await prisma.achievement.upsert({ where: { key: a.key }, update: {}, create: a });
   }

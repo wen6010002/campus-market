@@ -4,6 +4,7 @@ import { presignGet } from '../storage/minio';
 import { getProvider } from '../payment';
 import type { PayParams } from '../payment';
 import { splitFee, settleAt } from '../algos/income';
+import { achievementService } from './achievement.service';
 import { PayMethod, PayStatus } from '@/lib/constants';
 
 const ORDER_TIMEOUT_MIN = Number(process.env.ORDER_TIMEOUT_MIN ?? 15);
@@ -127,7 +128,8 @@ export const orderService = {
    * 订单 PAID → Download → CreatorIncome(PENDING) → Wallet.pending+ → Work.downloads+ → 通知买家。
    */
   async markPaid(orderId: string, transactionId: string, idempotencyKey: string) {
-    return prisma.$transaction(async (tx) => {
+    let creatorUserId: string | undefined;
+    const result = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw appError('NOT_FOUND', '订单不存在');
       if (order.payStatus === 'PAID') return { ok: true, already: true }; // 幂等
@@ -148,6 +150,7 @@ export const orderService = {
 
       // 收益流水（不重复）
       const work = await tx.work.findUnique({ where: { id: order.workId } });
+      creatorUserId = work?.authorId;
       const creator = work
         ? await tx.creatorProfile.findUnique({ where: { userId: work.authorId } })
         : null;
@@ -184,6 +187,11 @@ export const orderService = {
 
       return { ok: true, already: false };
     });
+    // 成就：首次收益（事务后触发）
+    if (!result.already && creatorUserId) {
+      await achievementService.grant(creatorUserId, 'FIRST_INCOME');
+    }
+    return result;
   },
 
   /** 下载（登录 + hasAccess，幂等） */
