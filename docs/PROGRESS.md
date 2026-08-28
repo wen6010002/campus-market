@@ -848,3 +848,316 @@
 - 功能（评论 + 通知 + 成就 + 原创/fileSha 去重）
 - 测试与 CI（GitHub Actions + E2E 骨架）
 - 可观测（requestId + 访问日志）+ 部署脚本
+
+## V3-1 — 全站视觉升级（响应式满幅 + 评分条修复）
+
+**做了什么**
+
+- `globals.css`：`--maxw: 1240px → min(1520px, calc(100vw - 48px))`；`card-grid` 断点改 base4 / ≥1360 五列 / ≤1180 三列 / ≤880 两列，并删除后期覆盖块里冲突的 980px→2 列规则；`fine-grid` ≥1360 四列；input 重置字号 14→15。
+- 移动端（≤680px）顶栏折叠：隐藏专区链接/搜索框/次要链接/匿名态登录按钮/logo 副标题，修复 375px 横向滚动。
+- `.zone-entry` 加 `min-width:0` 修复 900px 下专区入口撑破网格轨道。
+- **评分分布进度条 bug 修复**：`RatingBars.tsx` 类名从 `rd-label/bar-fill/rd-count` 对齐 CSS 真实选择器 `.lb/.bar i/.v`（根因：CSS 与 JSX 类名不匹配导致填充条无样式不可见）。
+- `Stars.tsx` 半星支持（≥.75 进位整星，.25~.75 半星双层叠加渲染）。
+
+**测试清单结果**
+
+- ✅ typecheck / lint 通过；`pnpm test` 95/95
+- ✅ Playwright 实测：1440px 两侧空白 24px；1920px 内容区 1520px；卡片 240~282px；1360/1080/900/375 分别 5/3/3/2 列；全部无横向滚动（375 匿名+登录两态）
+- ✅ 详情页评分分布：5 行、轨道 156px、渐变填充按比例渲染
+
+**遇到的问题**
+
+1. 字号上调目标（body 15 等）发现文件尾部已有「视觉放大」覆盖块（body 16 / 卡标题 16 / h1 26），首次编辑加在文件头部成为死代码，已回退保持单一来源。
+2. 375/900px 横向滚动为存量问题（zone-entry min-width:auto + 移动端顶栏不折叠），一并修复。
+
+**反思（V3-1 命题：满幅后卡片是否过宽？）**
+
+1520px 下 5 列卡片 ~282px，与改版前 4 列 286px 几乎一致——观感变化来自内容密度与留白，而非卡片变形，符合预期。
+
+## V3-2 — 分类体系 + 发布开放 + 上传表单重做
+
+**做了什么**
+
+- Schema：`Category` 枚举（COURSE/EXAM/CAREER/TUTOR/LIFE/CAMPUS）+ `Work.category`，迁移 `v3_add_category`。
+- `lib/constants.ts`：`CATEGORIES` 6 大类（用途导向）+ `PRESET_TAGS` 43 个预设标签池 + `CATEGORY_LABEL`。
+- zod：workInput/workQuery 加 category；`workService`：list 过滤 + toListItem 返回 + create/update 落库 + 新增 `courses()` 课程聚合（groupBy course，缓存 60s）+ `GET /works/courses` 路由。
+- **开放发布**：`requireCreator` → `ensureCreatorProfile`（可单测的纯函数）+ `ensurePublisher`（requireUser + 自动建未认证 CreatorProfile + STUDENT 升 CREATOR）；替换 9 处调用点；`PERMISSIONS.upload` 开放 STUDENT。
+- 上传表单重做：6 大类 chip 单选（必选）→ 预设标签池联动多选（≤5）+ 自定义标签 1 个；非 PDF 黄色引导条（说明在线预览影响观看量）+ 强制勾选；PDF 绿色提示。
+- `/explore` 分类页：左侧大类侧栏（含计数）+ 预设标签/热门课程 chips + 免费/付费 + 4 排序，URL 即状态；首页「分类浏览」快捷入口行。
+- seed：`WORK_CATEGORY` 映射回填存量（update 也写 category）+ 预设标签全量落库 + 16 个作品标签改用预设池。
+
+**测试清单结果**
+
+- ✅ typecheck / lint 通过；`pnpm test` 100/100（+5：category 落库/过滤、courses 聚合、ensureCreatorProfile 建档+升级+幂等；修正权限矩阵单测为新语义）
+- ✅ 手动：explore 全量 20 / CAMPUS 1 / COURSE+期末复习 3 / 付费好评 9；courses API 聚合正确；首页 7 chips；上传表单大类→标签联动、docx 警告条强制勾选
+
+**遇到的问题**
+
+1. dev 服务器在迁移前启动，持有旧 Prisma client 导致 category 查询 500——重启 dev 解决（运维备注：跑迁移后要重启 dev）。
+2. dev 库有 16 个历史 E2E/手测垃圾作品默认落 COURSE，软删清理（id 非 w_ 前缀）。
+3. zod default 使 `WorkInput` 输出类型要求 category，两个测试 fixture 补字段。
+
+**反思（V3-2 命题：开放发布对收益链路的冲击）**
+
+收益挂靠 CreatorProfile 的设计使开放发布零成本兼容：ensureCreatorProfile 自动建未认证档案，wallet/income 在首次收益时照常工作。JWT role 滞后至重登录，但权威判定均查库，无越权风险。
+
+## V3-3 — 封面系统（PDF 首页缩略 + 自定义封面）
+
+**做了什么**
+
+- 依赖：+`pdfjs-dist@6`、+`pdf-lib`。迁移 `v3_add_cover_preview_key`（Work.coverKey / previewKey，previewKey 供 V3-4 使用）。
+- `upload.service.presign` 增加 kind（work/cover/avatar/preview）：各自前缀、类型白名单（cover/avatar 仅 IMAGE、preview 仅 PDF）、大小上限（5MB/5MB/30MB）；presign 路由 zod 同步。
+- `minio.presignGetInline`（1h inline）；`GET /works/[id]/cover` 302 代理 + Cache-Control 1h（封面 URL 稳定，浏览器缓存，列表 API 不内嵌签名 URL）。
+- `WorkCover` 统一组件：hasCover（toListItem 派生）→ img，失败/无图回退 emoji+主题；WorkCard / FineCard / 详情页 cover-top 三处接入；fine-cover 高度 136→160。
+- 上传表单封面步骤：PDF 选文件后 pdfjs 异步渲染第 1 页（600px×2，JPEG85）→「自动封面」预览；三种模式（自动/图标+13 主题色板/自定义上传≤5MB）；图标 24 个学科向，随大类给默认值。
+- pdfjs v6 注意：render 用 `{ canvas }`（canvasContext 已弃用）。
+
+**测试清单结果**
+
+- ✅ typecheck / lint；`pnpm test` 105/105（+5：cover/preview kind 白名单、大小上限、前缀、默认 work 兼容）
+- ✅ 手动全链路：上传 7 页 PDF → 自动封面生成（naturalWidth 1200）→ 提交 → 管理端审核通过 → cover 路由 302 → 详情页与 explore 渲染图片封面
+
+**遇到的问题**
+
+1. 首页 free 列表按 hot（下载数）排序，新作品 0 下载不进前 8——验收改用 sort=new 与详情页，非 bug。
+2. `uploadFile` 签名 File → `File | Blob`（封面 blob 直传）。
+
+**反思（V3-3 命题：302 代理 vs API 内嵌签名 URL）**
+
+302 方案让封面 URL 稳定可缓存、列表接口零改动、toListItem 保持同步——代价是每图一次 302 跳转，浏览器缓存后可忽略。种子封面维持 emoji 主题（演示环境无真实 PDF 内容差异，视觉验收后再定是否生成图片封面）。
+
+## V3-4 — 在线预览 + 观看量体系
+
+**做了什么**
+
+- **观看语义定稿**：`Work.views` = 预览打开次数。删除 `workService.get` 内两处详情页 `redis.incr`；`getPreview` 内 SETNX 去重（登录按 userId / 匿名按 IP，24h）后 INCR `view:{id}`，view-sync 定时任务零改动复用。
+- `workService.getPreview(id, viewerId, ip)`：权限矩阵——免费/已购/作者/ADMIN → full（原文件 inline 签名，1h）；付费未购 → sample（previewKey 试读副本）无副本 → none；非 PDF → none；未发布 → NOT_FOUND（作者除外）。限流 rl:preview 30/min。
+- `POST /works/[id]/preview` 路由 + middleware 单独放行该 POST 匿名访问。
+- 上传端：付费 PDF 用 pdf-lib 截前 5 页生成试读副本 → presign kind=preview → previewKey（失败不阻塞发布）。
+- **PreviewModal（iframe 原生 PDF 查看器，方案偏离说明）**：原计划 pdfjs canvas 逐页渲染，实施改为 iframe 原生查看器——免费与试读副本本就是完整 PDF 文件，iframe 零渲染代码、无 CORS 依赖、自带缩放/翻页；200 页上限由原生查看器接管。水印（斜纹+用户名 16 处）与购买 CTA 为覆盖层，仅 sample 模式。
+- 详情页：死目录盒（previewToc 恒空）替换为预览入口条；按钮矩阵重排（免费=预览主+下载次；付费未购=购买主+试读次；已购=下载主+预览次）；cover-meta 免费显示观看量、付费显示下载量；WorkCard 免费卡显示 👁 观看、付费卡显示 ⬇ 下载。
+
+**测试清单结果**
+
+- ✅ typecheck / lint；`pnpm test` 111/111（+6 预览权限矩阵 + 计数去重语义重写）
+- ✅ 手动：免费 w_db1 匿名预览 full（48 页·完整版，iframe→works/）；上传 9 页付费 PDF → 匿名 sample（iframe→previews/）+ 试读提示 + 16 水印 + 购买 CTA；同 IP 3 次打开计 1、异 IP 各计 1（redis 实测 1→2）
+
+**遇到的问题**
+
+1. 测试残留 `viewd:*` 去重键（24h TTL）跨 run 影响计数断言——测试 setup 清全量相关键。
+2. 同一测试 PDF 二次上传被 fileSha 防重复上架拦截（功能正确），验收换新文件。
+
+**反思（V3-4 命题：付费内容保护边界）**
+
+未购者只能拿到 5 页试读副本的签名 URL（10min/1h 短时效），原文件 URL 仅对已购/作者签发；水印防截图属君子协定，深度防盗需 DRM 超出本版范围。
+
+## V3-5 — 个人主页整合（/user/[id]）
+
+**做了什么**
+
+- Schema：`User.bio(≤200)` / `User.avatarKey`，迁移 `v3_user_bio_avatar`；bio 读取 `user.bio ?? creator.bio` 兜底，写入一律 User 层。
+- 新 API：`GET /users/[id]`（主页数据+stats+myFollow+isSelf）、`/users/[id]/works|ratings|follows?type=`、`POST/DELETE /users/[id]/follow`、`GET /users/[id]/avatar`（302+缓存1h，同封面模式）、`PATCH /me/profile`（username 查重）、`POST /me/avatar`（objectExists 校验）、`GET /me/reports`（V3-6 占位）。
+- **删除** `/api/v1/creators/*` 四路由；middleware 公开 GET 从 creators 换 users。`socialService` 增 userDetail/userRatings/userFollows（含 myFollow 标记与粉丝数）；`meService` 增 updateProfile/setAvatar；buildAuthUser 增 bio/hasAvatar。
+- **`/user/[id]` 页面**：hero（UserAvatar 共享组件 302 头像+回退）+ 5 数据卡（粉丝/关注/作品/已帮助/好评）+ 横向滚动 tabs——本人 10 个（作品[展示/数据分析子视图+状态角标+驳回原因]/评价/关注/粉丝/收藏/资料库/订单/收益[4卡+明细/提现+WithdrawModal]/通知/我的举报）、他人 4 个；本人空作品态 =「发布你的第一份资料」+ [→ 去发布] 跳转。
+- EditProfileModal：头像上传（presign kind=avatar）+ 用户名/简介/学院/年级/专业。
+- 路由收编：`/me`（客户端重定向+旧 tab 参数映射）、`/creator/[id]`（server redirect）、`/creator-center`、`/income`（客户端重定向）→ 全部指向 /user/[id]；原四页面删除。Nav 下拉 9 项精简为 4+1（管理员额外显示管理后台）；全站 `/creator/` 跳转引用替换为 `/user/`（WorkCard/FineCard/WorkDetail/CreatorCard/DynamicCard/Footer/上传成功跳转）。
+
+**测试清单结果**
+
+- ✅ typecheck / lint；`pnpm test` 116/116（+5：detail 三态、follows、ratings、profile 改名/重名、avatar 校验）
+- ✅ 手动：/me?tab=favs→/user/u0?tab=favs；本人 10 tab / 他人 4 tab；编辑资料保存后 bio 即时回显；/creator/c_lin→/user/c_lin；粉丝行卡；作品卡作者→/user/c_su；收益 tab 完整；空作品 CTA 可跳转；无 5xx
+
+**遇到的问题**
+
+1. follow 列表 myFollow 需要 viewerId 显式传入（服务不推断当前会话），集成测试首版漏传。
+2. me/orders 返回无 work 摘要类型，页面用 OrderWithWork 弱类型承接。
+
+**反思（V3-5 命题：合并页面会不会过大）**
+
+单文件 ~640 行但结构是「hero+stats+tabs+10 个互不依赖的 tab 组件」，每个 tab 自取数；后续拆文件成本低。真正的耦合点只有 isSelf 显隐，边界清晰。
+
+## V3-6 — 举报闭环
+
+**做了什么**
+
+- Schema：Report + `targetTitle/targetSnapshot/targetAuthorId` 快照三元组；`ReportStatus.DISMISSED`（驳回）；`ReportTargetType.RATING`（评价举报，与评论区分）；索引 `(targetType,targetId,status)`；迁移 `v3_report_snapshot_dismissed_rating`。
+- `reportService` 重写：create（5/h 限流 + 同人同目标未结单幂等 409 + 四类目标快照生成）；`myReports`；`adminList` 按 target 聚合（count/举报人明细含各自原因与时间/原因分布/最新时间/openCount）；`adminHandle` 按 target 批量关单（RESOLVE 可选措施：下架作品+AuditLog / 删评论或评价 / 封禁作者[原因必填]；DISMISS 备注必填）+ 事务后双向通知（全部举报人 + 被处置方）。**不做侵权退款**（产品决策）。
+- 路由：`GET /admin/reports?status=`（聚合）、`POST /admin/reports/handle`（按 target）；删除旧 `/admin/reports/[id]`；`GET /me/reports` 落地。
+- 前端：`ReportModal` 通用组件（6 原因单选带说明 + 补充说明）；入口三处——作品详情「···举报」（作者不可见）、评价项「···」（RATING）、用户主页 hero「···举报」（USER）；管理端 reports tab 重做为聚合卡片（状态过滤/快照摘要/原因分布 chips/举报人列表/N人举报）+ 处置 Modal（结果单选/措施复选按目标类型启停/封禁原因必填）；个人主页「我的举报」tab（状态徽章+处理备注+目标跳转）。
+- 顺手改进：`messageFor(code, serverMessage)` 优先服务端具体文案（如「你已举报过该内容」不再被通用 CONFLICT 文案覆盖），8 处调用点更新。
+
+**测试清单结果**
+
+- ✅ typecheck / lint；`pnpm test` 119/119（举报 4 测重写+扩展：快照落库/幂等/聚合/处置联动+通知/驳回校验）
+- ✅ 手动全链路：举报作品（6 原因弹窗）→ 我的举报待处理 → 第二账号举报 → 管理端聚合卡「2 人举报+两举报人+双原因」→ 处置（下架+备注）→ 作品 404 + 举报人收到通知 + 我的举报转已处置；无 5xx
+
+**遇到的问题**
+
+1. 批量替换脚本一处误伤字段名（targetTitle→PLACEHOLDER）导致 30 个编译错，立即定位修复；USER 分支 snapshot 键名漏改一处。
+2. auditLog.reviewerId 有外键，测试管理员 id 需用真实用户；处置后再举报不受幂等拦截（语义正确：结单后可再举报新问题）。
+3. 评论举报入口未做——评论前端 UI 在 V2 就未建（仅后端），无可见表面；COMMENT 类型与处置逻辑已就绪，前端评论上线时接入即可。
+
+**反思（V3-6 命题：聚合粒度）**
+
+按 target 聚合 + 单条保留 reporter 明文的混合结构，既满足「显示都有谁举报和人数」的决策，又避免管理员逐条点关单；处置幂等由「只关 OPEN/PROCESSING 单」保证，重复处置抛 NOT_FOUND。
+
+## V3-7 — 新生专区（开学季运营位）
+
+**做了什么**
+
+- `FreshmanBanner` 组件：暖色渐变横幅（🎓 你好，2026 级新同学 + 引路文案）+ 8 个 CAMPUS 预设标签 chips（选课攻略/报到流程/军训生存/宿舍生活/社团指南/校园地图/开学考试/英语分级）+「更多 →」；右侧 2 张热门引路作品 mini 卡（useWorks CAMPUS+hot+free）。chips 跳 `/explore?cat=CAMPUS&tag=x`。
+- 首页位置：专区导航之下、关注动态之上（新生无关注流，横幅即第一屏）。
+- feature flag：`NEXT_PUBLIC_FRESHMAN_ZONE`（默认 on；off 时父级条件渲染，组件不挂载、**不发数据请求**，实测 0 请求）。.env / .env.example 同步。
+- seed：+8 个 CAMPUS 引路作品（选课/英语分级/军训/宿舍/社团/地图/报到/转专业，全部免费、引路向非学习资料、带真实 MinIO 文件对象），作者分配给现有种子创作者。
+
+**测试清单结果**
+
+- ✅ typecheck / lint；`pnpm test` 119/119
+- ✅ 手动：横幅位置正确（zone-nav < banner < 分类入口）；9 chips；「选课攻略」chip → explore 过滤命中 2 个种子；375px 纵向堆叠无横向滚动；flag off → 横幅消失且 0 CAMPUS 请求，flag on 恢复
+
+**遇到的问题**
+
+1. React hooks 不能条件调用——首轮 flag 判断放组件内部时 off 仍发 1 个请求；改为父组件导出 `FRESHMAN_ZONE_ENABLED` 条件渲染，彻底零请求。
+
+**反思（V3-7 命题：运营位退场成本）**
+
+标签驱动 + env 开关的组合让退场（10 月）只需改一个环境变量重启，无代码/数据结构变更；CAMPUS 分类与标签永久保留，沉淀为常规频道。
+
+## V3-8 — 回归验收与收尾
+
+**做了什么**
+
+- E2E 更新到 V3：旧 7 条路径适配新表单（大类/标签必选）、新路由（/user/*、聚合举报处置端点、收益并入个人主页、预览入口文案）；新增 3 条 V3 路径（explore 分类过滤 / 匿名在线预览+观看 / 旧链接 307 跳转+匿名 4 tab）。共 10 条。
+- `/user/[id]` 补 tab 深链（?tab= 初始态 + useEffect 同步）——E2E 首轮暴露的真实缺口。
+- `.shot.mjs` 截图脚本扩充：首页×2 / explore / 个人主页 / 详情 / 预览弹层 六张。
+- `docs/API_CONTRACT.md` 追加 §6 版本三变更（枚举/权限/新端点/修改/删除/前端路由）。
+- dev 环境数据修复：恢复 V3-6 验收时被处置下架的种子作品 w_408ds；E2E 举报用例改为独立新注册账号（规避 5/h 限流与历史残留，天然幂等）。
+
+**测试清单结果（最终四连）**
+
+- ✅ `pnpm typecheck` 0 错误
+- ✅ `pnpm lint` 0 警告 0 错误
+- ✅ `pnpm test` 119/119（V2 收官 95 → V3 +24）
+- ✅ `pnpm test:e2e` 10/10
+- ✅ 全站手动回归：管理后台 5 tab 正常（数据看板 6 卡）；mock 购买→下载→卖家收益链路通；1920/1440/768/375 四档无横向滚动；全流程无 5xx
+
+**遇到的问题**
+
+1. E2E 收藏用例竞态：取消收藏后查询回填前二次点击（stale myFav 又发删除）+ 子串断言在瞬态文本上通过——改精确文本断言（toHaveText）等回填完成，暴露了测试写法问题而非产品 bug。
+2. `allInnerTexts` 在页面加载中返回空数组——跳转断言后需显式等待目标元素可见。
+
+---
+
+## 版本三完成总结
+
+**V3-1 ~ V3-8 全部完成**，测试 95 → **119**（+24），E2E 7 → **10**（+3 重写适配 +3 新增）：
+
+- 视觉：响应式满幅（1520 上限）、宽屏 5 列、移动端顶栏折叠、评分进度条修复、半星
+- 内容体系：6 用途大类 + 43 预设标签池、/explore 分类页、首页分类入口、上传表单重做（PDF 预览引导）
+- **开放发布**：登录即可发布，自动建未认证创作者档案，verified 降为徽章
+- 封面：PDF 首页自动缩略 / 图标+13 主题 / 自定义上传，全站 302 代理渲染+回退
+- 预览：iframe 原生查看器（免费全量 / 付费 5 页试读副本+水印+购买 CTA），观看量=预览打开（去重）
+- 个人主页：/user/[id] 统一承载 10 类内容（作品管理/评价/关注/粉丝/收藏/资料库/订单/收益/通知/举报）+ 编辑资料 + 头像上传；旧四路由收编重定向
+- 举报闭环：四类目标快照、同人幂等、聚合队列（人数+举报人+原因分布）、处置联动（下架/删评/封号）、双向通知、我的举报
+- 新生专区：首页首位横幅（8 标签 chips + 热门引路作品）、8 个引路向种子作品、env 开关可下线
+
+**运维备注**：跑过 prisma 迁移后需重启 dev server（旧 Prisma client 会 500）；4 次迁移均已应用（v3_add_category / v3_add_cover_preview_key / v3_user_bio_avatar / v3_report_snapshot_dismissed_rating）。
+
+## V3 收尾修复 — 作品卡跨列拆分（用户反馈）
+
+**现象**：首页瀑布流中部分作品卡宽度 526px（跨两列），标签/正文内容跳到相邻列显示。
+
+**根因**：`WorkCard` 外层是 `<Link>`（`<a>` 默认 `display: inline`），在 `column-count` 多列布局中触发**块内联拆分（block-in-inline splitting）**——inline 元素包着的块级子元素被浏览器拆开跨列排布。`.work-card` 样式从未声明 `display`。FineCard 一直正常是因为 `.fine-grid` 是真 CSS grid（子项自动块化）。
+
+**修复**：`.work-card` 与 `.card-grid .fine-card`（explore 混排场景）补 `display: block`。
+
+**验证**：1440/1920/900/375 四档卡片宽度全部统一（256/282/256/141）且 `display:block`；explore 38 张混排卡统一 252px；无横向滚动。截图 `/tmp/home-cards-fixed.png`。
+
+**运维备注**：排查中撞上已知「.next 损坏 → API 404 + missing error components」问题，`rm -rf .next && pnpm dev` 恢复（memory 已有记录）。
+
+## V3 收尾修复 — 编辑资料按钮"点不动"（用户反馈）
+
+**排查**：Playwright 全链路（/me 重定向与 /user/u0 直达、三档视口 hit-testing、弹窗打开、改名保存）均正常且无报错。定位到两类成因：
+
+1. **僵尸页面**：本轮多次重启 dev（含一次 .next 损坏），浏览器中已打开的旧页面 dev websocket 断连后事件处理器失效——按钮渲染但点击无响应。**硬刷新（⌘⇧R）即恢复**，非代码 bug。
+2. **真实缓存缺陷（已修）**：`useUserProfile` 的 queryKey 不含 viewer——同一 SPA 会话内先匿名访问过 `/user/:id`（isSelf=false 入缓存），登录后再 SPA 导航进主页会复用旧缓存，停留他人视角。修复：queryKey 加入 `viewerId ?? 'anon'`，身份变化即重新拉取（服务端按 cookie 判定视角，参数仅用于缓存隔离）。
+
+**验证**：匿名访问 → 登录 → SPA 内导航个人主页 → 自视角 10 tabs → 编辑资料弹窗打开改名保存成功；/me 与 /user/u0 两路径按钮均可见可点；119/119 测试不变。
+
+## V3 收尾修复 — 退出登录 403 / 非 localhost 访问全部写操作被拒（用户反馈，日志实锤）
+
+**现象**：登录态正常（GET /auth/me 200），但 POST /auth/logout 403；此前「编辑资料保存」问题同根因。
+
+**根因**：`assertSameOrigin`（CSRF 校验）用 `.env` 写死的 `APP_BASE_URL=http://localhost:3000` 做前缀匹配。用户经 `127.0.0.1:3000`（或局域网 IP）访问时：GET 不校验故登录态正常，**一切 POST/PATCH/DELETE（退出/保存资料/收藏/关注/下单…）全部 403**。Playwright 全程用 localhost 访问故未暴露。
+
+**修复**：同源判定改为与**请求自身 Host（含端口）**比对（Django 同款）：优先 `x-forwarded-host`（反代）→ `host` 头 → 请求 URL 兜底（单测场景）。不再依赖 APP_BASE_URL，任意访问主机（localhost/127.0.0.1/局域网 IP/生产域名）一律正确；Host 由浏览器按目标设定，跨站不可伪造。APP_BASE_URL 保留用于支付回调地址。
+
+**验证**：127.0.0.1 下退出登录 200、保存资料成功且回显；localhost 回归 200；curl 伪造 Origin evil.com → 403、伪造 xfh+evil → 403（拒绝路径）；单测 +3（同 Host 放行/Host 不同拒/反代 xfh）共 122/122；E2E 10/10。
+
+**运维备注**：本轮 dev 再次烂 `.next`（chunks 404，当日第三次，均为沙箱 shell 长时间运行）——`rm -rf .next && pnpm dev` 恢复。**长时间开发建议用户在自己终端跑 dev**。
+
+## V3 调整 — 资料编辑改为独立页（用户反馈）
+
+**变更**：编辑资料从个人主页内 Modal 改为独立路由 `/settings`（头像上传/用户名/简介/学院/年级/专业整页表单）。个人主页「编辑资料」→ 跳转链接；保存成功/取消 → 返回个人主页；匿名访问 → 登录页。`EditProfileModal.tsx` 删除。
+
+**验证**：主页点编辑 → URL /settings 且表单完整；改名改简介保存 → 回 /user/u0 且回显；取消返回；匿名跳登录；无页面错误；122/122。
+
+## V3 收尾修复 — 头像不同步到已发布作品（用户反馈）
+
+**根因（两层）**：
+
+1. 作品卡 / 详情作者卡 / 评价 / 动态 / 榜单 / 搜索等所有"作者头像"位置从来只渲染**色块+首字母**——数据出口（toListItem、详情、评分、榜单、动态、搜索、auth/me）不含 hasAvatar，上传的头像图从未到达这些位置。
+2. 头像 302 代理 URL 固定 + 浏览器缓存 1h，即使渲染了图片，换头像后旧图仍被缓存。
+
+**修复**：
+
+- 七个服务出口统一补 `hasAvatar` + `avatarVer`（= user.updatedAt 毫秒，头像/资料更新即变化）。
+- `UserAvatar` 组件支持 `?v=` 版本号——URL 变化穿透浏览器 1h 缓存（登录更新 lastLoginAt 也会触发版本变化，无害且更保鲜）。
+- 七处组件接入图片头像（失败回退色块）：WorkCard / FineCard / 详情作者信任卡 / ReviewItem 评价人 / DynamicCard / CreatorCard / 首页排行榜（作品条目取其作者）。types 同步。
+- settings 页保存头像/资料后 `qc.invalidateQueries()` 全量失效（作者信息散布在列表/榜单/动态所有查询里）。
+
+**已知边界**：作品列表走 Redis 30s TTL 缓存，换头像后列表处最多 30s 内显示旧版本号（URL 版本机制保证不会显示旧图）。详情页/个人主页即时。
+
+**验证**：上传红头像 → 作品卡显示 `<img src=.../avatar?v=...>`；换蓝头像 → 详情作者卡版本号更新（5212981→5244144）；清缓存后列表同样更新；122/122 + E2E 10/10。demo 测试头像已还原。
+
+## V3 收尾修复 — 头像在主页卡片/排行榜不同步（用户反馈第二轮）
+
+**根因**：排行榜 Redis 缓存 TTL 3600s（V2 性能优化引入），把头像/用户名冻在缓存里最长 1 小时；作品列表缓存 30s 也有短暂滞后。
+
+**修复**：
+
+- `rank:*` 缓存 TTL 3600 → 300s（兜底）。
+- `meService.setAvatar / updateProfile` 保存后**主动失效** `works:list:*` 与 `rank:*`——头像/资料一改，卡片与榜单下次请求即新数据（配合 avatarVer 版本号穿透浏览器缓存，全链路即时）。
+
+**验证**：预热两类缓存 → 上传新头像 → 不等任何 TTL 立即整页刷新：排行榜行头像 `/users/u0/avatar?v=新版本` 加载成功；explore 卡片头像同样新版本号加载成功；122/122 + E2E 10/10。
+
+## V3 收尾修复 — 头像全局统一（用户反馈第三轮：Nav/个人主页仍不同步）
+
+**遗漏定位（grep 全量排查色块头像后）**：
+
+1. **Nav 顶栏 + 下拉菜单头像**：从未接入 UserAvatar，一直是色块（「主页右上角没换」的直接原因）。
+2. **`socialService.creatorWorks`**（个人主页作品 tab 的 `/users/:id/works`）author 漏打 hasAvatar——上一轮批量补丁在 search.service 锚点失败处中断退出，位于其后的 auth.service 也没执行到。
+3. **`buildAuthUser` 漏 avatarVer**：Nav 走 ['me'] 数据，URL 无 ?v= 版本号 → 浏览器 1h 缓存旧图。
+4. **UserAvatar 的 failed 状态卡死**：无头像期 404 一次后，上传新头像仍永远回退色块——补 useEffect 按 avatarVer/hasAvatar 变化重置。
+
+**修复**：Nav 两处接 UserAvatar（+nav-avatar-btn 容器样式）；creatorWorks/buildAuthUser 补 hasAvatar+avatarVer；UserAvatar 版本变化重置失败态。
+
+**验证（一次上传、七处同步检查）**：settings 页 Nav / 个人主页 hero / 作品 tab 卡片 / Nav 顶栏 / Nav 下拉 / 排行榜 / explore 卡——**全部同一版本号 ?v= 且图片加载成功**，零页面错误；122/122 + E2E 10/10。
+
+**运维备注**：本轮排查发现「dev 起在 3001」的端口冲突陷阱——旧进程占着 3000 且 .next 被删后返回坏页面，测试全打在坏服务上。彻底清理命令：`lsof -ti:3000 -ti:3001 | xargs kill -9 && rm -rf .next && pnpm dev`。
+
+## V3 调整 — 分类导航放大并置顶（用户需求：最快找到分类）
+
+**变更**：
+
+- 首页结构改为 `top-sticky 容器[专区导航 + 分类导航] → 新生横幅 → 关注动态 → 免费推荐…`——分类入口上移到新生区之上，与专区导航同容器随滚动置顶（top:69，白底遮内容）。
+- 分类 chips 放大重做：图标+名称+副描述两行卡（63px 高、14.5px 标题、hover 高亮描边），共 8 枚（全部/六大类/浏览全部）。
+- 移动端（≤880px）：sticky 关闭（专区导航单列堆叠太高），chips 隐藏副描述防溢出。
+
+**验证**：结构顺序 zone-nav < cat-quick < 新生横幅 ✓；chips 63px 高 8 枚 ✓；滚动 800px 后容器吸顶 top=69、横幅滚走 ✓；chip 跳转 /explore?cat=COURSE ✓；375px static 无横向滚动 ✓；122/122。截图 /tmp/home-sticky-nav.png。
+
+## V3 调整 — 分类导航改回紧凑尺寸（用户反馈：置顶后不需要大，显眼即可）
+
+**变更**：分类 chips 从两行大卡（63px）改回**单行胶囊（38px）**，显眼手段改用配色——整条暖色带：「全部」实心品牌橙、六大类浅橙底+橙字+描边、hover 实心反白、「更多」虚线白底。位置与 sticky 保持（新生区上方、随专区导航吸顶 top:69）。sticky 容器总高 154px（原大卡版更高）。
+
+**验证**：8 枚单行 38px、「全部」实心、滚动后容器吸顶 69 ✓、375px 无横向滚动 ✓、122/122。截图 /tmp/home-catnav.png。

@@ -10,14 +10,26 @@ import { useAuth } from '@/hooks/useAuth';
 import { Empty } from '@/components/common/Empty';
 
 type PendingWork = { id: string; title: string; course: string; author: { username: string } };
-type Report = {
-  id: string;
+type ReportGroup = {
   targetType: string;
   targetId: string;
-  reason: string;
+  targetTitle: string | null;
+  snapshot: {
+    title?: string;
+    desc?: string;
+    content?: string;
+    stars?: number;
+    username?: string;
+    workTitle?: string;
+    authorName?: string;
+    workStatus?: string;
+  } | null;
+  count: number;
+  reporters: { username: string; reason: string; detail: string | null; at: string }[];
+  reasons: { reason: string; n: number }[];
+  latestAt: string;
+  openCount: number;
   status: string;
-  reporter: string;
-  createdAt: string;
 };
 type PayoutItem = {
   id: string;
@@ -77,8 +89,18 @@ export default function AdminPage() {
   });
   const reports = useQuery({
     queryKey: ['admin', 'reports'],
-    queryFn: () => apiFetch<Report[]>('/admin/reports'),
+    queryFn: () => apiFetch<{ data: ReportGroup[]; total: number }>('/admin/reports'),
     enabled: user?.role === 'ADMIN',
+  });
+  const [reportFilter, setReportFilter] = useState('');
+  const [handling, setHandling] = useState<ReportGroup | null>(null);
+  const [handleForm, setHandleForm] = useState({
+    action: 'RESOLVE' as 'RESOLVE' | 'DISMISS',
+    note: '',
+    takedownWork: false,
+    deleteComment: false,
+    banUser: false,
+    banReason: '',
   });
   const payouts = useQuery({
     queryKey: ['admin', 'payouts'],
@@ -105,11 +127,25 @@ export default function AdminPage() {
     },
   });
   const handleReport = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiFetch(`/admin/reports/${id}`, { method: 'POST', body: JSON.stringify({ status }) }),
+    mutationFn: (input: {
+      targetType: string;
+      targetId: string;
+      action: 'RESOLVE' | 'DISMISS';
+      note?: string;
+      measures?: object;
+    }) => apiFetch('/admin/reports/handle', { method: 'POST', body: JSON.stringify(input) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin'] });
-      toast('已处理', 'ok');
+      toast('处置完成，已通知举报人', 'ok');
+      setHandling(null);
+      setHandleForm({
+        action: 'RESOLVE',
+        note: '',
+        takedownWork: false,
+        deleteComment: false,
+        banUser: false,
+        banReason: '',
+      });
     },
   });
   const auditPayout = useMutation({
@@ -298,53 +334,84 @@ export default function AdminPage() {
       )}
 
       {tab === 'reports' && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table className="tbl" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th>类型</th>
-                <th>对象</th>
-                <th>原因</th>
-                <th>举报人</th>
-                <th>状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.data?.length ? (
-                reports.data.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.targetType}</td>
-                    <td>{r.targetId}</td>
-                    <td>{r.reason}</td>
-                    <td>{r.reporter}</td>
-                    <td>{r.status}</td>
-                    <td>
-                      {r.status === 'OPEN' ? (
-                        <button
-                          className="btn btn-mint btn-sm"
-                          onClick={() => handleReport.mutate({ id: r.id, status: 'RESOLVED' })}
-                        >
-                          已处理
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>已处置</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={6}
-                    style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
-                  >
-                    暂无举报
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div>
+          <div className="tabs" style={{ marginBottom: 14 }}>
+            {[
+              { key: '', label: '全部' },
+              { key: 'OPEN', label: '待处理' },
+              { key: 'RESOLVED', label: '已处置' },
+              { key: 'DISMISSED', label: '已驳回' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                className={`tab-btn ${reportFilter === f.key ? 'active' : ''}`}
+                onClick={() => setReportFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {(reports.data?.data ?? [])
+            .filter((g) => !reportFilter || g.status === reportFilter)
+            .map((g) => (
+              <div key={g.targetType + g.targetId} className="card rp-group">
+                <div className="rp-head">
+                  <span className={`up-status ${g.status}`}>
+                    {g.status === 'OPEN'
+                      ? '待处理'
+                      : g.status === 'DISMISSED'
+                        ? '已驳回'
+                        : '已处置'}
+                  </span>
+                  <span className="chip gray">
+                    {g.targetType === 'WORK'
+                      ? '作品'
+                      : g.targetType === 'USER'
+                        ? '用户'
+                        : g.targetType === 'RATING'
+                          ? '评价'
+                          : '评论'}
+                  </span>
+                  <b className="rp-title">{g.targetTitle ?? g.targetId}</b>
+                  <span className="rp-count">🔥 {g.count} 人举报</span>
+                  {g.openCount > 0 ? (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      style={{ marginLeft: 'auto' }}
+                      onClick={() => setHandling(g)}
+                    >
+                      处置
+                    </button>
+                  ) : null}
+                </div>
+                {g.snapshot ? (
+                  <div className="rp-snap">
+                    {g.snapshot.desc ? <div>简介：{g.snapshot.desc}</div> : null}
+                    {g.snapshot.content ? <div>内容：{g.snapshot.content}</div> : null}
+                    {g.snapshot.workTitle ? <div>所属作品：{g.snapshot.workTitle}</div> : null}
+                    {g.snapshot.authorName ? <div>作者：{g.snapshot.authorName}</div> : null}
+                  </div>
+                ) : null}
+                <div className="chips" style={{ marginBottom: 8 }}>
+                  {g.reasons.map((r) => (
+                    <span key={r.reason} className="chip tag">
+                      {r.reason} ×{r.n}
+                    </span>
+                  ))}
+                </div>
+                <div className="rp-reporters">
+                  举报人：
+                  {g.reporters.map((r) => (
+                    <span key={r.username + r.at} className="chip gray">
+                      {r.username}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          {!reports.data?.data?.length ? (
+            <Empty icon="🛡️" title="暂无举报" desc="社区安静如常" />
+          ) : null}
         </div>
       )}
 
@@ -534,6 +601,167 @@ export default function AdminPage() {
           </table>
         </div>
       )}
+
+      {handling ? (
+        <div className="modal-overlay" onClick={() => setHandling(null)}>
+          <div
+            className="modal modal-md"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 520 }}
+          >
+            <div className="modal-head">
+              <b>处置举报</b>
+              <button className="modal-x" onClick={() => setHandling(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12 }}>
+                {handling.targetTitle} · {handling.count} 人举报
+              </div>
+              <div className="field">
+                <label>处理结果</label>
+                <div className="opt-list">
+                  <div
+                    className={`opt ${handleForm.action === 'RESOLVE' ? 'active' : ''}`}
+                    onClick={() => setHandleForm((h) => ({ ...h, action: 'RESOLVE' }))}
+                  >
+                    <span className="opt-radio" />
+                    <div className="opt-main">
+                      <b>举报属实，执行处置</b>
+                      <span>关闭全部举报单并按需处置内容</span>
+                    </div>
+                  </div>
+                  <div
+                    className={`opt ${handleForm.action === 'DISMISS' ? 'active' : ''}`}
+                    onClick={() => setHandleForm((h) => ({ ...h, action: 'DISMISS' }))}
+                  >
+                    <span className="opt-radio" />
+                    <div className="opt-main">
+                      <b>不属实，驳回</b>
+                      <span>关闭全部举报单并通知举报人</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {handleForm.action === 'RESOLVE' ? (
+                <div className="field">
+                  <label>处置措施（可多选）</label>
+                  <label
+                    className="check"
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      marginBottom: 6,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={handleForm.takedownWork}
+                      disabled={handling.targetType !== 'WORK'}
+                      onChange={(e) =>
+                        setHandleForm((h) => ({ ...h, takedownWork: e.target.checked }))
+                      }
+                    />
+                    <span>
+                      下架该作品{handling.targetType !== 'WORK' ? '（仅作品类举报可选）' : ''}
+                    </span>
+                  </label>
+                  <label
+                    className="check"
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      marginBottom: 6,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={handleForm.deleteComment}
+                      disabled={
+                        handling.targetType !== 'RATING' && handling.targetType !== 'COMMENT'
+                      }
+                      onChange={(e) =>
+                        setHandleForm((h) => ({ ...h, deleteComment: e.target.checked }))
+                      }
+                    />
+                    <span>删除该{handling.targetType === 'RATING' ? '评价' : '评论'}</span>
+                  </label>
+                  <label
+                    className="check"
+                    style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={handleForm.banUser}
+                      onChange={(e) => setHandleForm((h) => ({ ...h, banUser: e.target.checked }))}
+                    />
+                    <span>封禁内容作者</span>
+                  </label>
+                  {handleForm.banUser ? (
+                    <input
+                      className="input"
+                      style={{ marginTop: 8 }}
+                      placeholder="封禁原因（必填）"
+                      value={handleForm.banReason}
+                      onChange={(e) => setHandleForm((h) => ({ ...h, banReason: e.target.value }))}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="field">
+                <label>处理备注{handleForm.action === 'DISMISS' ? '（驳回时必填）' : ''}</label>
+                <textarea
+                  className="textarea"
+                  rows={2}
+                  maxLength={600}
+                  value={handleForm.note}
+                  onChange={(e) => setHandleForm((h) => ({ ...h, note: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-ghost" onClick={() => setHandling(null)}>
+                取消
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={
+                  handleReport.isPending ||
+                  (handleForm.action === 'DISMISS' && !handleForm.note.trim()) ||
+                  (handleForm.banUser && !handleForm.banReason.trim())
+                }
+                onClick={() =>
+                  handleReport.mutate({
+                    targetType: handling.targetType,
+                    targetId: handling.targetId,
+                    action: handleForm.action,
+                    note: handleForm.note.trim() || undefined,
+                    measures:
+                      handleForm.action === 'RESOLVE'
+                        ? {
+                            takedownWork: handleForm.takedownWork && handling.targetType === 'WORK',
+                            deleteComment:
+                              handleForm.deleteComment &&
+                              (handling.targetType === 'RATING' ||
+                                handling.targetType === 'COMMENT'),
+                            banUser: handleForm.banUser,
+                            banReason: handleForm.banReason.trim() || undefined,
+                          }
+                        : undefined,
+                  })
+                }
+              >
+                {handleReport.isPending ? '处理中…' : '确认处置'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

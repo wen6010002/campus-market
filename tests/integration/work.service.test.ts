@@ -11,6 +11,7 @@ import type { WorkInput } from '@/lib/zod/work';
 vi.mock('@/server/storage/minio', () => ({
   presignPut: vi.fn(async () => 'https://mock.local/put'),
   presignGet: vi.fn(async () => 'https://mock.local/get'),
+  presignGetInline: vi.fn(async (key: string) => `https://mock.local/inline/${key}`),
   headObject: vi.fn(async () => ({ ContentLength: 1024 })),
   S3_BUCKET: 'campus-market',
 }));
@@ -26,6 +27,7 @@ const validInput: WorkInput = {
   fileType: 'PDF',
   fileKey: 'works/test/new.pdf',
   fileSize: 1024,
+  category: 'COURSE',
   isFree: true,
   tags: ['测试'],
   previewToc: ['第一章'],
@@ -92,11 +94,63 @@ describe('作品服务（阶段 3）', () => {
     expect(result.data.every((w: any) => w.status === 'PUBLISHED')).toBe(true);
   });
 
-  it('浏览计数：每次 GET 走 Redis 异步计数', async () => {
-    await redis.del('view:work_test');
+  it('观看计数（V3-4）：预览打开才计数，同人 24h 去重', async () => {
+    await redis.del([
+      'view:work_test',
+      'viewd:u:stu_test:work_test',
+      'viewd:u:creator_test:work_test',
+      'viewd:i:127.0.0.1:work_test',
+    ]);
+    // 详情读取不再计数
     await workService.get('work_test');
-    await workService.get('work_test');
+    expect(await redis.get('view:work_test')).toBeNull();
+    // 预览打开计数一次
+    const r1 = await workService.getPreview('work_test', 'stu_test', '127.0.0.1');
+    expect(r1.mode).toBe('full'); // work_test 为免费作品
+    expect(await redis.get('view:work_test')).toBe('1');
+    // 同一用户重复打开不重复计数
+    await workService.getPreview('work_test', 'stu_test', '127.0.0.1');
+    expect(await redis.get('view:work_test')).toBe('1');
+    // 不同用户各计一次
+    await workService.getPreview('work_test', 'creator_test', '127.0.0.1');
     expect(await redis.get('view:work_test')).toBe('2');
     await redis.del('view:work_test');
+  });
+
+  // ===== V3-2 分类体系 =====
+  it('创建：带 category 落库且列表返回', async () => {
+    const w = await workService.create(CREATOR_ID, {
+      ...validInput,
+      title: '分类测试作品',
+      category: 'CAMPUS',
+    });
+    expect(w.category).toBe('CAMPUS');
+  });
+
+  it('列表：category 过滤只返回该大类', async () => {
+    const w = await workService.create(CREATOR_ID, {
+      ...validInput,
+      title: '待发布分类作品',
+      category: 'CAMPUS',
+    });
+    await workService.publish(w.id, CREATOR_ID);
+    await workService.adminAudit(w.id, 'APPROVE', undefined, CREATOR_ID);
+    const result = await workService.list({
+      page: 1,
+      pageSize: 20,
+      sort: 'new',
+      category: 'CAMPUS',
+    } as any);
+    expect(result.data.length).toBeGreaterThan(0);
+    expect(result.data.every((x: any) => x.category === 'CAMPUS')).toBe(true);
+  });
+
+  it('课程聚合：courses 返回 {course,count} 且可按大类过滤', async () => {
+    const all = await workService.courses();
+    expect(Array.isArray(all)).toBe(true);
+    expect(all[0]).toHaveProperty('course');
+    expect(all[0]).toHaveProperty('count');
+    const campus = await workService.courses('CAMPUS');
+    expect(campus.every((c: any) => c.count > 0)).toBe(true);
   });
 });

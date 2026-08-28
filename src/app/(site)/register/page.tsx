@@ -51,7 +51,7 @@ export default function RegisterPage() {
       setCodeMsg('验证码已发送，请查收邮箱');
       setCountdown(60);
     } catch (e) {
-      setCodeMsg(e instanceof ApiError ? messageFor(e.code) : '发送失败');
+      setCodeMsg(e instanceof ApiError ? messageFor(e.code, e.message) : '发送失败');
     } finally {
       setSending(false);
     }
@@ -67,7 +67,7 @@ export default function RegisterPage() {
       const from = new URLSearchParams(window.location.search).get('from') || '/';
       router.push(from);
     } catch (e) {
-      setErr(e instanceof ApiError ? messageFor(e.code) : '注册失败，请稍后再试');
+      setErr(e instanceof ApiError ? messageFor(e.code, e.message) : '注册失败，请稍后再试');
     } finally {
       setLoading(false);
     }

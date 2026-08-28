@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { timeAgo } from '@/lib/format';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import type { Dynamic } from '@/lib/types';
 
 const VERB: Record<string, string> = {
@@ -19,15 +20,11 @@ export function DynamicCard({ dynamic }: { dynamic: Dynamic }) {
   return (
     <div className="dyn-card">
       <div className="dh-head">
-        <div
-          className="dh-av"
-          style={{ background: c.avatarColor }}
-          onClick={() => router.push(`/creator/${c.id}`)}
-        >
-          {c.username[0]}
+        <div className="dh-av" onClick={() => router.push(`/user/${c.id}`)}>
+          <UserAvatar id={c.id} user={c} size={34} radius={9} />
         </div>
         <div className="dh-info">
-          <div className="dh-name" onClick={() => router.push(`/creator/${c.id}`)}>
+          <div className="dh-name" onClick={() => router.push(`/user/${c.id}`)}>
             {c.username}
             {c.verified ? <span className="dh-check">✓</span> : null}
           </div>

@@ -35,17 +35,37 @@ export async function readJson(req: Request): Promise<unknown> {
   }
 }
 
-/** CSRF：非 GET/HEAD 的写操作校验 Origin/Referer 同源（webhook 走验签，不经此函数） */
+/** CSRF：非 GET/HEAD 的写操作校验 Origin/Referer 与请求自身 Host 同源（webhook 走验签，不经此函数）。
+ *  与请求 Host（含端口）比对而非固定 APP_BASE_URL——本地 localhost/127.0.0.1/局域网 IP/生产域名一律正确判定；
+ *  Host 由浏览器按目标服务器设定，跨站攻击者无法令受害浏览器伪造（Django 同款做法）。 */
 export function assertSameOrigin(req: Request): void {
   if (req.method === 'GET' || req.method === 'HEAD') return;
   const origin = req.headers.get('origin');
   const referer = req.headers.get('referer');
   // 无 Origin 也无 Referer（curl/服务端调用）放行；浏览器请求必须带且同源
   if (!origin && !referer) return;
-  const base = process.env.APP_BASE_URL ?? 'http://localhost:3000';
   const source = origin ?? referer ?? '';
-  if (!source.startsWith(base)) {
+  let src: URL;
+  try {
+    src = new URL(source);
+  } catch {
     throw new AppError('FORBIDDEN', httpStatusByCode.FORBIDDEN, '跨源请求被拒绝');
+  }
+  // Host 判定优先级：反代 x-forwarded-host → 请求 host 头 → 请求 URL（单测/直连场景兜底）
+  const host =
+    req.headers.get('x-forwarded-host')?.split(',')[0].trim() ??
+    req.headers.get('host') ??
+    safeUrlHost(req.url);
+  if (!host || src.host !== host) {
+    throw new AppError('FORBIDDEN', httpStatusByCode.FORBIDDEN, '跨源请求被拒绝');
+  }
+}
+
+function safeUrlHost(url: string): string | null {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
   }
 }
 

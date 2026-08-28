@@ -31,6 +31,16 @@ export async function presignGet(key: string, filename: string) {
   return getSignedUrl(s3, cmd, { expiresIn: 600 });
 }
 
+/** 内联展示 GET（1 小时，inline）——封面 / 头像 / 预览 PDF 用（V3） */
+export async function presignGetInline(key: string) {
+  const cmd = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ResponseContentDisposition: 'inline',
+  });
+  return getSignedUrl(s3, cmd, { expiresIn: 3600 });
+}
+
 /** 校验对象存在 + 大小匹配（发布前） */
 export async function headObject(key: string) {
   const cmd = new HeadObjectCommand({ Bucket: bucket, Key: key });

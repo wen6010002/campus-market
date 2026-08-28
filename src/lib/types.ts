@@ -6,6 +6,7 @@ import type {
   Quality,
   WorkStatus,
   FileType,
+  CategoryKey,
   PayMethod,
   PayStatus,
   IncomeStatus,
@@ -38,6 +39,9 @@ export interface AuthUser {
   email: string;
   role: Role;
   avatarColor: string;
+  hasAvatar?: boolean;
+  avatarVer?: number;
+  bio?: string;
   student?: StudentProfile;
   creator?: CreatorProfile | null;
   unreadCount: number;
@@ -47,6 +51,8 @@ export interface WorkAuthor {
   id: string;
   username: string;
   avatarColor: string;
+  hasAvatar?: boolean;
+  avatarVer?: number;
   verified: boolean;
 }
 
@@ -60,6 +66,8 @@ export interface WorkListItem {
   pages: number;
   coverIcon: string;
   coverTheme: string;
+  hasCover?: boolean;
+  category: CategoryKey;
   isFree: boolean;
   price: string;
   oldPrice: string | null;
@@ -83,6 +91,8 @@ export interface CreatorSummary {
   id: string;
   username: string;
   avatarColor: string;
+  hasAvatar?: boolean;
+  avatarVer?: number;
   bio: string;
   direction: string;
   honor: string | null;
@@ -96,6 +106,45 @@ export interface CreatorSummary {
   myFollow?: boolean;
 }
 
+/** 用户主页（V3-5 /users/:id） */
+export interface UserProfile {
+  id: string;
+  username: string;
+  avatarColor: string;
+  hasAvatar: boolean;
+  avatarVer?: number;
+  bio: string;
+  direction: string;
+  honor: string | null;
+  college: string;
+  major: string;
+  grade: string;
+  verified: boolean;
+  isCreator: boolean;
+  helped: number;
+  fans: number;
+  following: number;
+  works: number;
+  rate: string;
+  myFollow: boolean;
+  isSelf: boolean;
+}
+
+/** 关注/粉丝行卡（V3-5） */
+export interface FollowRow {
+  id: string;
+  username: string;
+  avatarColor: string;
+  hasAvatar: boolean;
+  avatarVer?: number;
+  bio: string;
+  college: string;
+  verified: boolean;
+  fans: number;
+  myFollow: boolean;
+  isSelf: boolean;
+}
+
 export interface RatingDist {
   '5': number;
   '4': number;
@@ -106,6 +155,7 @@ export interface RatingDist {
 
 export interface WorkDetail extends WorkListItem {
   previewToc: string[];
+  hasSample?: boolean;
   applyMajor: string | null;
   applyGrade: string | null;
   applyCrowd: string | null;
@@ -123,7 +173,13 @@ export interface Rating {
   creatorReply: string | null;
   repliedAt: string | null;
   createdAt: string;
-  user: { username: string; avatarColor: string };
+  user: {
+    id: string;
+    username: string;
+    avatarColor: string;
+    hasAvatar?: boolean;
+    avatarVer?: number;
+  };
   tags: string[];
   _mine?: boolean;
 }

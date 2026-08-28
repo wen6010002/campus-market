@@ -1,8 +1,8 @@
 import type { Role } from '@/lib/constants';
 
-// 权限矩阵（BACKEND.md §6.3）。动作 → 允许的角色集合。
+// 权限矩阵（V3-2 开放发布：upload 不再要求创作者认证，登录即可）。
 export const PERMISSIONS = {
-  upload: ['CREATOR', 'ADMIN'],
+  upload: ['STUDENT', 'CREATOR', 'ADMIN'],
   audit: ['ADMIN'],
   payout: ['CREATOR'],
   rate: ['STUDENT', 'CREATOR', 'ADMIN'],

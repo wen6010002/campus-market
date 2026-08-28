@@ -26,17 +26,15 @@ export function useLike(workId: string) {
   });
 }
 
-/** 关注切换（失效创作者详情 + 关注流） */
+/** 关注切换（V3-5：/creators/* → /users/*；失效用户主页 + 关注流 + 列表） */
 export function useFollow(creatorId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (followed: boolean) =>
-      apiFetch(
-        `/creators/${creatorId}/follow`,
-        followed ? { method: 'POST' } : { method: 'DELETE' },
-      ),
+      apiFetch(`/users/${creatorId}/follow`, followed ? { method: 'POST' } : { method: 'DELETE' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['creators', 'detail', creatorId] });
+      qc.invalidateQueries({ queryKey: ['users', 'detail', creatorId] });
+      qc.invalidateQueries({ queryKey: ['users', creatorId, 'follows'] });
       qc.invalidateQueries({ queryKey: ['following', 'feed'] });
     },
   });

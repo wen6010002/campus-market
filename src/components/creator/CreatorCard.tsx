@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useFollow } from '@/hooks/useSocial';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { formatNum } from '@/lib/format';
 import type { CreatorSummary } from '@/lib/types';
 
@@ -12,9 +13,9 @@ export function CreatorCard({ creator }: { creator: CreatorSummary }) {
   const followed = creator.myFollow ?? false;
 
   return (
-    <div className="creator" onClick={() => router.push(`/creator/${creator.id}`)}>
-      <div className="cr-av" style={{ background: creator.avatarColor }}>
-        {creator.username[0]}
+    <div className="creator" onClick={() => router.push(`/user/${creator.id}`)}>
+      <div className="cr-av">
+        <UserAvatar id={creator.id} user={creator} size={56} radius={14} />
       </div>
       <div className="cr-check">✓</div>
       <div className="cr-name">{creator.username}</div>

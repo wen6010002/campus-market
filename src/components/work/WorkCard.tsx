@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/lib/icons';
 import { QualityBadge } from '@/lib/constants';
 import { formatNum } from '@/lib/format';
+import { WorkCover } from '@/components/work/WorkCover';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import type { WorkListItem } from '@/lib/types';
 
 interface Props {
@@ -19,21 +21,26 @@ export function WorkCard({ work }: Props) {
 
   return (
     <Link className="work-card" href={`/work/${work.id}`}>
-      <div className={`work-cover ${work.coverTheme}`} style={{ height: h }}>
-        <div className="work-badges">
-          {work.isFree ? (
-            <span className="badge-free">免费</span>
-          ) : (
-            <span className="badge-fine">💎 精品</span>
-          )}
-          {qb ? <span className="qb">{qb}</span> : null}
-        </div>
-        <div className="glyph">{work.coverIcon}</div>
-        <div className="watermark">{work.course}</div>
-        <div className="work-overlay">
-          <span className="ov-btn primary">查看作品</span>
-        </div>
-      </div>
+      <WorkCover
+        work={work}
+        containerClassName="work-cover"
+        style={{ height: h }}
+        badges={
+          <div className="work-badges">
+            {work.isFree ? (
+              <span className="badge-free">免费</span>
+            ) : (
+              <span className="badge-fine">💎 精品</span>
+            )}
+            {qb ? <span className="qb">{qb}</span> : null}
+          </div>
+        }
+        overlay={
+          <div className="work-overlay">
+            <span className="ov-btn primary">查看作品</span>
+          </div>
+        }
+      />
       <div className="work-body">
         <h4>{work.title}</h4>
         <div className="work-desc">{work.description}</div>
@@ -53,10 +60,17 @@ export function WorkCard({ work }: Props) {
             <Icon name="fav" width={13} />
             {work.favs}
           </span>
-          <span>
-            <Icon name="eye" width={13} />
-            {formatNum(work.views)}
-          </span>
+          {work.isFree ? (
+            <span>
+              <Icon name="eye" width={13} />
+              {formatNum(Number(work.views))}
+            </span>
+          ) : (
+            <span>
+              <Icon name="dl" width={13} />
+              {formatNum(work.downloads)}
+            </span>
+          )}
         </div>
         <div className="work-foot">
           <div
@@ -64,12 +78,10 @@ export function WorkCard({ work }: Props) {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              router.push(`/creator/${work.author.id}`);
+              router.push(`/user/${work.author.id}`);
             }}
           >
-            <div className="wa-av" style={{ background: work.author.avatarColor }}>
-              {work.author.username[0] ?? '?'}
-            </div>
+            <UserAvatar id={work.author.id} user={work.author} size={24} radius={6} />
             <span className="wa-name">{work.author.username}</span>
           </div>
           {work.isFree ? (

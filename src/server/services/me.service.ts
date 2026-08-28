@@ -1,6 +1,64 @@
 import { prisma } from '../db';
+import { appError } from '../lib/errors';
+import { objectExists } from '../storage/minio';
+import { cacheDelByPattern } from '../lib/cache';
+
+/** 头像/资料变更后失效含作者信息的缓存（作品列表 / 榜单），让新头像即时可见 */
+async function invalidateAuthorCaches() {
+  await cacheDelByPattern('works:list:*');
+  await cacheDelByPattern('rank:*');
+}
 
 export const meService = {
+  /** 编辑资料（V3-5）：用户名查重 / bio / 学籍展示字段 */
+  async updateProfile(
+    userId: string,
+    input: {
+      username?: string;
+      bio?: string | null;
+      college?: string;
+      grade?: string;
+      major?: string;
+    },
+  ) {
+    if (input.username !== undefined) {
+      const taken = await prisma.user.findFirst({
+        where: { username: input.username, id: { not: userId } },
+        select: { id: true },
+      });
+      if (taken) throw appError('USERNAME_TAKEN', '用户名已被占用');
+    }
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(input.username !== undefined ? { username: input.username } : {}),
+        ...(input.bio !== undefined ? { bio: input.bio } : {}),
+      },
+      select: { id: true, username: true, bio: true },
+    });
+    const stu = [input.college, input.grade, input.major].some((v) => v !== undefined);
+    if (stu) {
+      const patch: Record<string, string> = {};
+      if (input.college !== undefined) patch.college = input.college;
+      if (input.grade !== undefined) patch.grade = input.grade;
+      if (input.major !== undefined) patch.major = input.major;
+      await prisma.studentProfile.updateMany({ where: { userId }, data: patch });
+    }
+    await invalidateAuthorCaches();
+    return user;
+  },
+
+  /** 设置头像（V3-5）：校验对象存在后落 avatarKey；avatarKey=null 恢复色块 */
+  async setAvatar(userId: string, avatarKey: string | null) {
+    if (avatarKey) {
+      const exists = await objectExists(avatarKey);
+      if (!exists) throw appError('BAD_FILE', '头像未上传成功');
+    }
+    await prisma.user.update({ where: { id: userId }, data: { avatarKey } });
+    await invalidateAuthorCaches();
+    return { avatarKey };
+  },
+
   /** 我的订单 */
   async orders(userId: string) {
     const orders = await prisma.order.findMany({

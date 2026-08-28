@@ -33,8 +33,8 @@ export function Footer() {
         <div className="foot-col">
           <h5>创作者</h5>
           <Link href="/upload">发布作品</Link>
-          <Link href="/creator-center">创作者中心</Link>
-          <Link href="/creator-center?tab=data">影响力看板</Link>
+          <Link href="/explore">分类浏览</Link>
+          <Link href="/following">关注动态</Link>
           <Link href="/income">钱包提现</Link>
         </div>
         <div className="foot-col">

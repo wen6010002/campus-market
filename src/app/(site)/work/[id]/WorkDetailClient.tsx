@@ -5,14 +5,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useWork } from '@/hooks/useWork';
+import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/lib/api/client';
 import { Stars } from '@/components/common/Stars';
 import { RatingBars } from '@/components/work/RatingBars';
 import { FineCard } from '@/components/work/FineCard';
+import { WorkCover } from '@/components/work/WorkCover';
+import { UserAvatar } from '@/components/common/UserAvatar';
+import { PreviewModal } from '@/components/work/PreviewModal';
 import { ReviewItem } from '@/components/work/ReviewItem';
 import { Empty } from '@/components/common/Empty';
 import { OrderModal } from '@/components/form/OrderModal';
 import { RatingModal } from '@/components/form/RatingModal';
+import { ReportModal } from '@/components/form/ReportModal';
 import { useDownload } from '@/hooks/useOrder';
 import { useRatings } from '@/hooks/useRatings';
 import { useFavorite } from '@/hooks/useSocial';
@@ -33,8 +38,11 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: work, isLoading } = useWork(id, initialWork);
+  const { user } = useAuth();
   const [orderOpen, setOrderOpen] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [reviewSort, setReviewSort] = useState('new');
   const download = useDownload(id);
   const ratings = useRatings(id, reviewSort);
@@ -80,6 +88,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
       </main>
     );
 
+  const isAuthor = user?.id === work.author.id;
   const qb =
     work.quality === 'SELECTED' ? '🏅 平台精选' : work.quality === 'HIGH' ? '⭐ 高评分' : '';
 
@@ -116,13 +125,15 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
           <button className="btn btn-light btn-sm" onClick={() => favorite.mutate(!work.myFav)}>
             {work.myFav ? '♥ 已收藏' : '♡ 收藏'}
           </button>
-          <button
-            className="btn btn-light btn-sm"
-            style={{ color: 'var(--ink-soft)' }}
-            onClick={() => toast('举报功能开发中')}
-          >
-            ··· 举报
-          </button>
+          {!isAuthor ? (
+            <button
+              className="btn btn-light btn-sm"
+              style={{ color: 'var(--ink-soft)' }}
+              onClick={() => setReportOpen(true)}
+            >
+              ··· 举报
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -173,22 +184,24 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
         {/* 左栏 */}
         <div className="wd-left">
           <div className="wd-cover">
-            <div className={`cover-top ${work.coverTheme}`}>
-              <div className="badges">
-                {work.isFree ? (
-                  <span className="badge-free">免费</span>
-                ) : (
-                  <span className="badge-fine">💎 精品</span>
-                )}
-                {qb ? (
-                  <span className="qb" style={{ background: 'rgba(255,255,255,.92)' }}>
-                    {qb}
-                  </span>
-                ) : null}
-              </div>
-              <div className="glyph">{work.coverIcon}</div>
-              <div className="watermark">{work.course}</div>
-            </div>
+            <WorkCover
+              work={work}
+              containerClassName="cover-top"
+              badges={
+                <div className="badges">
+                  {work.isFree ? (
+                    <span className="badge-free">免费</span>
+                  ) : (
+                    <span className="badge-fine">💎 精品</span>
+                  )}
+                  {qb ? (
+                    <span className="qb" style={{ background: 'rgba(255,255,255,.92)' }}>
+                      {qb}
+                    </span>
+                  ) : null}
+                </div>
+              }
+            />
             <div className="cover-meta">
               <span>
                 <Icon name="file" width={13} />
@@ -196,10 +209,17 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               </span>
               <span>{(work.fileSize / 1024 / 1024).toFixed(1)} MB</span>
               {work.pages ? <span>📄 {work.pages} 页</span> : null}
-              <span>
-                <Icon name="dl" width={13} />
-                {work.downloads} 次下载
-              </span>
+              {work.isFree ? (
+                <span>
+                  <Icon name="eye" width={13} />
+                  {formatNum(Number(work.views))} 观看
+                </span>
+              ) : (
+                <span>
+                  <Icon name="dl" width={13} />
+                  {work.downloads} 次下载
+                </span>
+              )}
               <span>
                 <Icon name="fav" width={13} />
                 {work.favs} 收藏
@@ -207,34 +227,29 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
             </div>
           </div>
 
-          {/* 预览 */}
-          <div className="preview-box">
-            <div className="preview-head">
-              <h3>资料预览</h3>
-              <span className="lock">
-                {work.previewOnly ? '🔒 完整版需购买 · 先了解再决定' : ''}
-              </span>
+          {/* 在线预览入口（V3-4）：PDF 可预览；免费全量 / 付费试读前 5 页 */}
+          {work.fileType === 'PDF' ? (
+            <div
+              className="preview-entry"
+              role="button"
+              tabIndex={0}
+              onClick={() => setPreviewOpen(true)}
+              onKeyDown={(e) => e.key === 'Enter' && setPreviewOpen(true)}
+            >
+              <span className="pe-ico">▶</span>
+              <div className="pe-txt">
+                <b>在线预览</b>
+                <small>
+                  {work.isFree || work.myAccess
+                    ? '无需下载，直接翻阅完整内容'
+                    : work.hasSample
+                      ? '免费试读前 5 页，购买解锁完整版'
+                      : '在线翻阅内容'}
+                </small>
+              </div>
+              <span className="pe-arrow">→</span>
             </div>
-            <div className="preview-toc">
-              <div className="toc-h">目录（共 {work.previewToc.length} 章）</div>
-              {work.previewToc.map((t, i) => (
-                <div key={i} className="toc-i">
-                  <span>{t}</span>
-                  <span className="lk">{work.previewOnly && i >= 2 ? '预览' : '可读'}</span>
-                </div>
-              ))}
-              {work.previewOnly ? (
-                <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={() => toast('购买后解锁完整版', 'warn')}
-                  >
-                    购买后解锁完整版
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
+          ) : null}
 
           {/* 评价区 */}
           <div className="review-section">
@@ -335,7 +350,9 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
             <div className="info-row">
               <span className="lb">热度</span>
               <span className="v">
-                {work.downloads} 下载 · {work.favs} 收藏 · {formatNum(work.views)} 浏览
+                {work.isFree
+                  ? `观看 ${formatNum(Number(work.views))} · 收藏 ${work.favs}`
+                  : `下载 ${work.downloads} · 收藏 ${work.favs} · 观看 ${formatNum(Number(work.views))}`}
               </span>
             </div>
             <div className="info-row">
@@ -368,23 +385,53 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
             </div>
             <div className="info-actions">
               {work.isFree ? (
-                <button className="btn btn-mint btn-block btn-lg" onClick={doDownload}>
-                  {work.myAccess ? '再次下载' : '免费下载'}
-                </button>
+                <>
+                  <button
+                    className="btn btn-mint btn-block btn-lg"
+                    onClick={() => setPreviewOpen(true)}
+                  >
+                    ▶ 在线预览
+                  </button>
+                  <button className="btn btn-light btn-block btn-lg" onClick={doDownload}>
+                    ⬇ 下载
+                  </button>
+                </>
               ) : work.myAccess ? (
-                <button className="btn btn-primary btn-block btn-lg" onClick={doDownload}>
-                  下载作品
-                </button>
+                <>
+                  <button className="btn btn-primary btn-block btn-lg" onClick={doDownload}>
+                    下载作品
+                  </button>
+                  {work.fileType === 'PDF' ? (
+                    <button
+                      className="btn btn-light btn-block btn-lg"
+                      onClick={() => setPreviewOpen(true)}
+                    >
+                      ▶ 在线预览
+                    </button>
+                  ) : null}
+                </>
               ) : (
-                <button
-                  className="btn btn-primary btn-block btn-lg"
-                  onClick={() => setOrderOpen(true)}
-                >
-                  ¥{work.price} 立即购买
-                </button>
+                <>
+                  <button
+                    className="btn btn-primary btn-block btn-lg"
+                    onClick={() => setOrderOpen(true)}
+                  >
+                    ¥{work.price} 立即购买
+                  </button>
+                  {work.fileType === 'PDF' ? (
+                    <button
+                      className="btn btn-light btn-block btn-lg"
+                      onClick={() => setPreviewOpen(true)}
+                    >
+                      ▶ 试读前 5 页
+                    </button>
+                  ) : null}
+                </>
               )}
               <div style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center' }}>
-                {work.isFree ? '下载后可再次下载并评价' : '购买后获得永久下载权限，可随时评价'}
+                {work.isFree
+                  ? '在线观看 + 本地下载，下载后可评价'
+                  : '购买后获得永久下载权限，可随时评价'}
               </div>
             </div>
             <div className="info-trust">
@@ -394,11 +441,9 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
           </div>
 
           {/* 作者信任卡 */}
-          <div className="trust-card" onClick={() => router.push(`/creator/${work.author.id}`)}>
+          <div className="trust-card" onClick={() => router.push(`/user/${work.author.id}`)}>
             <div className="trust-top">
-              <div className="avatar" style={{ background: work.author.avatarColor }}>
-                {work.author.username[0]}
-              </div>
+              <UserAvatar id={work.author.id} user={work.author} size={44} radius={10} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="trust-name">
                   {work.author.username}{' '}
@@ -415,7 +460,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
                 className="btn btn-light btn-sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/creator/${work.author.id}`);
+                  router.push(`/user/${work.author.id}`);
                 }}
               >
                 主页 →
@@ -462,6 +507,25 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
         workTitle={work.title}
         onClose={() => setRatingOpen(false)}
         onSuccess={() => setRatingOpen(false)}
+      />
+      <ReportModal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="WORK"
+        targetId={work.id}
+        targetLabel={work.title}
+      />
+      <PreviewModal
+        open={previewOpen}
+        workId={work.id}
+        title={work.title}
+        price={work.price}
+        watermark={user?.username ?? '访客'}
+        onBuy={() => {
+          setPreviewOpen(false);
+          setOrderOpen(true);
+        }}
+        onClose={() => setPreviewOpen(false)}
       />
     </main>
   );

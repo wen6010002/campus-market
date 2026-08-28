@@ -23,6 +23,8 @@ function toCreator(c: any) {
     id: c.id,
     username: c.username,
     avatarColor: c.avatarColor,
+    hasAvatar: !!c.avatarKey,
+    avatarVer: c.updatedAt.getTime(),
     bio: c.creator?.bio ?? '',
     direction: c.creator?.direction ?? '',
     honor: c.creator?.honor ?? null,
@@ -66,6 +68,8 @@ export const rankService = {
             id: w.author.id,
             username: w.author.username,
             avatarColor: w.author.avatarColor,
+            hasAvatar: !!w.author.avatarKey,
+            avatarVer: w.author.updatedAt.getTime(),
           },
         },
         metric: w.favs,
@@ -88,7 +92,8 @@ export const rankService = {
       }));
     }
 
-    await cacheSet(cacheKey, result, 3600);
+    // 榜单缓存 5 分钟（原 1h 会把头像/用户名变更冻住太久；头像/资料更新时另会主动清除）
+    await cacheSet(cacheKey, result, 300);
     return result;
   },
 };

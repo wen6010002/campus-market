@@ -1,8 +1,8 @@
 import { withErrorHandler, ok } from '@/server/lib/http';
-import { requireCreator } from '@/server/auth/session';
+import { ensurePublisher } from '@/server/auth/session';
 import { creatorService } from '@/server/services/creator.service';
 
 export const GET = withErrorHandler(async () => {
-  const s = await requireCreator();
+  const s = await ensurePublisher();
   return ok(await creatorService.works(s.userId));
 });

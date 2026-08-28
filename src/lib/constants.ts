@@ -28,6 +28,53 @@ export const FileType = {
 } as const;
 export type FileType = (typeof FileType)[keyof typeof FileType];
 
+// ===== V3 分类体系：一级大类（用途） + 二级预设标签池 =====
+export const Category = {
+  COURSE: 'COURSE',
+  EXAM: 'EXAM',
+  CAREER: 'CAREER',
+  TUTOR: 'TUTOR',
+  LIFE: 'LIFE',
+  CAMPUS: 'CAMPUS',
+} as const;
+export type CategoryKey = (typeof Category)[keyof typeof Category];
+
+export const CATEGORIES = [
+  { key: 'COURSE', label: '课程学习', icon: '🎓', desc: '期末复习 · 题库 · 课件 · 笔记' },
+  { key: 'EXAM', label: '升学备考', icon: '🧗', desc: '四六级 · 考研 · 保研 · 留学考试' },
+  { key: 'CAREER', label: '求职实习', icon: '💼', desc: '实习经历 · 简历 · 面试 · 校招' },
+  { key: 'TUTOR', label: '家教教案', icon: '📖', desc: '各科教案 · 辅导材料 · 家教经验' },
+  { key: 'LIFE', label: '生活成长', icon: '🌱', desc: '健身 · 技能 · 理财 · 时间管理' },
+  { key: 'CAMPUS', label: '新生引路', icon: '🏫', desc: '选课 · 报到 · 宿舍 · 社团 · 校园生活' },
+] as const;
+
+/** 预设标签池：按大类分组。上传表单按所选大类展示该组 chips（多选 ≤5），另允许自填 1 个自定义标签。 */
+export const PRESET_TAGS: Record<CategoryKey, string[]> = {
+  COURSE: ['期末复习', '题库真题', '课堂笔记', '课件PPT', '实验报告', '课程设计', '习题答案'],
+  EXAM: ['四级', '六级', '考研', '保研', '雅思', '托福', '专升本'],
+  CAREER: ['实习经历', '简历模板', '面试经验', '校招攻略', '求职复盘'],
+  TUTOR: ['数学教案', '英语教案', '理科教案', '文科教案', '全科辅导', '家教经验'],
+  LIFE: ['健身总结', '技能学习', '理财入门', '时间管理', '读书笔记', '减肥打卡'],
+  CAMPUS: [
+    '选课攻略',
+    '报到流程',
+    '军训生存',
+    '宿舍生活',
+    '社团指南',
+    '校园地图',
+    '开学考试',
+    '英语分级',
+    '转专业',
+    '食堂测评',
+    '校园卡',
+    '生活费攻略',
+  ],
+};
+
+export const CATEGORY_LABEL: Record<CategoryKey, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.key, c.label]),
+) as Record<CategoryKey, string>;
+
 export const PayMethod = { WECHAT: 'WECHAT', ALIPAY: 'ALIPAY', MOCK: 'MOCK' } as const;
 export type PayMethod = (typeof PayMethod)[keyof typeof PayMethod];
 
@@ -65,8 +112,23 @@ export const ReportReason = {
 } as const;
 export type ReportReason = (typeof ReportReason)[keyof typeof ReportReason];
 
-export const ReportTargetType = { WORK: 'WORK', COMMENT: 'COMMENT', USER: 'USER' } as const;
+export const ReportTargetType = {
+  WORK: 'WORK',
+  COMMENT: 'COMMENT',
+  RATING: 'RATING',
+  USER: 'USER',
+} as const;
 export type ReportTargetType = (typeof ReportTargetType)[keyof typeof ReportTargetType];
+
+/** 举报原因文案（V3-6） */
+export const REPORT_REASONS: { key: ReportReason; label: string; desc: string }[] = [
+  { key: 'INFRINGEMENT', label: '侵权盗用', desc: '抄袭、盗用他人原创资料' },
+  { key: 'PIRACY', label: '盗版资源', desc: '上传付费课程/书籍等盗版内容' },
+  { key: 'MISMATCH', label: '货不对板', desc: '内容与标题简介严重不符' },
+  { key: 'PORN_GAMBLE_ILLEGAL', label: '违法违规', desc: '色情、赌博、诈骗等违法信息' },
+  { key: 'SPAM', label: '垃圾广告', desc: '广告刷量、无关内容' },
+  { key: 'OTHER', label: '其他', desc: '—' },
+];
 
 export const NotificationType = {
   FOLLOW_NEW_WORK: 'FOLLOW_NEW_WORK',
@@ -91,6 +153,7 @@ export const ReportStatus = {
   OPEN: 'OPEN',
   PROCESSING: 'PROCESSING',
   RESOLVED: 'RESOLVED',
+  DISMISSED: 'DISMISSED',
 } as const;
 export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];
 

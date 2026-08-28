@@ -50,7 +50,7 @@ export function RatingModal({ open, workId, workTitle, onClose, onSuccess }: Pro
       onClose();
       onSuccess();
     } catch (e) {
-      toast(e instanceof ApiError ? messageFor(e.code) : '提交失败', 'warn');
+      toast(e instanceof ApiError ? messageFor(e.code, e.message) : '提交失败', 'warn');
     } finally {
       setSubmitting(false);
     }

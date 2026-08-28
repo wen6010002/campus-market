@@ -23,6 +23,9 @@ export async function buildAuthUser(userId: string) {
     email: user.email,
     role: user.role,
     avatarColor: user.avatarColor,
+    hasAvatar: !!user.avatarKey,
+    avatarVer: user.updatedAt.getTime(),
+    bio: user.bio ?? user.creator?.bio ?? '',
     student: user.student
       ? {
           school: user.student.school,

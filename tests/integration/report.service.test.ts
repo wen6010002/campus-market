@@ -28,8 +28,8 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('治理服务（阶段 9）', () => {
-  it('举报：创建 → OPEN，管理员可列出并处置', async () => {
+describe('治理服务（阶段 9 + V3-6）', () => {
+  it('举报：创建 → OPEN + 快照落库；同人同目标幂等 409', async () => {
     const report = await reportService.create('stu_test', {
       targetType: 'WORK',
       targetId: 'work_test',
@@ -37,17 +37,86 @@ describe('治理服务（阶段 9）', () => {
       detail: '内容与描述不符',
     });
     expect(report.status).toBe('OPEN');
+    const row = await prisma.report.findUniqueOrThrow({ where: { id: report.id } });
+    expect(row.targetTitle).toBeTruthy(); // 快照标题
+    expect(row.targetSnapshot).toBeTruthy(); // 快照内容
+    expect(row.targetAuthorId).toBe('creator_test');
 
+    await expect(
+      reportService.create('stu_test', {
+        targetType: 'WORK',
+        targetId: 'work_test',
+        reason: 'OTHER',
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it('举报聚合（V3-6）：多用户多原因 → count/举报人/原因分布', async () => {
+    await reportService.create('creator_test', {
+      targetType: 'WORK',
+      targetId: 'work_test',
+      reason: 'PIRACY',
+      detail: '盗版',
+    });
     const list = await reportService.adminList();
-    expect(list.some((r) => r.id === report.id)).toBe(true);
+    const g = list.data.find((r: any) => r.targetId === 'work_test')!;
+    expect(g).toBeTruthy();
+    expect(g.count).toBe(2);
+    const names = g.reporters.map((r: any) => r.username);
+    expect(names).toContain('测试学生');
+    expect(names).toContain('测试创作者');
+    expect(g.reasons.length).toBe(2);
+  });
 
+  it('处置（V3-6）：RESOLVE + 下架 → 批量关单 + TAKEN_DOWN + AuditLog + 双向通知', async () => {
     const handled = await reportService.adminHandle(
-      report.id,
-      'RESOLVED',
-      '已处理',
+      {
+        targetType: 'WORK',
+        targetId: 'work_test',
+        action: 'RESOLVE',
+        note: '盗版属实',
+        measures: { takedownWork: true },
+      },
       'creator_test',
     );
     expect(handled.status).toBe('RESOLVED');
+    expect(handled.handled).toBe(2); // 两张举报单一并关闭
+
+    const work = await prisma.work.findUniqueOrThrow({ where: { id: 'work_test' } });
+    expect(work.status).toBe('TAKEN_DOWN');
+    const log = await prisma.auditLog.findFirst({ where: { workId: 'work_test' } });
+    expect(log?.action).toBe('TAKE_DOWN');
+
+    // 两个举报人 + 被处置作者都收到通知
+    const notified = await prisma.notification.findMany({
+      where: { text: { contains: '举报已处理' } },
+    });
+    expect(notified.length).toBe(2);
+    const authorNotified = await prisma.notification.findFirst({
+      where: { text: { contains: '因举报核实被处置' } },
+    });
+    expect(authorNotified).toBeTruthy();
+  });
+
+  it('驳回（V3-6）：DISMISS 需备注 → 关单为 DISMISSED，无处置动作', async () => {
+    await reportService.create('stu_test', {
+      targetType: 'USER',
+      targetId: 'creator_test',
+      reason: 'SPAM',
+    });
+    await expect(
+      reportService.adminHandle(
+        { targetType: 'USER', targetId: 'creator_test', action: 'DISMISS' },
+        'creator_test',
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    const r = await reportService.adminHandle(
+      { targetType: 'USER', targetId: 'creator_test', action: 'DISMISS', note: '核实不属实' },
+      'creator_test',
+    );
+    expect(r.status).toBe('DISMISSED');
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: 'creator_test' } });
+    expect(user.status).toBe('ACTIVE'); // 未被处置
   });
 
   it('提现审批：拒绝 → 回滚钱包', async () => {

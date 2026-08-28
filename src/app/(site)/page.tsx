@@ -10,6 +10,9 @@ import { useWorks } from '@/hooks/useWorks';
 import { useRank } from '@/hooks/useSearch';
 import { useAuth } from '@/hooks/useAuth';
 import { useFollowingFeed } from '@/hooks/useCreator';
+import { FreshmanBanner, FRESHMAN_ZONE_ENABLED } from '@/components/home/FreshmanBanner';
+import { UserAvatar } from '@/components/common/UserAvatar';
+import { CATEGORIES } from '@/lib/constants';
 
 const RANK_TABS = [
   { key: 'help', label: '助人榜' },
@@ -56,26 +59,49 @@ export default function HomePage() {
 
   return (
     <main className="page">
-      {/* 专区切换导航 */}
-      <nav className="zone-nav" aria-label="专区导航">
-        {ZONES.map((z) => (
-          <button
-            key={z.key}
-            className={`zone-entry ${z.key} ${zone === z.key ? 'active' : ''}`}
-            onClick={() => setZone(z.key)}
-          >
-            <span className="ze-ico">{z.icon}</span>
-            <span className="ze-txt">
-              <b>{z.title}</b>
-              <small>{z.sub}</small>
-            </span>
-            <span className="ze-badge">{z.badge}</span>
-          </button>
-        ))}
-      </nav>
+      {/* 专区导航 + 分类导航：同一 sticky 容器置顶（分类入口始终最快可达） */}
+      <div className="top-sticky">
+        <nav className="zone-nav" aria-label="专区导航">
+          {ZONES.map((z) => (
+            <button
+              key={z.key}
+              className={`zone-entry ${z.key} ${zone === z.key ? 'active' : ''}`}
+              onClick={() => setZone(z.key)}
+            >
+              <span className="ze-ico">{z.icon}</span>
+              <span className="ze-txt">
+                <b>{z.title}</b>
+                <small>{z.sub}</small>
+              </span>
+              <span className="ze-badge">{z.badge}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* 分类导航（校园专区）：新生区之上，chips 放大 */}
+        {zone === 'campus' ? (
+          <nav className="cat-quick" aria-label="分类浏览">
+            <span className="cq-label">📚 分类</span>
+            <Link className="cq-chip all" href="/explore">
+              全部
+            </Link>
+            {CATEGORIES.map((c) => (
+              <Link key={c.key} className="cq-chip" href={`/explore?cat=${c.key}`}>
+                {c.icon} {c.label}
+              </Link>
+            ))}
+            <Link className="cq-chip more" href="/explore">
+              更多 →
+            </Link>
+          </nav>
+        ) : null}
+      </div>
 
       {zone === 'campus' ? (
         <>
+          {/* 新生专区横幅（V3-7）：分类导航之下、关注动态之上；flag off 时整体不渲染不发请求 */}
+          {FRESHMAN_ZONE_ENABLED ? <FreshmanBanner /> : null}
+
           {/* 关注动态：登录用户的第一屏社区内容 */}
           {user ? (
             feedItems.length ? (
@@ -151,6 +177,8 @@ export default function HomePage() {
               {rank.data?.length ? (
                 rank.data.map((r, i) => {
                   const e = r.creator ?? r.work;
+                  // 头像：创作者榜取创作者本人；作品榜（收藏/好评）取该作品作者
+                  const av = r.creator ?? (r.work as any)?.author ?? e;
                   return (
                     <div
                       key={i}
@@ -179,21 +207,7 @@ export default function HomePage() {
                       >
                         {i + 1}
                       </div>
-                      <div
-                        className="rank-av"
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 8,
-                          background: e.avatarColor ?? 'var(--bg-deep)',
-                          display: 'grid',
-                          placeItems: 'center',
-                          color: '#fff',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {(e.username ?? e.title ?? '?')[0]}
-                      </div>
+                      <UserAvatar id={av.id} user={av} size={36} radius={8} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <b style={{ fontSize: 14 }}>{e.username ?? e.title}</b>
                         {e.direction ? (

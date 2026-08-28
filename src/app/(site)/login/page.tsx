@@ -28,7 +28,7 @@ export default function LoginPage() {
       const from = new URLSearchParams(window.location.search).get('from') || '/';
       router.push(from);
     } catch (e) {
-      setErr(e instanceof ApiError ? messageFor(e.code) : '登录失败，请稍后再试');
+      setErr(e instanceof ApiError ? messageFor(e.code, e.message) : '登录失败，请稍后再试');
     } finally {
       setLoading(false);
     }

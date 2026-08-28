@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FileType, Quality } from '../constants';
+import { FileType, Quality, Category } from '../constants';
 
 // 金额字符串："9.90"
 const money = z.string().regex(/^\d+(\.\d{1,2})?$/, '金额格式错误');
@@ -15,6 +15,9 @@ export const workInputSchema = z.object({
   pages: z.number().int().min(0).max(100000).optional(),
   coverIcon: z.string().max(8).optional(),
   coverTheme: z.string().max(32).optional(),
+  coverKey: z.string().max(200).optional(),
+  previewKey: z.string().max(200).optional(),
+  category: z.nativeEnum(Category).default('COURSE'),
   isFree: z.boolean().default(true),
   price: money.optional(),
   oldPrice: money.optional(),
@@ -41,6 +44,7 @@ export const workQuerySchema = z.object({
   updatedSince: z.string().optional(),
   course: z.string().optional(),
   tag: z.string().optional(),
+  category: z.nativeEnum(Category).optional(),
   sort: z.enum(['complex', 'hot', 'rate', 'new', 'price']).default('complex'),
 });
 

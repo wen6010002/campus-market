@@ -26,6 +26,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   INTERNAL: '服务开小差了，请稍后再试',
 };
 
-export function messageFor(code: string): string {
+export function messageFor(code: string, serverMessage?: string): string {
+  // 服务端带有具体语义的消息（如「你已举报过该内容」）优先于通用码表
+  if (serverMessage && serverMessage.trim()) return serverMessage;
   return ERROR_MESSAGES[code] ?? '请求失败，请稍后再试';
 }

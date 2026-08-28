@@ -56,6 +56,15 @@ enum FileType {
   OTHER
 }
 
+enum Category {
+  COURSE
+  EXAM
+  CAREER
+  TUTOR
+  LIFE
+  CAMPUS
+}
+
 enum PayMethod {
   WECHAT
   ALIPAY
@@ -104,11 +113,13 @@ enum ReportStatus {
   OPEN
   PROCESSING
   RESOLVED
+  DISMISSED
 }
 
 enum ReportTargetType {
   WORK
   COMMENT
+  RATING
   USER
 }
 
@@ -153,6 +164,8 @@ model User {
   role          Role         @default(STUDENT)
   status        UserStatus   @default(ACTIVE)
   avatarColor   String       @default("#FF6B4A")
+  avatarKey     String?      // 头像图片（MinIO avatars/，V3-5）；空则用 avatarColor 首字母
+  bio           String?      @db.VarChar(200) // 个人简介（用户层，V3-5；创作者档案 bio 为历史兜底）
   bannedAt      DateTime?
   bannedReason  String?
   lastLoginAt   DateTime?
@@ -234,6 +247,9 @@ model Work {
   pages            Int         @default(0)
   coverIcon        String      @default("📄")
   coverTheme       String      @default("g-default")
+  coverKey         String?     // 封面图（MinIO covers/）；空则用 coverIcon+coverTheme
+  previewKey       String?     // 付费作品试读副本 PDF（MinIO previews/，前 5 页）；V3-4 预览用
+  category         Category    @default(COURSE)
   isFree           Boolean     @default(true)
   price            Decimal     @default(0) @db.Decimal(10, 2)
   oldPrice         Decimal?    @db.Decimal(10, 2)
@@ -492,19 +508,23 @@ model Notification {
 }
 
 model Report {
-  id         String           @id @default(cuid())
-  reporterId String
-  targetType ReportTargetType
-  targetId   String
-  reason     ReportReason
-  detail     String?          @db.VarChar(600)
-  status     ReportStatus     @default(OPEN)
-  handlerId  String?
-  handleNote String?
-  handledAt  DateTime?
-  createdAt  DateTime         @default(now())
-  reporter   User             @relation("Reporter", fields: [reporterId], references: [id])
+  id              String           @id @default(cuid())
+  reporterId      String
+  targetType      ReportTargetType
+  targetId        String
+  targetTitle     String?          @db.VarChar(200) // 快照标题（作品标题/评论前30字/用户名）
+  targetSnapshot  Json?            // 快照：{title?,desc?,content?,username?,workTitle?,authorName?,workStatus?}
+  targetAuthorId  String?          // 被举报内容作者（处置联动用；USER 时=targetId）
+  reason          ReportReason
+  detail          String?          @db.VarChar(600)
+  status          ReportStatus     @default(OPEN)
+  handlerId       String?
+  handleNote      String?
+  handledAt       DateTime?
+  createdAt       DateTime         @default(now())
+  reporter        User             @relation("Reporter", fields: [reporterId], references: [id])
   @@index([status, createdAt(sort: Desc)])
+  @@index([targetType, targetId, status])
   @@map("reports")
 }
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth, useLogout } from '@/hooks/useAuth';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { Icon } from '@/lib/icons';
 
 export function Nav() {
@@ -89,28 +90,13 @@ export function Nav() {
 
           {user ? (
             <div className="avatar-wrap" ref={ddRef}>
-              <div
-                className="avatar"
-                style={{ background: user.avatarColor }}
-                onClick={() => setOpen((o) => !o)}
-              >
-                {user.username[0] ?? '?'}
+              <div className="avatar nav-avatar-btn" onClick={() => setOpen((o) => !o)}>
+                <UserAvatar id={user.id} user={user} size={34} radius={8} />
               </div>
               {open ? (
                 <div className="dropdown show">
                   <div className="head">
-                    <div
-                      className="avatar"
-                      style={{
-                        width: 32,
-                        height: 32,
-                        fontSize: 13,
-                        borderRadius: 5,
-                        background: user.avatarColor,
-                      }}
-                    >
-                      {user.username[0]}
-                    </div>
+                    <UserAvatar id={user.id} user={user} size={32} radius={7} />
                     <div>
                       <b>{user.username}</b>
                       <span>
@@ -120,56 +106,29 @@ export function Nav() {
                       </span>
                     </div>
                   </div>
-                  <Link className="dropdown-item" href="/me" onClick={() => setOpen(false)}>
+                  <Link
+                    className="dropdown-item"
+                    href={`/user/${user.id}`}
+                    onClick={() => setOpen(false)}
+                  >
                     <Icon name="user" width={16} /> 个人主页
                   </Link>
-                  <Link
-                    className="dropdown-item"
-                    href="/me?tab=library"
-                    onClick={() => setOpen(false)}
-                  >
-                    📚 我的资料
+                  <Link className="dropdown-item" href="/upload" onClick={() => setOpen(false)}>
+                    <Icon name="upload" width={16} /> 发布作品
                   </Link>
                   <Link
                     className="dropdown-item"
-                    href="/me?tab=favs"
-                    onClick={() => setOpen(false)}
-                  >
-                    💝 我的收藏
-                  </Link>
-                  <Link
-                    className="dropdown-item"
-                    href="/me?tab=orders"
-                    onClick={() => setOpen(false)}
-                  >
-                    🧾 我的订单
-                  </Link>
-                  <div className="dropdown-divider" />
-                  <Link
-                    className="dropdown-item"
-                    href="/creator-center"
-                    onClick={() => setOpen(false)}
-                  >
-                    🎨 创作者中心
-                  </Link>
-                  <Link
-                    className="dropdown-item"
-                    href="/creator-center?tab=data"
-                    onClick={() => setOpen(false)}
-                  >
-                    📊 数据中心
-                  </Link>
-                  <Link className="dropdown-item" href="/income" onClick={() => setOpen(false)}>
-                    💰 我的收益
-                  </Link>
-                  <Link
-                    className="dropdown-item"
-                    href="/me?tab=notif"
+                    href={`/user/${user.id}?tab=notif`}
                     onClick={() => setOpen(false)}
                   >
                     <Icon name="bell" width={16} /> 通知中心{' '}
                     {unread > 0 ? <span className="pill">{unread}</span> : null}
                   </Link>
+                  {user.role === 'ADMIN' ? (
+                    <Link className="dropdown-item" href="/admin" onClick={() => setOpen(false)}>
+                      🛡 管理后台
+                    </Link>
+                  ) : null}
                   <div className="dropdown-divider" />
                   <div
                     className="dropdown-item"

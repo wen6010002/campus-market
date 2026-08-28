@@ -34,4 +34,25 @@ describe('CSRF 同源校验', () => {
     const req = new Request('http://localhost:3000/api/v1/works', { method: 'POST' });
     expect(() => assertSameOrigin(req)).not.toThrow();
   });
+  it('同 Host 放行（V3 修复：127.0.0.1 等任意访问主机，不再依赖固定 APP_BASE_URL）', () => {
+    const req = new Request('http://127.0.0.1:3000/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { origin: 'http://127.0.0.1:3000' },
+    });
+    expect(() => assertSameOrigin(req)).not.toThrow();
+  });
+  it('Host 不同被拒（含端口差异）', () => {
+    const req = new Request('http://localhost:3000/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { origin: 'http://127.0.0.1:3000' },
+    });
+    expect(() => assertSameOrigin(req)).toThrow();
+  });
+  it('反代场景取 x-forwarded-host 判定', () => {
+    const req = new Request('http://internal:3000/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { origin: 'https://campus.example.com', 'x-forwarded-host': 'campus.example.com' },
+    });
+    expect(() => assertSameOrigin(req)).not.toThrow();
+  });
 });

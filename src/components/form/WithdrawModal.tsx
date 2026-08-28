@@ -39,7 +39,7 @@ export function WithdrawModal({ open, withdrawable, onClose, onSuccess }: Props)
       onClose();
       onSuccess();
     } catch (e) {
-      toast(e instanceof ApiError ? messageFor(e.code) : '提现失败', 'warn');
+      toast(e instanceof ApiError ? messageFor(e.code, e.message) : '提现失败', 'warn');
     } finally {
       setSubmitting(false);
     }

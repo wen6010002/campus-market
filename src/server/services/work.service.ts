@@ -2,7 +2,8 @@ import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { redis } from '../lib/redis';
 import { cacheGet, cacheSet, cacheDel, cacheDelByPattern } from '../lib/cache';
-import { headObject, presignGet } from '../storage/minio';
+import { enforceRateLimit } from '../lib/ratelimit';
+import { headObject, presignGet, presignGetInline } from '../storage/minio';
 import { notifyService } from './notify.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
 import { WorkStatus, Quality } from '@/lib/constants';
@@ -28,6 +29,8 @@ function toListItem(w: any, viewerId?: string) {
     pages: w.pages,
     coverIcon: w.coverIcon,
     coverTheme: w.coverTheme,
+    hasCover: !!w.coverKey,
+    category: w.category,
     isFree: w.isFree,
     price: money(w.price)!,
     oldPrice: money(w.oldPrice),
@@ -44,6 +47,8 @@ function toListItem(w: any, viewerId?: string) {
       id: w.author.id,
       username: w.author.username,
       avatarColor: w.author.avatarColor,
+      hasAvatar: !!w.author.avatarKey,
+      avatarVer: w.author.updatedAt.getTime(),
       verified: w.author.creator?.verified ?? false,
     },
     publishedAt: w.publishedAt?.toISOString() ?? null,
@@ -81,6 +86,7 @@ export const workService = {
     if (q.course) where.course = { contains: q.course };
     if (q.updatedSince) where.updatedAt = { gte: new Date(q.updatedSince) };
     if (q.tag) where.tags = { some: { tag: { name: q.tag } } };
+    if (q.category) where.category = q.category;
 
     const [total, works] = await Promise.all([
       prisma.work.count({ where }),
@@ -102,14 +108,34 @@ export const workService = {
     return result;
   },
 
-  /** 详情（公开；带会话时回填 myFav/myAccess/myRating；管理员可查看非 PUBLISHED 用于审核） */
+  /** 分类页二级维度：某大类下的热门课程聚合（V3-2） */
+  async courses(category?: string) {
+    const cacheKey = `works:courses:${category ?? 'all'}`;
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) return cached;
+    const grouped = await prisma.work.groupBy({
+      by: ['course'],
+      where: {
+        status: 'PUBLISHED',
+        deletedAt: null,
+        ...(category ? { category: category as any } : {}),
+      },
+      _count: { course: true },
+      orderBy: { _count: { course: 'desc' } },
+      take: 10,
+    });
+    const result = grouped.map((g) => ({ course: g.course, count: g._count.course }));
+    await cacheSet(cacheKey, result, 60);
+    return result;
+  },
+
+  /** 详情（公开；带会话时回填 myFav/myAccess/myRating；管理员可查看非 PUBLISHED 用于审核）
+   *  V3-4 起浏览计数不再在详情读取时发生：views = 预览打开次数（POST /works/:id/preview 内去重计数）。 */
   async get(id: string, viewerId?: string, viewerRole?: string) {
     const cacheKey = `work:detail:${id}`;
-    // 未登录：先读缓存（命中则 +1 浏览并返回）
     if (!viewerId) {
       const cached = await cacheGet(cacheKey);
       if (cached) {
-        await redis.incr(`view:${id}`);
         return cached;
       }
     }
@@ -124,9 +150,6 @@ export const workService = {
     ) {
       throw appError('NOT_FOUND', '作品不存在');
     }
-
-    // 浏览异步计数（Redis INCR，view-sync 任务定期回写 DB）
-    await redis.incr(`view:${id}`);
 
     const item = toListItem(work);
     let myFav = false;
@@ -166,6 +189,7 @@ export const workService = {
       applyGrade: work.applyGrade,
       applyCrowd: work.applyCrowd,
       ratingDist: work.ratingDist as Record<string, number>,
+      hasSample: !work.isFree && !!work.previewKey,
       previewOnly: !work.isFree && !myAccess,
       myRating,
       myFav,
@@ -174,6 +198,8 @@ export const workService = {
         id: author.id,
         username: author.username,
         avatarColor: author.avatarColor,
+        hasAvatar: !!author.avatarKey,
+        avatarVer: author.updatedAt.getTime(),
         bio: author.creator?.bio ?? '',
         direction: author.creator?.direction ?? '',
         honor: author.creator?.honor ?? null,
@@ -224,6 +250,9 @@ export const workService = {
         pages: input.pages ?? 0,
         coverIcon: input.coverIcon ?? '📄',
         coverTheme: input.coverTheme ?? 'g-default',
+        coverKey: input.coverKey ?? null,
+        previewKey: input.previewKey ?? null,
+        category: input.category,
         isFree: input.isFree,
         price: input.isFree ? 0 : Number(input.price ?? 0),
         oldPrice: input.oldPrice ? Number(input.oldPrice) : null,
@@ -267,6 +296,9 @@ export const workService = {
         pages: input.pages ?? 0,
         coverIcon: input.coverIcon,
         coverTheme: input.coverTheme,
+        coverKey: input.coverKey ?? null,
+        previewKey: input.previewKey ?? null,
+        category: input.category,
         isFree: input.isFree,
         price: input.isFree ? 0 : Number(input.price ?? 0),
         oldPrice: input.oldPrice ? Number(input.oldPrice) : null,
@@ -338,6 +370,70 @@ export const workService = {
       take: 8,
     });
     return related.map((w) => toListItem(w));
+  },
+
+  /** 在线预览（V3-4）：签 inline URL + 观看去重计数。
+   *  mode：free → full（原文件）；付费未购 → sample（previewKey 试读副本，无副本则 none）；已购/作者/ADMIN → full。
+   *  非 PDF 一律 none。观看口径：同人/同 IP 24h 去重，SETNX 成功才 INCR view:{id}（view-sync 定时回写）。 */
+  async getPreview(id: string, viewerId: string | undefined, viewerIp: string) {
+    await enforceRateLimit(`rl:preview:${viewerId ?? viewerIp}`, 30, 60_000);
+    const work = await prisma.work.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        authorId: true,
+        isFree: true,
+        fileType: true,
+        fileKey: true,
+        previewKey: true,
+        pages: true,
+        status: true,
+      },
+    });
+    if (!work || (work.status !== 'PUBLISHED' && work.authorId !== viewerId)) {
+      throw appError('NOT_FOUND', '作品不存在');
+    }
+    if (work.fileType !== 'PDF') {
+      return { mode: 'none' as const, url: null, pages: work.pages, hasPreview: false };
+    }
+
+    let myAccess = work.isFree || work.authorId === viewerId;
+    if (!myAccess && viewerId) {
+      const [order, download] = await prisma.$transaction([
+        prisma.order.findFirst({
+          where: { workId: id, buyerId: viewerId, payStatus: 'PAID' },
+          select: { id: true },
+        }),
+        prisma.download.findUnique({
+          where: { workId_userId: { workId: id, userId: viewerId } },
+          select: { id: true },
+        }),
+      ]);
+      myAccess = !!(order || download);
+    }
+
+    let mode: 'full' | 'sample' | 'none';
+    let key: string | null;
+    if (myAccess) {
+      mode = 'full';
+      key = work.fileKey;
+    } else if (work.previewKey) {
+      mode = 'sample';
+      key = work.previewKey;
+    } else {
+      mode = 'none';
+      key = null;
+    }
+
+    // 观看计数：24h 去重（登录按用户，匿名按 IP）
+    if (mode !== 'none') {
+      const dedupKey = `viewd:${viewerId ? `u:${viewerId}` : `i:${viewerIp}`}:${id}`;
+      const first = await redis.set(dedupKey, '1', 'EX', 86400, 'NX');
+      if (first === 'OK') await redis.incr(`view:${id}`);
+    }
+
+    const url = key ? await presignGetInline(key) : null;
+    return { mode, url, pages: work.pages, hasPreview: mode !== 'none' };
   },
 
   /** 管理：待审核列表 */

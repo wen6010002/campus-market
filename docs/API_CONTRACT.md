@@ -312,3 +312,51 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 4. 时间统一 ISO，前端 `dayjs` 相对化（"2 小时前"）。
 5. 错误统一走 `code`；前端 `apiFetch` 抛 `ApiError{code,message,details}`，UI 层按 code 映射文案，`UNAUTHENTICATED` → 跳登录。
 6. 任何新增端点/字段必须先改本文件 → 再改后端 zod → 再改前端调用，PR 检查清单含「契约一致」。
+
+---
+
+## 6. 版本三变更（V3，2026-08-28）
+
+> 本节为增量记录，与上文冲突处以本节为准。
+
+### 6.1 枚举与权限
+
+- 新增枚举 `Category`：`COURSE|EXAM|CAREER|TUTOR|LIFE|CAMPUS`（用途大类）；`Work.category` 默认 `COURSE`。
+- `ReportStatus` 新增 `DISMISSED`（驳回）；`ReportTargetType` 新增 `RATING`（评价举报）。
+- **发布权限开放（决策）**：`CREATOR` 门槛从「CreatorProfile.verified=true」降为「登录即可」（`ensurePublisher` 自动创建未认证档案并升级角色）；verified 仅作认证徽章。`/uploads/presign`、`POST /works`、`POST /works/:id/publish`、`/me/creator/*`、`/me/income/*` 均按此执行。
+- `Work.views` 语义变更：**在线预览打开次数**（登录按 userId / 匿名按 IP，24h 去重）；详情页读取不再计数。
+
+### 6.2 新增端点
+
+| 方法        | 路径                                                 | 权限                                  | 说明                                                                                                                                                     |
+| ----------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET         | `/works/courses?category=`                           | 公开                                  | 大类下热门课程聚合 `[{course,count}]`（缓存 60s）                                                                                                        |
+| POST        | `/works/:id/preview`                                 | **匿名可访问**（middleware 单独放行） | `{mode:'full'                                                                                                                                            | 'sample'                                                                                                              | 'none', url, pages, hasPreview}`；免费/已购/作者→full 原文件；付费未购→sample（previewKey 5 页试读副本）；非 PDF→none。打开即计观看（去重）。限流 30/min |
+| GET         | `/works/:id/cover`                                   | 公开                                  | 302 → 封面图内联签名 URL（1h），`Cache-Control: public, max-age=3600`；无 coverKey→404（前端回退 emoji）                                                 |
+| GET         | `/users/:id`                                         | 公开                                  | 用户主页：`{username,avatarColor,hasAvatar,bio,direction,honor,college,major,grade,verified,isCreator,helped,fans,following,works,rate,myFollow,isSelf}` |
+| GET         | `/users/:id/works?filter=`                           | 公开                                  | 同原 `/creators/:id/works`                                                                                                                               |
+| GET         | `/users/:id/ratings`                                 | 公开                                  | TA 的公开评价历史（含 work 摘要）                                                                                                                        |
+| GET         | `/users/:id/follows?type=following\|followers&page=` | 公开                                  | 行卡：`[{id,username,avatarColor,hasAvatar,bio,college,verified,fans,myFollow,isSelf}]`                                                                  |
+| POST/DELETE | `/users/:id/follow`                                  | 登录                                  | 同原 `/creators/:id/follow`                                                                                                                              |
+| GET         | `/users/:id/avatar`                                  | 公开                                  | 302 头像（同 cover 模式）                                                                                                                                |
+| PATCH       | `/me/profile`                                        | 登录                                  | `{username?,bio?,college?,grade?,major?}`；username 查重→USERNAME_TAKEN                                                                                  |
+| POST        | `/me/avatar`                                         | 登录                                  | `{avatarKey}`（先 presign kind=avatar 直传）；校验对象存在                                                                                               |
+| GET         | `/me/reports`                                        | 登录                                  | 我的举报（含 statusLabel/handleNote）                                                                                                                    |
+| POST        | `/admin/reports/handle`                              | ADMIN                                 | 按 target 批量处置：`{targetType,targetId,action:'RESOLVE'                                                                                               | 'DISMISS',note?,measures?:{takedownWork?,deleteComment?,banUser?,banReason?}}`；RESOLVE 联动下架/删评/封号 + 双向通知 |
+
+### 6.3 修改端点
+
+- `GET /works` query 新增 `category`；`WorkListItem` 新增 `category`、`hasCover`；详情新增 `hasSample`（付费且有试读副本）。
+- `POST /uploads/presign` 入参新增 `kind`（`work|cover|avatar|preview`，默认 work）：cover/avatar 仅 IMAGE ≤5MB（covers/、avatars/ 前缀），preview 仅 PDF ≤30MB（previews/ 前缀）。
+- `POST /works` 入参新增 `category/coverKey/previewKey`。
+- `POST /reports`：同人同目标存在未结单 → `CONFLICT 409`；创建时生成内容快照（targetTitle/targetSnapshot/targetAuthorId）。
+- `GET /admin/reports`：改为**按 target 聚合** `{data:[{targetType,targetId,targetTitle,snapshot,count,reporters:[{username,reason,detail,at}],reasons,latestAt,openCount,status}],total}`，支持 `?status=` 过滤；旧 `/admin/reports/:id` 已删除。
+
+### 6.4 删除端点
+
+- `/creators/:id`、`/creators/:id/stats`、`/creators/:id/works`、`/creators/:id/follow`（迁移至 `/users/*`）。
+
+### 6.5 前端路由变更
+
+- 新增 `/explore`（分类浏览：cat/tag/course/sort/price 组合）、`/user/[id]`（个人主页，本人 10 tab / 他人 4 tab）。
+- `/me`、`/creator/[id]`、`/creator-center`、`/income` 全部重定向至 `/user/[id]` 对应 tab。

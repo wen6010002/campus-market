@@ -67,6 +67,124 @@ async function setFollow(userId: string, creatorId: string, value: boolean) {
 const CREATOR_INCLUDE = { creator: true, student: true };
 
 export const socialService = {
+  /** 用户主页（V3-5）：任何用户都有主页（作品/评价/关注/粉丝），bio 优先 User 层 */
+  async userDetail(userId: string, viewerId?: string) {
+    const user = await prisma.user.findFirst({
+      where: { id: userId, deletedAt: null, status: { not: 'DELETED' } },
+      include: { creator: true, student: true },
+    });
+    if (!user) throw appError('NOT_FOUND', '用户不存在');
+
+    const [helped, fans, following, works, avgRating, myFollow] = await Promise.all([
+      prisma.work.aggregate({ where: { authorId: userId }, _sum: { downloads: true } }),
+      prisma.follow.count({ where: { followingId: userId } }),
+      prisma.follow.count({ where: { followerId: userId } }),
+      prisma.work.count({ where: { authorId: userId, status: 'PUBLISHED', deletedAt: null } }),
+      prisma.work.aggregate({
+        where: { authorId: userId, ratingCount: { gt: 0 } },
+        _avg: { rating: true },
+      }),
+      viewerId
+        ? prisma.follow.findUnique({
+            where: { followerId_followingId: { followerId: viewerId, followingId: userId } },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      id: user.id,
+      username: user.username,
+      avatarColor: user.avatarColor,
+      hasAvatar: !!user.avatarKey,
+      avatarVer: user.updatedAt.getTime(),
+      bio: user.bio ?? user.creator?.bio ?? '',
+      direction: user.creator?.direction ?? '',
+      honor: user.creator?.honor ?? null,
+      college: user.student?.college ?? '',
+      major: user.student?.major ?? '',
+      grade: user.student?.grade ?? '',
+      verified: user.creator?.verified ?? false,
+      isCreator: !!user.creator,
+      helped: helped._sum.downloads ?? 0,
+      fans,
+      following,
+      works,
+      rate: ratingStr(avgRating._avg.rating ?? 0),
+      myFollow: !!myFollow,
+      isSelf: viewerId === userId,
+    };
+  },
+
+  /** 用户公开评价历史（V3-5） */
+  async userRatings(userId: string) {
+    const ratings = await prisma.workRating.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { work: { select: { id: true, title: true, course: true } } },
+    });
+    return ratings.map((r) => ({
+      id: r.id,
+      stars: r.stars,
+      text: r.text,
+      createdAt: r.createdAt.toISOString(),
+      work: r.work,
+    }));
+  },
+
+  /** 关注/粉丝列表（V3-5，分页 20） */
+  async userFollows(
+    userId: string,
+    type: 'following' | 'followers',
+    page: number,
+    viewerId?: string,
+  ) {
+    const take = 20;
+    const skip = (page - 1) * take;
+    const rows = await (type === 'following'
+      ? prisma.follow.findMany({
+          where: { followerId: userId },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take,
+          include: { following: { include: { creator: true, student: true } } },
+        })
+      : prisma.follow.findMany({
+          where: { followingId: userId },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take,
+          include: { follower: { include: { creator: true, student: true } } },
+        }));
+    const ids = rows.map((r: any) => (type === 'following' ? r.followingId : r.followerId));
+    const myFollows = viewerId
+      ? await prisma.follow.findMany({
+          where: { followerId: viewerId, followingId: { in: ids } },
+          select: { followingId: true },
+        })
+      : [];
+    const mine = new Set(myFollows.map((f: any) => f.followingId));
+    const fansCounts = await Promise.all(
+      ids.map((id: string) => prisma.follow.count({ where: { followingId: id } })),
+    );
+    return rows.map((r: any, i: number) => {
+      const u = type === 'following' ? r.following : r.follower;
+      return {
+        id: u.id,
+        username: u.username,
+        avatarColor: u.avatarColor,
+        hasAvatar: !!u.avatarKey,
+        avatarVer: u.updatedAt.getTime(),
+        bio: u.bio ?? u.creator?.bio ?? '',
+        college: u.student?.college ?? '',
+        verified: u.creator?.verified ?? false,
+        fans: fansCounts[i],
+        myFollow: mine.has(u.id),
+        isSelf: viewerId === u.id,
+      };
+    });
+  },
+
   favorite: (userId: string, workId: string) => setFavorite(userId, workId, true),
   unfavorite: (userId: string, workId: string) => setFavorite(userId, workId, false),
   like: (userId: string, workId: string) => setLike(userId, workId, true),
@@ -101,6 +219,8 @@ export const socialService = {
         id: d.creator.id,
         username: d.creator.username,
         avatarColor: d.creator.avatarColor,
+        hasAvatar: !!d.creator.avatarKey,
+        avatarVer: d.creator.updatedAt.getTime(),
         bio: d.creator.creator?.bio ?? '',
         direction: d.creator.creator?.direction ?? '',
         honor: d.creator.creator?.honor ?? null,
@@ -139,6 +259,8 @@ export const socialService = {
               id: d.work.author.id,
               username: d.work.author.username,
               avatarColor: d.work.author.avatarColor,
+              hasAvatar: !!d.work.author.avatarKey,
+              avatarVer: d.work.author.updatedAt.getTime(),
               verified: d.work.author.creator?.verified ?? false,
             },
             publishedAt: d.work.publishedAt?.toISOString() ?? null,
@@ -284,6 +406,8 @@ export const socialService = {
         id: w.author.id,
         username: w.author.username,
         avatarColor: w.author.avatarColor,
+        hasAvatar: !!w.author.avatarKey,
+        avatarVer: w.author.updatedAt.getTime(),
         verified: w.author.creator?.verified ?? false,
       },
       publishedAt: w.publishedAt?.toISOString() ?? null,

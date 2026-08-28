@@ -26,7 +26,7 @@ test('1. 注册→登录→购买(mock)→评分→评价出现', async ({ page 
 
 test('2. 关注创作者 → 动态流出现', async ({ page }) => {
   await login(page, 'demo@szu.edu.cn');
-  await page.goto('/creator/c_he'); // 何思远（OS 方向）
+  await page.goto('/user/c_he'); // 何思远（OS 方向）
   const btn = page.locator('button', { hasText: '关注' }).first();
   await btn.waitFor();
   if ((await btn.textContent())?.includes('已关注')) {
@@ -51,10 +51,12 @@ test('3. 创作者发布 → 审核通过 → 我的作品出现', async ({ page
   });
   await page.fill('input[placeholder="作品标题（≤120 字）"]', 'E2E 发布测试作品');
   await page.fill('textarea', 'E2E 发布测试描述');
-  await page.fill('input[placeholder="如：数据库原理"]', '测试课程');
-  await page.check('input[type="checkbox"]');
+  await page.fill('input[placeholder^="学科或课程名"]', '测试课程');
+  await page.click('.cat-opt >> nth=0'); // 用途大类：课程学习（V3-2 必选）
+  await page.locator('.chips .chip').first().click(); // 预设标签
+  await page.check('label.check input[type="checkbox"]'); // 版权声明
   await page.click('button:has-text("提交审核")');
-  await page.waitForURL((url) => url.pathname === '/creator-center'); // 发布成功跳转创作者中心
+  await page.waitForURL((url) => url.pathname.startsWith('/user/')); // 发布成功跳转个人主页作品 tab（V3-5）
 
   // 管理员审核通过
   const pending = await adminApi(request, '/admin/works/pending', 'GET');
@@ -62,9 +64,9 @@ test('3. 创作者发布 → 审核通过 → 我的作品出现', async ({ page
   expect(work).toBeTruthy();
   await adminApi(request, `/admin/works/${work.id}/audit`, 'POST', { action: 'APPROVE' });
 
-  // 我的作品出现
-  await page.goto('/creator-center');
-  await page.click('button:has-text("我的作品")');
+  // 个人主页作品 tab 出现（V3-5）
+  await page.goto('/me?tab=works');
+  await page.waitForURL((url) => url.pathname.startsWith('/user/'));
   await expect(page.getByText('E2E 发布测试作品').first()).toBeVisible();
 });
 
@@ -75,34 +77,45 @@ test('4. 收藏 → 我的收藏', async ({ page }) => {
   await btn.waitFor();
   if ((await btn.textContent())?.includes('已收藏')) {
     await btn.click(); // 先取消，保证幂等
-    await expect(btn).toContainText('收藏');
+    // 等精确文本（= 查询回填完成），避免在瞬态文本上二次点击把收藏又删掉
+    await expect(btn).toHaveText(/♡ 收藏/);
   }
   await btn.click();
-  await expect(btn).toContainText('已收藏');
+  await expect(btn).toHaveText(/♥ 已收藏/);
 
   await page.goto('/me?tab=favs');
   await expect(page.getByText('数据库期末押题').first()).toBeVisible();
 });
 
 test('5. 举报作品 → 管理员处理', async ({ page, request }) => {
-  await login(page, 'demo@szu.edu.cn');
-  // 用 API 举报（详情页举报 UI 后续补）
+  // 用独立新账号举报：避开 demo 账号的 5/h 举报限流与历史残留，天然幂等
+  const ts = Date.now();
+  await register(page, `e2e5-${ts}@szu.edu.cn`, `E2E五号${ts}`);
   const report = await page.request.post('/api/v1/reports', {
     data: { targetType: 'WORK', targetId: 'w_net', reason: 'MISMATCH', detail: 'E2E 举报测试' },
   });
-  expect(report.ok()).toBeTruthy();
+  expect(report.status()).toBe(201);
 
-  // 管理员列出并处置
+  // 管理员聚合列出并处置（V3-6：按 target）
   const list = await adminApi(request, '/admin/reports', 'GET');
-  const item = list.data.find((r: { detail: string }) => r.detail === 'E2E 举报测试');
-  expect(item).toBeTruthy();
-  await adminApi(request, `/admin/reports/${item.id}`, 'POST', { status: 'RESOLVED' });
+  const group = list.data.data.find(
+    (g: { targetType: string; targetId: string; reporters: { detail: string | null }[] }) =>
+      g.targetType === 'WORK' &&
+      g.targetId === 'w_net' &&
+      g.reporters.some((r) => r.detail === 'E2E 举报测试'),
+  );
+  expect(group).toBeTruthy();
+  await adminApi(request, '/admin/reports/handle', 'POST', {
+    targetType: 'WORK',
+    targetId: 'w_net',
+    action: 'RESOLVE',
+    note: 'E2E 处置',
+  });
 });
 
 test('6. 收益明细 → 提现申请', async ({ page }) => {
   await login(page, 'demo@szu.edu.cn');
-  await page.goto('/income');
-  await expect(page.getByText('我的收益')).toBeVisible();
+  await page.goto('/user/u0?tab=income'); // V3-5 收益并入个人主页
   await expect(page.getByText('累计收益')).toBeVisible();
   // 提现按钮存在（余额不足时点提现会提示，但入口可见）
   await expect(page.getByText('提现', { exact: true }).first()).toBeVisible();
@@ -113,5 +126,35 @@ test('7. 搜索 → 详情', async ({ page }) => {
   await expect(page.getByText('搜索「数据库」')).toBeVisible();
   // 点第一个结果进详情
   await page.locator('.work-card').first().click();
-  await expect(page.getByText('资料预览')).toBeVisible();
+  await expect(page.getByText('在线预览').first()).toBeVisible(); // V3-4 预览入口
+});
+
+// ===== V3 新增核心路径 =====
+
+test('8. 分类浏览（V3-2）：explore 大类/标签过滤', async ({ page }) => {
+  await page.goto('/explore?cat=CAMPUS&tag=' + encodeURIComponent('选课攻略'));
+  await expect(page.getByRole('heading', { name: '分类浏览' })).toBeVisible();
+  await expect(page.locator('.card-grid .work-card, .card-grid .fine-card').first()).toBeVisible();
+});
+
+test('9. 在线预览（V3-4）：免费作品匿名可看 + 观看计数', async ({ page, request }) => {
+  const before = await request.get('/api/v1/works/w_fresh1').then((r) => r.json());
+  await page.goto('/work/w_fresh1');
+  await page.click('.preview-entry');
+  await expect(page.locator('.pv-frame')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.pv-pages')).toContainText('完整版');
+  // 观看 +1（去重口径：同上下文一次）
+  const key = await request.post('/api/v1/works/w_fresh1/preview').then((r) => r.json());
+  expect(['full', 'sample']).toContain(key.data.mode);
+  expect(key.data.mode).toBe('full');
+});
+
+test('10. 个人主页（V3-5）：匿名看他人 4 tab + 跳转', async ({ page }) => {
+  await page.goto('/creator/c_lin'); // 旧链接 307 → /user/c_lin
+  await page.waitForURL((url) => url.pathname === '/user/c_lin');
+  await expect(page.locator('.up-tabs .tab-btn').first()).toBeVisible({ timeout: 10_000 });
+  const tabs = await page.locator('.up-tabs .tab-btn').allInnerTexts();
+  expect(tabs.join(',')).toBe('作品,评价,关注,粉丝');
+  await page.click('button:has-text("粉丝")');
+  await expect(page.locator('.fr-row').first()).toBeVisible();
 });

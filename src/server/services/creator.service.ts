@@ -67,6 +67,7 @@ export const creatorService = {
         favs: w.favs,
         views: w.views,
         earnings: (earnings._sum.amount ?? 0).toFixed(2),
+        rejectedReason: w.rejectedReason,
         publishedAt: w.publishedAt?.toISOString() ?? null,
         createdAt: w.createdAt.toISOString(),
       });

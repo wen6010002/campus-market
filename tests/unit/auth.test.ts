@@ -50,8 +50,8 @@ describe('JWT 会话', () => {
 });
 
 describe('权限矩阵', () => {
-  it('上传仅创作者/管理员', () => {
-    expect(hasPermission('STUDENT', 'upload')).toBe(false);
+  it('上传开放给所有登录角色（V3-2 开放发布）', () => {
+    expect(hasPermission('STUDENT', 'upload')).toBe(true);
     expect(hasPermission('CREATOR', 'upload')).toBe(true);
     expect(hasPermission('ADMIN', 'upload')).toBe(true);
   });

@@ -61,14 +61,31 @@ export async function requireAdmin(): Promise<Session> {
   return s;
 }
 
-/** 要求创作者：角色≥CREATOR 且 CreatorProfile.verified=true（ADMIN 直接放行） */
-export async function requireCreator(): Promise<Session & { creatorProfileId: string }> {
+/** 发布门槛核心（可单测）：无 CreatorProfile 则自动创建（未认证徽章），STUDENT 升级 CREATOR。
+ *  verified 不再是发布门槛，仅作认证徽章展示；收益/提现链路照旧挂靠 CreatorProfile。 */
+export async function ensureCreatorProfile(userId: string): Promise<string> {
+  let cp = await prisma.creatorProfile.findUnique({ where: { userId } });
+  if (!cp) {
+    cp = await prisma.creatorProfile.create({
+      data: { userId, bio: '', direction: '校园分享者', verified: false },
+    });
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role === 'STUDENT') {
+    await prisma.user.update({ where: { id: userId }, data: { role: 'CREATOR' } });
+  }
+  return cp.id;
+}
+
+/** 发布门槛（V3-2 开放发布）：登录即可，ensureCreatorProfile 自动补档案。 */
+export async function ensurePublisher(): Promise<Session & { creatorProfileId: string }> {
   const s = await requireUser();
-  if (s.role === 'ADMIN') return { ...s, creatorProfileId: s.creatorProfileId ?? '' };
-  if (s.role !== 'CREATOR') throw appError('FORBIDDEN', '需要创作者权限');
-  const cp = await prisma.creatorProfile.findUnique({ where: { userId: s.userId } });
-  if (!cp || !cp.verified) throw appError('FORBIDDEN', '创作者尚未认证');
-  return { ...s, creatorProfileId: cp.id };
+  const creatorProfileId = await ensureCreatorProfile(s.userId);
+  return {
+    ...s,
+    role: s.role === 'STUDENT' ? 'CREATOR' : s.role,
+    creatorProfileId,
+  };
 }
 
 /** 会话 cookie 配置（httpOnly + SameSite=Lax + 生产 Secure） */

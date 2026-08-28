@@ -71,7 +71,11 @@ export async function apiFetchPage<T>(
 }
 
 /** 仅用于文件直传（二进制 PUT 到 presigned URL），不走 /api/v1 */
-export async function uploadFile(url: string, file: File, onProgress?: (pct: number) => void) {
+export async function uploadFile(
+  url: string,
+  file: File | Blob,
+  onProgress?: (pct: number) => void,
+) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);

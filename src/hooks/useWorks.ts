@@ -14,6 +14,7 @@ export interface WorkListParams {
   minRating?: number;
   course?: string;
   tag?: string;
+  category?: string;
   creatorId?: string;
 }
 

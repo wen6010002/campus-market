@@ -4,8 +4,8 @@ import { socialService } from '@/server/services/social.service';
 
 type Ctx = { params: { id: string } };
 
+/** 用户主页数据（V3-5，公开；带会话回填 myFollow/isSelf） */
 export const GET = withErrorHandler(async (_req: Request, ctx: Ctx) => {
   const session = await getSession();
-  const detail = await socialService.creatorDetail(ctx.params.id, session?.userId);
-  return ok(detail);
+  return ok(await socialService.userDetail(ctx.params.id, session?.userId));
 });

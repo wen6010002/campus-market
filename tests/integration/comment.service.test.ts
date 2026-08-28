@@ -34,6 +34,7 @@ const validInput: WorkInput = {
   fileType: 'PDF',
   fileKey: 'works/test/orig.pdf',
   fileSize: 1024,
+  category: 'COURSE',
   isFree: true,
   tags: [],
   previewToc: [],

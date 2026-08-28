@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import type { FileType } from '@/lib/constants';
+import type { FileType, CategoryKey } from '@/lib/constants';
 
 export interface WorkCreateInput {
   title: string;
@@ -15,6 +15,9 @@ export interface WorkCreateInput {
   pages?: number;
   coverIcon?: string;
   coverTheme?: string;
+  coverKey?: string;
+  previewKey?: string;
+  category?: CategoryKey;
   isFree: boolean;
   isOriginal?: boolean;
   price?: string;
@@ -26,7 +29,12 @@ export interface WorkCreateInput {
 
 export function usePresign() {
   return useMutation({
-    mutationFn: (input: { fileType: FileType; fileSize: number; sha?: string }) =>
+    mutationFn: (input: {
+      kind?: 'work' | 'cover' | 'avatar' | 'preview';
+      fileType: FileType;
+      fileSize: number;
+      sha?: string;
+    }) =>
       apiFetch<{ fileKey: string; putUrl: string }>('/uploads/presign', {
         method: 'POST',
         body: JSON.stringify(input),

@@ -9,7 +9,9 @@ import type { RatingDist } from '../algos/rating';
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
 
 const RATING_INCLUDE = {
-  user: { select: { username: true, avatarColor: true } },
+  user: {
+    select: { id: true, username: true, avatarColor: true, avatarKey: true, updatedAt: true },
+  },
   tags: { include: { tag: true } },
 } as const;
 
@@ -22,7 +24,13 @@ function toRating(r: any, viewerId?: string) {
     creatorReply: r.creatorReply,
     repliedAt: r.repliedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
-    user: { username: r.user.username, avatarColor: r.user.avatarColor },
+    user: {
+      id: r.user.id,
+      username: r.user.username,
+      avatarColor: r.user.avatarColor,
+      hasAvatar: !!r.user.avatarKey,
+      avatarVer: r.user.updatedAt.getTime(),
+    },
     tags: r.tags.map((t: any) => t.tag.name),
     _mine: r.userId === viewerId,
   };
