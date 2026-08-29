@@ -24,7 +24,7 @@ COPY --from=build /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build --chown=nextjs:nodejs /app/node_modules/.pnpm/@prisma+client@5.18.0_prisma@5.18.0/node_modules/.prisma ./node_modules/.pnpm/@prisma+client@5.18.0_prisma@5.18.0/node_modules/.prisma
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
