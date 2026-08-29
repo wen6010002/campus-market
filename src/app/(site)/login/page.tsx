@@ -35,7 +35,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="page" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+    <main
+      className="page auth-page"
+      style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}
+    >
       <div className="card" style={{ width: 400, maxWidth: '100%', padding: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>登录 Campus Market</h1>
         <div className="sub" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 }}>

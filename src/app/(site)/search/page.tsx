@@ -23,6 +23,20 @@ function SearchContent() {
 
   return (
     <main className="page">
+      <form className="mobile-search-form" action="/search" role="search">
+        <label className="sr-only" htmlFor="mobile-search-input">
+          搜索课程或创作者
+        </label>
+        <input
+          id="mobile-search-input"
+          name="q"
+          type="search"
+          defaultValue={q}
+          placeholder="搜索课程、资料或创作者"
+          autoComplete="off"
+        />
+        <button type="submit">搜索</button>
+      </form>
       <div className="page-head">
         <div>
           <h1>搜索{q ? `「${q}」` : ''}</h1>
