@@ -63,10 +63,7 @@ const CAT_DEFAULT_ICON: Record<CategoryKey, string> = {
 /** pdfjs 渲染 PDF 第 1 页为封面图（宽 600px 逻辑分辨率 × 2 清晰度，JPEG 85） */
 async function renderPdfCover(file: File): Promise<Blob> {
   const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).toString();
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
   const data = await file.arrayBuffer();
   const doc = await pdfjs.getDocument({ data }).promise;
   const page = await doc.getPage(1);

@@ -4,8 +4,9 @@
   "private": true,
   "description": "Campus Market — 大学生成长社区 + 校园知识内容市场（Next.js 全栈单项目）",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "prepare:pdf-worker": "node scripts/prepare-pdf-worker.mjs",
+    "dev": "pnpm prepare:pdf-worker && next dev",
+    "build": "pnpm prepare:pdf-worker && next build",
     "start": "next start",
     "worker": "tsx src/server/jobs/scheduler.ts",
     "lint": "next lint",
