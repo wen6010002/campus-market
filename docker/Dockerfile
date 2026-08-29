@@ -14,6 +14,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm prisma:generate && pnpm build
 
+# ---------- worker ----------
+FROM build AS worker
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+USER nextjs
+
 # ---------- run ----------
 FROM node:20-alpine AS runner
 WORKDIR /app

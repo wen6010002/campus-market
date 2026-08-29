@@ -35,6 +35,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      target: worker
     container_name: cm-worker
     restart: unless-stopped
     env_file: ../.env
