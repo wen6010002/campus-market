@@ -35,7 +35,7 @@ const ZONES: { key: Zone; icon: string; title: string; sub: string; badge: React
     key: 'growth',
     icon: '🚀',
     title: '自我提升区',
-    sub: '精心打磨的付费精品，为成长投资一次，永久受益',
+    sub: '校内同学整理的课程与成长资料，按需选择',
     badge: <span className="badge-fine">💎 付费精品</span>,
   },
 ];
@@ -180,8 +180,9 @@ export default function HomePage() {
                   // 头像：创作者榜取创作者本人；作品榜（收藏/好评）取该作品作者
                   const av = r.creator ?? (r.work as any)?.author ?? e;
                   return (
-                    <div
+                    <Link
                       key={i}
+                      href={`/user/${av.id}`}
                       className="rank-item"
                       style={{
                         display: 'flex',
@@ -189,6 +190,8 @@ export default function HomePage() {
                         gap: 12,
                         padding: '10px 12px',
                         borderBottom: i < rank.data.length - 1 ? '1px solid var(--line-2)' : 'none',
+                        color: 'inherit',
+                        textDecoration: 'none',
                       }}
                     >
                       <div
@@ -230,7 +233,7 @@ export default function HomePage() {
                                 : '好评'}
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })
               ) : (
@@ -244,18 +247,18 @@ export default function HomePage() {
           <section className="growth-value">
             <div className="gv-card">
               <span className="gv-ico">💎</span>
-              <b>精挑细选</b>
-              <small>每一份精品都经过平台审核与算法加权，拒绝水内容</small>
+              <b>内容筛选</b>
+              <small>先看内容和评价，再决定是否购买</small>
             </div>
             <div className="gv-card">
               <span className="gv-ico">🎓</span>
-              <b>校园认证创作者</b>
-              <small>实名认证的学长学姐，走过你正在走的路</small>
+              <b>校园创作者</b>
+              <small>来自校内同学的课程与求职经验</small>
             </div>
             <div className="gv-card">
               <span className="gv-ico">♾️</span>
-              <b>一次购买 · 永久下载</b>
-              <small>购买即获得永久权限，可随时回看、评价、催更</small>
+              <b>买一次，随时查看</b>
+              <small>购买后可在个人资料库继续使用</small>
             </div>
           </section>
 

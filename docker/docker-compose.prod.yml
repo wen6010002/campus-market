@@ -11,7 +11,8 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
-      DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@pgbouncer:5432/${POSTGRES_DB:-campus_market}
+      # 单机测试环境直接连 PostgreSQL，避免 Prisma 与 PgBouncer 的事务池兼容问题。
+      DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
     depends_on:
@@ -42,7 +43,7 @@ services:
     command: ["node", "node_modules/tsx/dist/cli.mjs", "src/server/jobs/scheduler.ts"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
-      DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@pgbouncer:5432/${POSTGRES_DB:-campus_market}
+      DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
       REDIS_URL: redis://redis:6379
     depends_on:
       pgbouncer:
