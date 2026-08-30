@@ -257,8 +257,8 @@ export default function HomePage() {
             </div>
             <div className="gv-card">
               <span className="gv-ico">♾️</span>
-              <b>买一次，随时查看</b>
-              <small>购买后可在个人资料库继续使用</small>
+              <b>一次购买</b>
+              <small>之后可在个人资料库查看</small>
             </div>
           </section>
 
