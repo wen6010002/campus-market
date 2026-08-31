@@ -78,23 +78,21 @@ export default function HomePage() {
           ))}
         </nav>
 
-        {/* 分类导航（校园专区）：新生区之上，chips 放大 */}
-        {zone === 'campus' ? (
-          <nav className="cat-quick" aria-label="分类浏览">
-            <span className="cq-label">📚 分类</span>
-            <Link className="cq-chip all" href="/explore">
-              全部
+        {/* 分类导航：两个专区共用分类入口，移动端可横向滚动 */}
+        <nav className="cat-quick" aria-label="分类浏览">
+          <span className="cq-label">📚 分类</span>
+          <Link className="cq-chip all" href="/explore">
+            全部
+          </Link>
+          {CATEGORIES.map((c) => (
+            <Link key={c.key} className="cq-chip" href={`/explore?cat=${c.key}`}>
+              {c.icon} {c.label}
             </Link>
-            {CATEGORIES.map((c) => (
-              <Link key={c.key} className="cq-chip" href={`/explore?cat=${c.key}`}>
-                {c.icon} {c.label}
-              </Link>
-            ))}
-            <Link className="cq-chip more" href="/explore">
-              更多 →
-            </Link>
-          </nav>
-        ) : null}
+          ))}
+          <Link className="cq-chip more" href="/explore">
+            更多 →
+          </Link>
+        </nav>
       </div>
 
       {zone === 'campus' ? (

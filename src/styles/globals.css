@@ -4946,10 +4946,18 @@ body {
     overflow-x: auto;
     margin: 0 -16px 16px;
     padding: 4px 16px 10px;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scrollbar-color: #f1b69e transparent;
   }
   .cat-quick::-webkit-scrollbar {
-    display: none;
+    height: 3px;
+  }
+  .cat-quick::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .cat-quick::-webkit-scrollbar-thumb {
+    background: #f1b69e;
+    border-radius: 999px;
   }
   .cat-quick .cq-label,
   .cat-quick .cq-chip {
