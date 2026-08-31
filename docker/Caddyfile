@@ -2,3 +2,9 @@
 	encode gzip
 	reverse_proxy app:3000
 }
+
+# 临时 IP 入口：DNS 生效前可通过 http://服务器IP 验收应用。
+http://154.222.19.224 {
+	encode gzip
+	reverse_proxy app:3000
+}
