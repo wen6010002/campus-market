@@ -40,7 +40,7 @@ export default function LoginPage() {
       style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}
     >
       <div className="card" style={{ width: 400, maxWidth: '100%', padding: 28 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>登录 Campus Market</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>登录课搭</h1>
         <div className="sub" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 }}>
           分享知识 → 帮助同学 → 获得影响力 → 获得收益
         </div>

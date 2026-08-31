@@ -100,7 +100,7 @@ export function PreviewModal({ open, workId, title, price, watermark, onBuy, onC
               {/* 水印层：斜纹 + 用户名，pointer-events 穿透 */}
               <div className="pv-watermark" aria-hidden>
                 {Array.from({ length: 16 }, (_, i) => (
-                  <span key={i}>{watermark} · Campus Market</span>
+                  <span key={i}>{watermark} · 课搭</span>
                 ))}
               </div>
               <div className="pv-cta">

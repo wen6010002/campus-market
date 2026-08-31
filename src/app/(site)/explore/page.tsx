@@ -100,7 +100,7 @@ function ExploreContent() {
     : (Object.values(PRESET_TAGS) as string[][]).flat().slice(0, 14);
 
   useEffect(() => {
-    document.title = '分类浏览 · Campus Market';
+    document.title = '分类浏览 · 课搭';
   }, []);
 
   const total = works.data?.pagination.total ?? 0;

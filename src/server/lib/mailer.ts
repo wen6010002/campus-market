@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
 export async function sendMail(to: string, subject: string, html: string) {
   try {
     await transporter.sendMail({
-      from: process.env.MAIL_FROM ?? 'Campus Market <no-reply@cm.dev>',
+      from: process.env.MAIL_FROM ?? '课搭 <no-reply@kedahub.cn>',
       to,
       subject,
       html,
@@ -28,7 +28,7 @@ export async function sendMail(to: string, subject: string, html: string) {
 export async function sendVerifyCode(email: string, code: string) {
   await sendMail(
     email,
-    '【Campus Market】邮箱验证码',
-    `<div style="font-family:sans-serif"><h3>Campus Market</h3><p>你的验证码是：</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p style="color:#888">10 分钟内有效，请勿泄露给他人。</p></div>`,
+    '【课搭】邮箱验证码',
+    `<div style="font-family:sans-serif"><h3>课搭</h3><p>你的验证码是：</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p style="color:#888">10 分钟内有效，请勿泄露给他人。</p></div>`,
   );
 }

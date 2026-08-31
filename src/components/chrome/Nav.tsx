@@ -46,7 +46,7 @@ export function Nav() {
             </svg>
           </div>
           <div className="logo-text">
-            <b>Campus Market</b>
+            <b>课搭</b>
             <span>大学生成长社区</span>
           </div>
         </Link>

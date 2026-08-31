@@ -16,7 +16,7 @@ export function Footer() {
               </svg>
             </div>
             <div className="logo-text">
-              <b>Campus Market</b>
+              <b>课搭</b>
               <span>大学生成长社区</span>
             </div>
           </div>
@@ -46,7 +46,7 @@ export function Footer() {
         </div>
       </div>
       <div className="foot-bottom">
-        <span>© 2026 Campus Market · 知识在校园里流动</span>
+        <span>© 2026 课搭 · 知识在校园里流动</span>
         <div className="socials">
           <a>
             <svg viewBox="0 0 24 24" fill="currentColor">

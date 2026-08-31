@@ -79,7 +79,7 @@ export default function RegisterPage() {
       style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}
     >
       <div className="card" style={{ width: 440, maxWidth: '100%', padding: 28 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>注册 Campus Market</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>注册课搭</h1>
         <div className="sub" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 }}>
           需使用 .edu.cn 教育邮箱，验证通过即可加入校园成长社区
         </div>
