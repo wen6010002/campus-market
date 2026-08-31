@@ -20,6 +20,11 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 USER nextjs
 
+# ---------- migrate / seed ----------
+# 保留构建阶段的 pnpm、Prisma CLI 和 tsx，供生产初始化任务使用；不进入精简 app 镜像。
+FROM build AS migrate
+ENV NODE_ENV=production
+
 # ---------- run ----------
 FROM node:20-alpine AS runner
 WORKDIR /app

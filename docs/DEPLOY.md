@@ -99,8 +99,9 @@ docker compose -f docker/docker-compose.prod.yml up -d --build
 ### 4.3 首次初始化（迁移 + 种子）
 
 ```bash
-# 在 app 容器内执行迁移与种子
-docker compose -f docker/docker-compose.prod.yml exec app sh -c "pnpm prisma:migrate:deploy && pnpm db:seed"
+# 使用包含 Prisma CLI 与 tsx 的一次性 migrate 容器执行迁移与种子
+docker compose -f docker/docker-compose.prod.yml run --rm migrate pnpm prisma:migrate:deploy
+docker compose -f docker/docker-compose.prod.yml run --rm migrate pnpm db:seed
 ```
 
 ### 4.4 滚动更新
