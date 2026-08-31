@@ -20,8 +20,9 @@ export async function sendMail(to: string, subject: string, html: string) {
       html,
     });
   } catch (e) {
-    // 邮件失败不阻断主流程（验证码可在 dev 从 mailhog 界面查看）
+    // 开发/测试环境允许无 SMTP 启动；生产必须显式暴露发送失败，避免验证码假成功。
     logger.warn({ err: e }, 'sendMail failed');
+    if (process.env.NODE_ENV === 'production') throw e;
   }
 }
 
