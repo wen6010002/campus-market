@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandMark } from '@/components/chrome/BrandMark';
 
 export function Footer() {
   return (
@@ -7,9 +8,7 @@ export function Footer() {
         <div className="foot-brand">
           <div className="logo">
             <div className="logo-mark">
-              <span className="logo-glyph" aria-hidden="true">
-                课
-              </span>
+              <BrandMark />
             </div>
             <div className="logo-text">
               <b>课搭</b>

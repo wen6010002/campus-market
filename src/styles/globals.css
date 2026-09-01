@@ -223,13 +223,9 @@ img {
   place-items: center;
   color: #fff;
 }
-.logo-glyph {
-  display: block;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.08em;
-  line-height: 1;
+.logo-mark svg {
+  width: 20px;
+  height: 20px;
 }
 
 .ops-head {

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import { Icon } from '@/lib/icons';
+import { BrandMark } from '@/components/chrome/BrandMark';
 
 export function Nav() {
   const { user } = useAuth();
@@ -37,9 +38,7 @@ export function Nav() {
       <div className="nav-inner">
         <Link href="/" className="logo">
           <div className="logo-mark">
-            <span className="logo-glyph" aria-hidden="true">
-              课
-            </span>
+            <BrandMark />
           </div>
           <div className="logo-text">
             <b>课搭</b>
