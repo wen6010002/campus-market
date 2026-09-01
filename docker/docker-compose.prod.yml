@@ -45,6 +45,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
       DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
       REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
     depends_on:
       pgbouncer:
         condition: service_healthy
