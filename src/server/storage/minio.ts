@@ -1,5 +1,11 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import { GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import {
+  CreateBucketCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // MinIO（S3 兼容）客户端 + presigned 直传/下载。
@@ -15,8 +21,32 @@ const s3 = new S3Client({
   forcePathStyle: true,
 });
 
+let bucketReady: Promise<void> | null = null;
+
+/** 首次使用时初始化桶，避免新生产卷尚未执行 mc 初始化时上传失败。 */
+async function ensureBucket() {
+  if (!bucketReady) {
+    bucketReady = (async () => {
+      try {
+        await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+      } catch (error: any) {
+        if (error?.$metadata?.httpStatusCode !== 404 && error?.name !== 'NotFound') throw error;
+        try {
+          await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+        } catch (createError: any) {
+          if (!['BucketAlreadyOwnedByYou', 'BucketAlreadyExists'].includes(createError?.name)) {
+            throw createError;
+          }
+        }
+      }
+    })();
+  }
+  return bucketReady;
+}
+
 /** 直传 PUT（文件上传，5 分钟） */
 export async function presignPut(key: string, contentType = 'application/octet-stream') {
+  await ensureBucket();
   const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
   return getSignedUrl(s3, cmd, { expiresIn: 300 });
 }
@@ -53,6 +83,7 @@ export async function putObject(
   content: string | Buffer,
   contentType = 'application/octet-stream',
 ) {
+  await ensureBucket();
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
