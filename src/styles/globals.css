@@ -223,9 +223,13 @@ img {
   place-items: center;
   color: #fff;
 }
-.logo-mark svg {
-  width: 19px;
-  height: 19px;
+.logo-glyph {
+  display: block;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  line-height: 1;
 }
 .logo-text b {
   font-weight: 700;
@@ -4907,6 +4911,10 @@ body {
   .mobile-tab.active .mobile-tab-icon {
     border-radius: 9px;
     background: var(--pri-50);
+  }
+
+  .cip-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   /* Content density and tap targets for a 375–430px viewport. */

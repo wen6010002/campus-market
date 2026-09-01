@@ -37,13 +37,9 @@ export function Nav() {
       <div className="nav-inner">
         <Link href="/" className="logo">
           <div className="logo-mark">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M5 4.5C5 3.7 5.7 3 6.5 3h9c.8 0 1.5.7 1.5 1.5v14c0 .8-.7 1.5-1.5 1.5H10l-4 3.2c-.5.4-1.2.1-1.2-.5V4.5Z"
-                fill="#fff"
-              />
-              <path d="M9 9h6M9 12h4" stroke="#ED4E2D" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <span className="logo-glyph" aria-hidden="true">
+              课
+            </span>
           </div>
           <div className="logo-text">
             <b>课搭</b>
