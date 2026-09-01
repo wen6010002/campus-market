@@ -103,4 +103,9 @@ export async function objectExists(key: string): Promise<boolean> {
   }
 }
 
+/** 运维探针：只检查桶是否可访问，不创建桶、不读取业务对象。 */
+export async function storageHealth(): Promise<void> {
+  await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+}
+
 export const S3_BUCKET = bucket;

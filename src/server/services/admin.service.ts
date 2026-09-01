@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import type { Role } from '@/lib/constants';
+import { hashPassword } from '../auth/password';
 
 const SAFE_SELECT = {
   id: true,
@@ -120,6 +121,29 @@ export const adminService = {
   /** 改角色 */
   async setRole(userId: string, role: Role) {
     return prisma.user.update({ where: { id: userId }, data: { role } });
+  },
+
+  /** 创建独立后台测试账号；仅现有管理员可通过路由调用。 */
+  async createBackofficeTester(input: { email: string; username: string; password: string }) {
+    const email = input.email.toLowerCase();
+    const [emailTaken, usernameTaken] = await Promise.all([
+      prisma.user.findUnique({ where: { email }, select: { id: true } }),
+      prisma.user.findUnique({ where: { username: input.username }, select: { id: true } }),
+    ]);
+    if (emailTaken) throw appError('EMAIL_TAKEN', '该测试邮箱已被使用');
+    if (usernameTaken) throw appError('USERNAME_TAKEN', '该测试用户名已被使用');
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        username: input.username,
+        passwordHash: await hashPassword(input.password),
+        role: 'ADMIN',
+        avatarColor: '#334155',
+      },
+      select: { id: true, email: true, username: true, role: true, createdAt: true },
+    });
+    return { ...user, createdAt: user.createdAt.toISOString() };
   },
 
   /** 提现审批列表（REQUESTED 优先） */

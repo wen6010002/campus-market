@@ -121,9 +121,14 @@ export function Nav() {
                     {unread > 0 ? <span className="pill">{unread}</span> : null}
                   </Link>
                   {user.role === 'ADMIN' ? (
-                    <Link className="dropdown-item" href="/admin" onClick={() => setOpen(false)}>
-                      🛡 管理后台
-                    </Link>
+                    <>
+                      <Link className="dropdown-item" href="/admin" onClick={() => setOpen(false)}>
+                        🛡 管理后台
+                      </Link>
+                      <Link className="dropdown-item" href="/ops" onClick={() => setOpen(false)}>
+                        📊 运维控制台
+                      </Link>
+                    </>
                   ) : null}
                   <div className="dropdown-divider" />
                   <div
