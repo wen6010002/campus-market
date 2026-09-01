@@ -4824,6 +4824,9 @@ body {
 
   body {
     padding-bottom: calc(68px + env(safe-area-inset-bottom));
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Desktop chrome shrinks to a calm mobile brand bar. Navigation moves to bottom. */

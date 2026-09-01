@@ -21,7 +21,9 @@ export function Footer() {
             </div>
           </div>
           <p>不是资料下载站，而是大学生成长平台。让知识在校园里流动，让每个愿意分享的人被看见。</p>
-          <div className="creed">&ldquo;让用户每天都想打开，而不是考试前才打开。&rdquo;</div>
+          <div className="creed">
+            &ldquo;愿课搭陪你走过每一次日常积累，需要时也总能帮上忙。&rdquo;
+          </div>
         </div>
         <div className="foot-col">
           <h5>探索</h5>
