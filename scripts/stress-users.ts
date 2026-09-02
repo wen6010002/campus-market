@@ -25,7 +25,7 @@ async function main() {
           email,
           username: `压测用户${String(i).padStart(3, '0')}`,
           passwordHash: hash,
-          role: Role.USER,
+          role: Role.STUDENT,
           avatarColor: '#5B8DEF',
           student: {
             create: {
