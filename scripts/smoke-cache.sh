@@ -31,7 +31,7 @@ ck "解封后旧会话立即恢复" 200 "$c"
 # 5) 公告发布 → 公共列表立即可见（列表缓存失效）
 c=$(curl -s -b /tmp/v41-adm.jar -o /tmp/v41.json -w '%{http_code}' -X POST "$BASE/api/v1/admin/announcements" -H 'content-type: application/json' -d "{\"title\":\"缓存验证公告 $(date +%s)\",\"content\":\"verify\",\"level\":\"NORMAL\"}")
 ANN_ID=$(J "d['data']['id']" </tmp/v41.json)
-ck "发布公告" 200 "$c" "id=$ANN_ID"
+ck "发布公告" 201 "$c" "id=$ANN_ID"
 c=$(curl -s -o /tmp/v41.json -w '%{http_code}' "$BASE/api/v1/announcements")
 ck "公共列表立即可见新公告" 200 "$c" "$(J "'含' + str(d['pagination']['total']) + ' 条'" </tmp/v41.json)"
 
@@ -39,7 +39,7 @@ ck "公共列表立即可见新公告" 200 "$c" "$(J "'含' + str(d['pagination'
 BEFORE=$(curl -s -b /tmp/v41-a.jar "$BASE/api/v1/auth/me" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['unreadAnnouncements'])")
 curl -s -b /tmp/v41-a.jar -o /dev/null -X POST "$BASE/api/v1/announcements/read-all"
 AFTER=$(curl -s -b /tmp/v41-a.jar "$BASE/api/v1/auth/me" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['unreadAnnouncements'])")
-if [ "$BEFORE" -gt 0 ] && [ "$AFTER" = "0" ]; then PASS=$((PASS+1)); echo "✔ read-all 后未读数 $BEFORE→0（me 缓存即时失效）"; else FAIL=$((FAIL+1)); echo "✘ 未读数变化异常 $BEFORE→$AFTER"; fi
+if [ "$BEFORE" -gt 0 ] && [ "$AFTER" = "0" ]; then PASS=$((PASS+1)); echo "✔ read-all 后未读数 $BEFORE -> 0（me 缓存即时失效）"; else FAIL=$((FAIL+1)); echo "✘ 未读数变化异常 $BEFORE -> $AFTER"; fi
 
 # 7) 撤回验证公告（清理现场）
 c=$(curl -s -b /tmp/v41-adm.jar -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/v1/admin/announcements/$ANN_ID")

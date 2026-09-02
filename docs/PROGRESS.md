@@ -1175,3 +1175,16 @@
 - **严重修复**：集成测试进程会连到开发库并清库——`db.ts` 单例优先 `DATABASE_URL_POOLED` 而 tests/setup 只覆盖 `DATABASE_URL`；修复为显式 `process.env.DATABASE_URL_POOLED = process.env.DATABASE_URL`（不能 delete，@prisma/client import 时会从 .env 回填）。
 
 **验证**：typecheck/lint ✓；122/122 ✓；Playwright 全链路（弹窗已读流转、上传审核通知、打卡幂等、热力图/月历、收藏分组）✓；线上 28/28 冒烟（公开读/登录态/写/管理员/权限反查）✓；首轮压测（scripts/stress.mjs，矩阵 A-F）读 ~125 RPS 封顶·0 错误，瓶颈为单进程，详见 **docs/PERFORMANCE.md**。
+
+## V4.1 — P0+P1 性能优化落地（方案：docs/PERFORMANCE.md §三，复测：§六）
+
+**变更**：
+
+- **P0-1 多副本**：compose app 去 `container_name` + `replicas: 3`（docker-app-1/2/3，各 512M 上限，内存余量充足）；**坑：Caddy `reverse_proxy app:3000` 会在长连接上钉死单副本**（Docker DNS 返回全量 A 记录也没用），必须改 `dynamic a` 动态上游——改后 11/11/8KB 均匀分流。
+- **P0-2 封禁检查缓存**：`requireUser` 的用户状态查询加 30s Redis 缓存（`user:status:{id}`）；admin 封/解封、举报批量封禁处主动失效——线上实测封禁后旧会话**立即** 403。
+- **P1-1**：roadmaps 列表 60s（上架/审核通过失效）+ 详情公共部分 300s（内容不可变，myFav 按访问者叠加）；announcements 公共列表 60s（发布/撤回失效，同时失效全体 `me:*`）。
+- **P1-2**：搜索 10s 短缓存；trgm GIN 索引补 users.username / creator_profiles.direction / tags.name（迁移 `v4_trgm_search_idx`）。
+- **P1-3**：`buildAuthUserCached` 30s 聚合缓存（未采用原稿的写时计数器方案——公告是广播写无法按用户 INCR，改全路径主动失效，无漂移风险）：登录/资料/头像/通知写入/全部已读/公告发布撤回已读/封禁解封改角色/创作者申请。
+- **测试隔离**：`flushDb` 同时清全部业务缓存前缀（新增 `flushCache` 导出，只删缓存不动限流 key）。
+
+**复测（同矩阵）**：读 vu50 125→**415 RPS（3.3×）**、vu100 107→**472（4.4×）**、混合 vu50 93→**215（2.3×）**、并发登录 p50 4390→**1724ms（2.5×）**；读场景 p50 82-157ms；冒烟 28/28 + 缓存专项 10/10；typecheck/lint/122 测试 ✓；瓶颈离开应用进程数（三副本各 ~0.5 核，PG/Redis 仍 <5%）。已知小项：登录专项 3/130 瞬时 502（dynamic a 刷新窗口，自愈，见 PERFORMANCE.md §六）。
