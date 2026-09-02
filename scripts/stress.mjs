@@ -14,6 +14,7 @@
 // 压测账号由 scripts/stress-users.ts 创建（stress001@szu.edu.cn / Stress1234）。
 
 import http from 'node:http';
+import https from 'node:https';
 import { parseArgs } from 'node:util';
 
 const { values: arg } = parseArgs({
@@ -35,7 +36,9 @@ const ACCOUNTS = Number(arg.accounts);
 const PASSWORD = 'Stress1234';
 const COOKIE_NAME = 'cm_token';
 
-const agent = new http.Agent({ keepAlive: true, maxSockets: 1024, keepAliveMsecs: 30_000 });
+const isTls = BASE.startsWith('https://');
+const lib = isTls ? https : http;
+const agent = new (lib.Agent)({ keepAlive: true, maxSockets: 1024, keepAliveMsecs: 30_000 });
 const u = (path) => new URL(path, BASE);
 
 // ---------- HTTP ----------
@@ -43,10 +46,10 @@ function request(method, path, { cookie, body } = {}) {
   return new Promise((resolve) => {
     const url = u(path);
     const payload = body ? JSON.stringify(body) : null;
-    const req = http.request(
+    const req = lib.request(
       {
         hostname: url.hostname,
-        port: url.port || 80,
+        port: url.port || (isTls ? 443 : 80),
         path: url.pathname + url.search,
         method,
         agent,
@@ -258,9 +261,8 @@ async function main() {
         }
       }
     }
-    // 全部被配速挡住时退回一个无限制场景
-    const fallback = active.find(([n, s]) => !s.minInterval && (!s.auth || vu.cookie)) ?? active[0];
-    return fallback;
+    // 全部被配速挡住：稍等再跑，绝不绕过 minInterval（否则会打爆服务端限流收到 429）
+    return null;
   };
 
   const stats = new Map(active.map(([name]) => [name, new Stats()]));
@@ -270,7 +272,11 @@ async function main() {
 
   const worker = async (vu) => {
     while (!stopAll && now() < deadline) {
-      const [name, s] = pickScenario(vu, now());
+      const [name, s] = pickScenario(vu, now()) ?? [];
+      if (!name) {
+        await sleep(100);
+        continue;
+      }
       const { m, p, body } = s.run(vu);
       vu.n++;
       const t0 = now();

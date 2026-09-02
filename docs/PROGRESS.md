@@ -1161,3 +1161,17 @@
 **变更**：分类 chips 从两行大卡（63px）改回**单行胶囊（38px）**，显眼手段改用配色——整条暖色带：「全部」实心品牌橙、六大类浅橙底+橙字+描边、hover 实心反白、「更多」虚线白底。位置与 sticky 保持（新生区上方、随专区导航吸顶 top:69）。sticky 容器总高 154px（原大卡版更高）。
 
 **验证**：8 枚单行 38px、「全部」实心、滚动后容器吸顶 69 ✓、375px 无横向滚动 ✓、122/122。截图 /tmp/home-catnav.png。
+
+## V4（v0.2.1）— 公告 + 学习路线图 + 运维详情 + 顶栏，生产部署与首轮压测
+
+**变更**：
+
+- **公告系统**：Announcement/AnnouncementRead 两表；登录弹窗按「未读」触发（sessionStorage 防本会话重弹，关闭即 read-all）；顶栏公告入口带未读红点；公开 /announcements 列表页；管理员发布（IMPORTANT/NORMAL）/撤回，admin 页公告管理 tab。
+- **学习路线图（大模块）**：md 上传 → 服务端从 MinIO 拉原文用共享解析器 `src/lib/roadmap/parse.ts` 转结构化 todolist（`##`=阶段、`- [ ]`=步骤、stepId=p{i}-s{i} 稳定）；打卡=勾选步骤（限流 60/min/用户 + stepId 服务端校验）；进度按 UTC+8 日界聚合（dayCn8）+连续天数；GitHub 风热力图（月份/星期标注）+打卡月历；收藏幂等 set；首页自我提升区「路线规划建议区」渐变横幅（高收藏横滑卡）；/roadmaps 列表与两栏详情页（todolist + 进度/热力图/月历/收藏）；上传页 FileReader 实时预览 + 关联站内资料搜索多选 + 非管理员必填学生证与经历；admin 审核面板区分资料/路线图（预览/学生证图/md 下载/通过驳回），审核结果通知上传者。
+- **运维控制台**：/ops 业务概览五卡可点入 /ops/users|works|orders 详情页；用户封号（永久+可解封+登录提示原因）/改角色、资料删除（AuditLog 留痕）、订单只读；admin 页 `?tab=` 深链。
+- **顶栏**：搜索条占满整行（删 max-width）、头像贴右、公告入口。
+- **顺手补缺**：works 审核结果通知作者（原只通知粉丝）；上传 presign 新增 roadmap（md/2MB）与 credential（图/5MB）两类。
+- **部署**：生产机 154.222.19.224（kedahub.cn，Docker Compose），v4 迁移 + 幂等 seed 上线，28/28 冒烟全过。
+- **严重修复**：集成测试进程会连到开发库并清库——`db.ts` 单例优先 `DATABASE_URL_POOLED` 而 tests/setup 只覆盖 `DATABASE_URL`；修复为显式 `process.env.DATABASE_URL_POOLED = process.env.DATABASE_URL`（不能 delete，@prisma/client import 时会从 .env 回填）。
+
+**验证**：typecheck/lint ✓；122/122 ✓；Playwright 全链路（弹窗已读流转、上传审核通知、打卡幂等、热力图/月历、收藏分组）✓；线上 28/28 冒烟（公开读/登录态/写/管理员/权限反查）✓；首轮压测（scripts/stress.mjs，矩阵 A-F）读 ~125 RPS 封顶·0 错误，瓶颈为单进程，详见 **docs/PERFORMANCE.md**。
