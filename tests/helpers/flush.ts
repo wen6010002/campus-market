@@ -26,7 +26,6 @@ const TABLES = [
   'audit_logs',
   'achievements',
   'user_achievements',
-  'verification_tokens',
   'announcements',
   'announcement_reads',
   'roadmaps',

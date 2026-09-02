@@ -1,19 +1,25 @@
 import { describe, it, expect } from 'vitest';
+import { SignJWT, jwtVerify } from 'jose';
 import { isEduEmail, generateCode } from '@/server/auth/verify-code';
 import { hashPassword, verifyPassword, isValidPassword } from '@/server/auth/password';
 import { hasPermission } from '@/server/auth/rbac';
 import { signSession, verifySession } from '@/server/auth/session';
 
-describe('edu 邮箱正则', () => {
-  it('接受 .edu.cn 域名（契约正则：至多一级子域名）', () => {
+describe('edu 邮箱正则（V5：仅深大，任意级子域）', () => {
+  it('接受 szu.edu.cn 及其子域', () => {
     expect(isEduEmail('a@szu.edu.cn')).toBe(true);
-    expect(isEduEmail('b@tsinghua.edu.cn')).toBe(true);
-    expect(isEduEmail('x@edu.cn')).toBe(true);
+    expect(isEduEmail('2024150187@mails.szu.edu.cn')).toBe(true);
+    expect(isEduEmail('a@mail.szu.edu.cn')).toBe(true);
+    expect(isEduEmail('a@x.y.szu.edu.cn')).toBe(true);
   });
-  it('拒绝非 edu 邮箱', () => {
+  it('拒绝非深大域名与伪装', () => {
+    expect(isEduEmail('x@edu.cn')).toBe(false); // V5 行为变更：旧正则放行
+    expect(isEduEmail('b@tsinghua.edu.cn')).toBe(false); // V5 行为变更：外校 edu 不再放行
     expect(isEduEmail('a@gmail.com')).toBe(false);
-    expect(isEduEmail('a@szu.com')).toBe(false);
+    expect(isEduEmail('a@163.com')).toBe(false);
     expect(isEduEmail('a@163.edu.com')).toBe(false);
+    expect(isEduEmail('a@xszu.edu.cn')).toBe(false); // 后缀伪装
+    expect(isEduEmail('a@szu.edu.cn.com')).toBe(false); // 后缀伪装
   });
 });
 
@@ -39,13 +45,32 @@ describe('验证码生成', () => {
 });
 
 describe('JWT 会话', () => {
-  it('签名/验签往返（含 role 与 creatorProfileId）', async () => {
-    const token = await signSession({ userId: 'u1', role: 'CREATOR', creatorProfileId: 'cp1' });
+  it('签名/验签往返（含 role、creatorProfileId 与 pwdVer）', async () => {
+    const token = await signSession({
+      userId: 'u1',
+      role: 'CREATOR',
+      creatorProfileId: 'cp1',
+      pwdVer: 2,
+    });
     const s = await verifySession(token);
-    expect(s).toMatchObject({ userId: 'u1', role: 'CREATOR', creatorProfileId: 'cp1' });
+    expect(s).toMatchObject({ userId: 'u1', role: 'CREATOR', creatorProfileId: 'cp1', pwdVer: 2 });
   });
   it('无效/篡改 token 返回 null', async () => {
     expect(await verifySession('garbage.token.here')).toBeNull();
+  });
+  it('V5 之前的 JWT 无 pwdVer claim → 视为 0（存量会话不误踢）', async () => {
+    const secret = new TextEncoder().encode(
+      process.env.AUTH_SECRET ?? 'dev-secret-32-bytes-minimum-length',
+    );
+    const oldToken = await new SignJWT({ role: 'STUDENT' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('u1')
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(secret);
+    const { payload } = await jwtVerify(oldToken, secret); // 确认 claim 确实缺失
+    expect(payload.pwdVer).toBeUndefined();
+    expect(await verifySession(oldToken)).toMatchObject({ userId: 'u1', pwdVer: 0 });
   });
 });
 

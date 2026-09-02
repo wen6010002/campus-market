@@ -45,5 +45,12 @@ c=$(curl -s -b /tmp/sm2.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/admi
 c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' "$BASE/api/v1/admin/stats");   ck "demo访问admin被拒" 403 "$c"
 c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/auth/me");                          ck "未登录访问me被拒" 401 "$c"
 
+# ---- V5 邮箱认证（只测负路径，不真实发信） ----
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/send-code" -H 'content-type: application/json' -d '{"email":"a@gmail.com"}'); ck "send-code 非深大邮箱被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/forgot-password" -H 'content-type: application/json' -d '{"email":"a@pku.edu.cn"}'); ck "forgot-password 外校edu被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/reset-password" -H 'content-type: application/json' -d '{"email":"nobody@mails.szu.edu.cn","code":"000000","newPassword":"newpass123"}'); ck "reset-password 无码被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/change-password" -H 'content-type: application/json' -d '{"oldPassword":"x1234567","newPassword":"y1234567"}'); ck "change-password 未登录被拒" 401 "$c"
+c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/forgot-password");                     ck "页面 /forgot-password" 200 "$c"
+
 echo; echo "===== 冒烟结果：$PASS 通过 / $FAIL 失败 ====="
 [ "$FAIL" = "0" ]

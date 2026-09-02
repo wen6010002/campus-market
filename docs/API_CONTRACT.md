@@ -114,12 +114,13 @@ export const QualityBadge = { NORMAL: null, HIGH: '⭐', SELECTED: '🏅' } as c
 | `VALIDATION`           | 400  | 参数校验失败                | Zod 不通过，details 带字段 |
 | `CONFLICT`             | 409  | 冲突                        | 已评价/已购买/重复         |
 | `RATE_LIMITED`         | 429  | 限流                        | headers 含 `Retry-After`   |
-| `NOT_EDU`              | 400  | 非教育邮箱                  | send-code/register         |
-| `CODE_INVALID`         | 400  | 验证码错误                  | register                   |
-| `CODE_EXPIRED`         | 400  | 验证码过期                  | register                   |
+| `NOT_EDU`              | 400  | 非深圳大学教育邮箱          | send-code/forgot-password  |
+| `CODE_INVALID`         | 400  | 验证码错误                  | register/reset-password    |
+| `CODE_EXPIRED`         | 400  | 验证码过期                  | register/reset-password    |
 | `EMAIL_TAKEN`          | 409  | 邮箱已注册                  | register                   |
 | `USERNAME_TAKEN`       | 409  | 用户名占用                  | register                   |
 | `INVALID_CREDENTIAL`   | 401  | 邮箱或密码错误              | login（防枚举，统一文案）  |
+| `WRONG_OLD_PASSWORD`   | 400  | 旧密码错误                  | change-password            |
 | `ALREADY_CREATOR`      | 409  | 已是创作者                  | creator/apply              |
 | `NO_RATING_ACCESS`     | 403  | 未购买/下载，无评分资格     | ratings create             |
 | `ALREADY_RATED`        | 409  | 已评价                      | ratings create             |
@@ -210,6 +211,9 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 | POST   | `/auth/send-code`   | 公开 | `{email}`                                                   | `{ok:true}`      | NOT_EDU/RATE_LIMITED/VALIDATION                      |
 | POST   | `/auth/register`    | 公开 | `{email,code,username,password,school,college,major,grade}` | `AuthUser`       | CODE_INVALID/CODE_EXPIRED/EMAIL_TAKEN/USERNAME_TAKEN |
 | POST   | `/auth/login`       | 公开 | `{email,password}`                                          | `AuthUser`       | INVALID_CREDENTIAL/RATE_LIMITED                      |
+| POST   | `/auth/forgot-password` | 公开 | `{email}`                                              | `{ok:true}`      | NOT_EDU/RATE_LIMITED/VALIDATION                      |
+| POST   | `/auth/reset-password` | 公开 | `{email,code,newPassword}`                             | `{ok:true}`      | CODE_INVALID/CODE_EXPIRED/RATE_LIMITED/VALIDATION    |
+| POST   | `/auth/change-password` | 登录 | `{oldPassword,newPassword}`                           | `{ok:true}`      | WRONG_OLD_PASSWORD/RATE_LIMITED/UNAUTHENTICATED      |
 | POST   | `/auth/logout`      | 登录 | —                                                           | `{ok:true}`      | —                                                    |
 | GET    | `/auth/me`          | 登录 | —                                                           | `AuthUser`       | UNAUTHENTICATED                                      |
 | POST   | `/me/creator/apply` | 登录 | `{bio,direction,honor,studentCardKey?}`                     | `CreatorProfile` | ALREADY_CREATOR                                      |
@@ -426,3 +430,20 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 ### 7.7 已知修复
 
 - `tests/setup.ts`：显式将 `DATABASE_URL_POOLED` 指向测试库（此前集成测试经 PgBouncer 误连开发库，flushDb 会清空 dev 数据）。
+
+## 8. 版本五变更（V5，2026-09-02）：注册开放 + 邮箱登录补全
+
+### 8.1 新增端点
+
+见 §4.1：`/auth/forgot-password`（发重置码）、`/auth/reset-password`（码+新密码重置）、`/auth/change-password`（登录态改密）。
+
+### 8.2 语义与机制变更
+
+- **验证码 purpose 化**：Redis key `verify:email:{email}` → `verify:{register|reset}:email:{email}`，注册码与重置码隔离（防跨流程混用）。
+- **pwdVersion 会话失效**：`users.pwdVersion`（默认 0）+ JWT `pwdVer` claim；改密/重置后 `pwdVersion` 原子自增，`requireUser` 比对不一致 → 401「登录已过期」，即改密后全端下线。老 JWT 无 claim 视为 0，存量会话不受影响。
+- **注册邮箱收紧**：`EDU_EMAIL_REGEX` 默认值改为 `^[^@]+@([a-zA-Z0-9-]+\.)*szu\.edu\.cn$`（szu.edu.cn 及任意级子域，如 mails.szu.edu.cn）；仅影响发码入口，存量用户登录不受影响。
+- **防枚举**：forgot-password 对未注册邮箱同样返回 `{ok:true}` 但不存码不发信。
+- **防爆破**：reset-password 每邮箱尝试 10 次/小时（`RL_RESET_TRY_PER_HOUR`），错码不删 key 但消耗尝试次数。
+- 新增错误码 `WRONG_OLD_PASSWORD`；`NOT_EDU` 含义改为「非深圳大学教育邮箱」。
+- 删除无引用的 `verification_tokens` 表（Auth.js 备用残留）。
+

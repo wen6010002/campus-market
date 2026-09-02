@@ -3,11 +3,26 @@ import IORedis from 'ioredis';
 
 const redis = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
-/** 读注册验证码（测试环境直接读 Redis，避免收邮件） */
-export async function getVerifyCode(email: string): Promise<string> {
-  const code = await redis.get(`verify:email:${email.toLowerCase()}`);
-  if (!code) throw new Error(`验证码不存在：${email}`);
+/** 读验证码（测试环境直接读 Redis，避免收邮件；purpose 区分注册/重置，V5） */
+export async function getVerifyCode(
+  email: string,
+  purpose: 'register' | 'reset' = 'register',
+): Promise<string> {
+  const code = await redis.get(`verify:${purpose}:email:${email.toLowerCase()}`);
+  if (!code) throw new Error(`验证码不存在（${purpose}）：${email}`);
   return code;
+}
+
+/** 关掉登录公告弹窗（AnnounceGate：有未读公告会盖住整页，seed 库常有公告，不关会挡住后续点击） */
+export async function dismissAnnounceIfOpen(page: Page) {
+  const btn = page.locator('button:has-text("我知道了")');
+  try {
+    await btn.waitFor({ state: 'visible', timeout: 3000 });
+    await btn.click();
+    await page.waitForTimeout(300); // 等 mask 退场
+  } catch {
+    /* 未弹出则忽略 */
+  }
 }
 
 /** UI 登录 */
@@ -21,6 +36,7 @@ export async function login(page: Page, email: string, password = 'demo1234') {
   ]);
   await page.waitForURL((url) => url.pathname === '/');
   await expect(page.locator('.avatar-wrap .avatar')).toBeVisible();
+  await dismissAnnounceIfOpen(page);
 }
 
 /** UI 注册（自动从 Redis 读验证码） */
@@ -41,6 +57,7 @@ export async function register(page: Page, email: string, username: string) {
   await page.fill('input[placeholder="如：大二"]', '大二');
   await page.click('button:has-text("注册")');
   await page.waitForURL((url) => url.pathname !== '/register');
+  await dismissAnnounceIfOpen(page);
 }
 
 /** 管理员 API 操作（用 APIRequestContext 登录 admin 后调接口） */

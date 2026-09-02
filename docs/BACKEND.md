@@ -708,8 +708,9 @@ model UserAchievement { id String @id @default(cuid()) userId String achievement
 ```prisma
 model Account { /* 标准 Auth.js Account，userId 关联 User */ }
 model Session { /* 若用 DB session；本项目默认 JWT，可省 */ }
-model VerificationToken { identifier String token String @unique expiresAt DateTime @@unique([identifier, token]) @@map("verification_tokens") }
 ```
+
+> V5 已删除无引用的 `VerificationToken`（verification_tokens 表，Auth.js 备用残留）。
 
 > **seed**：`prisma/seed.ts` 创建学校字典（深圳大学/学院/专业）、`Achievement` 字典（6 个，对应原型 achievements）、4–5 个示例创作者（林知行/苏漫/陈昱/周柠/何思远）+ 其作品（沿用原型数据，字段补齐 rating/ratingCount/ratingDist/downloads 等），便于前端联调。
 
@@ -717,11 +718,12 @@ model VerificationToken { identifier String token String @unique expiresAt DateT
 
 ## 6. 鉴权设计
 
-### 6.1 注册流程（edu 邮箱）
+### 6.1 注册流程（深大 edu 邮箱）
 
-1. `POST /api/v1/auth/send-code { email }` → 校验 `EDU_EMAIL_REGEX` → Redis 存 `verify:email:{email}` → 6 位码 TTL 10 分钟 → 限流 `RL_VERIFY_PER_HOUR`。
-2. `POST /api/v1/auth/register { email, code, username, password, school, college, major, grade }` → 校验码 → bcrypt(password+pepper) → 事务建 `User(STUDENT)`+`StudentProfile(VERIFIED,verifiedAt=now)` → 删码 → 签发 JWT cookie。
-3. 角色：默认 STUDENT；创建 CreatorProfile 需 `POST /api/v1/me/creator/apply`（bio/direction/honor + 可选学生证）→ 管理员 `POST /admin/creators/:id/audit` 通过后 `verified=true`、role 升 CREATOR。
+1. `POST /api/v1/auth/send-code { email }` → 校验 `EDU_EMAIL_REGEX`（默认仅 szu.edu.cn 及子域）→ Redis 存 `verify:register:email:{email}` → 6 位码 TTL 10 分钟 → 限流 `RL_VERIFY_PER_HOUR`。
+2. `POST /api/v1/auth/register { email, code, username, password, school, college, major, grade }` → 校验码 → bcrypt(password+pepper) → 事务建 `User(STUDENT)`+`StudentProfile(VERIFIED,verifiedAt=now)` → 删码 → 签发 JWT cookie（含 `pwdVer` claim）。
+3. 忘记密码：`POST /auth/forgot-password`（未注册邮箱同样返回 ok 但不发，防枚举；码存 `verify:reset:email:{email}`）；`POST /auth/reset-password`（消费 reset 码 + 新密码，`pwdVersion` 自增 → 全端会话 401）。登录态改密：`POST /auth/change-password`（旧密码验证，同样自增 `pwdVersion`）。
+4. 角色：默认 STUDENT；创建 CreatorProfile 需 `POST /api/v1/me/creator/apply`（bio/direction/honor + 可选学生证）→ 管理员 `POST /admin/creators/:id/audit` 通过后 `verified=true`、role 升 CREATOR。
 
 ### 6.2 登录 / 会话
 
@@ -744,7 +746,7 @@ model VerificationToken { identifier String token String @unique expiresAt DateT
 
 ### 6.4 限流
 
-- `server/lib/ratelimit.ts` 基于 Redis 滑窗：登录 `RL_LOGIN_PER_MIN`、验证码 `RL_VERIFY_PER_HOUR`、支付 `RL_PAY_PER_MIN`、上传每用户 10/小时、举报每用户 5/小时。
+- `server/lib/ratelimit.ts` 基于 Redis 滑窗：登录 `RL_LOGIN_PER_MIN`、验证码 `RL_VERIFY_PER_HOUR`、重置码发送 `RL_RESET_PER_HOUR`（默认 5/h）、重置码尝试 `RL_RESET_TRY_PER_HOUR`（默认 10/h，防 6 位码爆破）、改密 `RL_PWD_PER_MIN`（默认 10/min）、支付 `RL_PAY_PER_MIN`、上传每用户 10/小时、举报每用户 5/小时。
 - 超限 → 429 + `Retry-After`。
 
 ### 6.5 安全清单（必须实现）

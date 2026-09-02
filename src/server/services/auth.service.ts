@@ -1,15 +1,24 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { enforceRateLimit } from '../lib/ratelimit';
-import { sendVerifyCode } from '../lib/mailer';
+import { sendVerifyCode, sendResetCode } from '../lib/mailer';
 import { hashPassword, verifyPassword } from '../auth/password';
 import { isEduEmail, generateCode, saveCode, consumeCode } from '../auth/verify-code';
 import { announceService } from './announce.service';
-import { cacheGet, cacheSet, cacheDel, meKey } from '../lib/cache';
-import type { RegisterInput, LoginInput, CreatorApplyInput } from '@/lib/zod/auth';
+import { cacheGet, cacheSet, cacheDel, userStatusKey, meKey } from '../lib/cache';
+import type {
+  RegisterInput,
+  LoginInput,
+  CreatorApplyInput,
+  ResetPasswordInput,
+  ChangePasswordInput,
+} from '@/lib/zod/auth';
 
 const RL_VERIFY_PER_HOUR = Number(process.env.RL_VERIFY_PER_HOUR ?? 5);
 const RL_LOGIN_PER_MIN = Number(process.env.RL_LOGIN_PER_MIN ?? 10);
+const RL_RESET_PER_HOUR = Number(process.env.RL_RESET_PER_HOUR ?? 5);
+const RL_RESET_TRY_PER_HOUR = Number(process.env.RL_RESET_TRY_PER_HOUR ?? 10);
+const RL_PWD_PER_MIN = Number(process.env.RL_PWD_PER_MIN ?? 10);
 
 /** /auth/me 30s 短缓存（P1-3）：Nav 每页都拉；失效点见各写路径（资料/通知/公告/封禁） */
 export async function buildAuthUserCached(userId: string) {
@@ -64,16 +73,16 @@ export async function buildAuthUser(userId: string) {
 }
 
 export const authService = {
-  /** 发送验证码（防邮箱枚举：已注册邮箱也返回 ok，但不实际发） */
+  /** 发送注册验证码（防邮箱枚举：已注册邮箱也返回 ok，但不实际发） */
   async sendCode(email: string) {
-    if (!isEduEmail(email)) throw appError('NOT_EDU', '请使用 .edu.cn 教育邮箱');
+    if (!isEduEmail(email)) throw appError('NOT_EDU', '请使用深圳大学教育邮箱');
     await enforceRateLimit(`rl:verify:${email.toLowerCase()}`, RL_VERIFY_PER_HOUR, 3600_000);
 
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) return { ok: true }; // 防枚举
 
     const code = generateCode();
-    await saveCode(email, code);
+    await saveCode(email, code, 'register');
     await sendVerifyCode(email, code);
     return { ok: true };
   },
@@ -81,7 +90,7 @@ export const authService = {
   /** 注册（消费验证码 → 建用户 + 学生档案） */
   async register(input: RegisterInput) {
     const email = input.email.toLowerCase();
-    await consumeCode(email, input.code);
+    await consumeCode(email, input.code, 'register');
 
     const emailTaken = await prisma.user.findUnique({ where: { email } });
     if (emailTaken) throw appError('EMAIL_TAKEN', '该邮箱已注册');
@@ -113,7 +122,7 @@ export const authService = {
       include: { student: true, creator: true },
     });
 
-    return { userId: user.id, role: user.role, creatorProfileId: undefined };
+    return { userId: user.id, role: user.role, creatorProfileId: undefined, pwdVersion: user.pwdVersion };
   },
 
   /** 登录（防枚举统一文案；封号拦截） */
@@ -148,7 +157,68 @@ export const authService = {
       userId: user.id,
       role: user.role,
       creatorProfileId: user.creator?.id,
+      pwdVersion: user.pwdVersion,
     };
+  },
+
+  /** 忘记密码（发重置码）：防枚举——未注册邮箱同样返回 ok 但不存码不发信 */
+  async forgotPassword(email: string) {
+    if (!isEduEmail(email)) throw appError('NOT_EDU', '请使用深圳大学教育邮箱');
+    await enforceRateLimit(`rl:reset:${email.toLowerCase()}`, RL_RESET_PER_HOUR, 3600_000);
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return { ok: true }; // 防枚举：与已注册邮箱行为一致
+
+    const code = generateCode();
+    await saveCode(email, code, 'reset');
+    await sendResetCode(email, code);
+    return { ok: true };
+  },
+
+  /** 重置密码（消费 reset 码 → 新哈希 + pwdVersion++ → 全端会话失效） */
+  async resetPassword(input: ResetPasswordInput) {
+    const email = input.email.toLowerCase();
+    // 防 6 位码爆破：consumeCode 错码不删 key，必须限制尝试次数
+    await enforceRateLimit(`rl:reset-try:${email}`, RL_RESET_TRY_PER_HOUR, 3600_000);
+    await consumeCode(email, input.code, 'reset');
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw appError('NOT_FOUND', '用户不存在');
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword(input.newPassword),
+        pwdVersion: { increment: 1 }, // 原子自增，多副本无竞态
+      },
+    });
+    await Promise.all([cacheDel(userStatusKey(user.id)), cacheDel(meKey(user.id))]);
+    return { ok: true };
+  },
+
+  /** 登录后改密码（旧密码验证 → 同样 pwdVersion++ 踢全端） */
+  async changePassword(userId: string, input: ChangePasswordInput) {
+    await enforceRateLimit(`rl:pwd:${userId}`, RL_PWD_PER_MIN, 60_000);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw appError('NOT_FOUND', '用户不存在');
+
+    const ok = await verifyPassword(
+      input.oldPassword,
+      user.passwordHash,
+      user.passwordPepper ?? undefined,
+    );
+    if (!ok) throw appError('WRONG_OLD_PASSWORD', '旧密码错误');
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: await hashPassword(input.newPassword),
+        pwdVersion: { increment: 1 },
+      },
+    });
+    await Promise.all([cacheDel(userStatusKey(userId)), cacheDel(meKey(userId))]);
+    return { ok: true }; // 当前 JWT 的 pwdVer 已过期 → 下个请求 401 → 前端引导重新登录
   },
 
   /** 申请创作者（未认证状态，等管理员审核） */

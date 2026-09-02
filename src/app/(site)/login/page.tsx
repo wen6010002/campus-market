@@ -68,6 +68,14 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
             />
+            <div style={{ textAlign: 'right', marginTop: 6 }}>
+              <Link
+                href="/forgot-password"
+                style={{ fontSize: 12.5, color: 'var(--pri-600)', fontWeight: 600 }}
+              >
+                忘记密码？
+              </Link>
+            </div>
           </div>
           {err ? (
             <div style={{ color: 'var(--pri-700)', fontSize: 12.5, marginBottom: 12 }}>{err}</div>

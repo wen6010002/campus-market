@@ -158,3 +158,41 @@ test('10. 个人主页（V3-5）：匿名看他人 4 tab + 跳转', async ({ pag
   await page.click('button:has-text("粉丝")');
   await expect(page.locator('.fr-row').first()).toBeVisible();
 });
+
+// ===== V5 新增：忘记密码全链路（含旧会话被 pwdVersion 踢线的端到端证据） =====
+
+test('11. 忘记密码（V5）：发码→重置→新密码登录→旧会话被踢', async ({ page, context, browser }) => {
+  const ts = Date.now();
+  const email = `e2e-rst-${ts}@szu.edu.cn`;
+  await register(page, email, `重置同学${ts}`);
+  // 另存一个「旧密码登录」的会话（无痕上下文）
+  const oldCtx = await browser.newContext();
+  const oldPage = await oldCtx.newPage();
+  await login(oldPage, email, 'demo1234');
+  await expect(oldPage.locator('.avatar-wrap .avatar')).toBeVisible();
+
+  // 走忘记密码流程
+  await page.goto('/forgot-password');
+  await page.fill('input[type="email"]', email);
+  const [resp] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/auth/forgot-password')),
+    page.click('button:has-text("发送验证码")'),
+  ]);
+  expect(resp.ok()).toBeTruthy();
+  const code = await getVerifyCode(email, 'reset');
+  await page.fill('input[placeholder="6 位数字"]', code);
+  await page.fill('input[placeholder="至少 8 位，含字母和数字"]', 'newpass123');
+  await page.click('button:has-text("重置密码")');
+  await page.waitForURL((url) => url.pathname === '/login');
+
+  // 新密码可登录
+  await login(page, email, 'newpass123');
+
+  // 旧会话被 pwdVersion 踢线：刷新后回到未登录态（未登录 Nav 的「登录」是 Link 不是 button）
+  await oldPage.reload();
+  await expect(oldPage.locator('header a:has-text("登录")').first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(oldPage.locator('.avatar-wrap .avatar')).toHaveCount(0);
+  await oldCtx.close();
+});

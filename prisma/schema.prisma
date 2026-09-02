@@ -184,6 +184,7 @@ model User {
   bannedAt      DateTime?
   bannedReason  String?
   lastLoginAt   DateTime?
+  pwdVersion    Int          @default(0) // 密码版本：改密/重置后 ++，requireUser 比对 JWT pwdVer 不一致即 401 踢线（V5）
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   deletedAt     DateTime?
@@ -582,15 +583,6 @@ model UserAchievement {
   achievement   Achievement @relation(fields: [achievementId], references: [id])
   @@unique([userId, achievementId])
   @@map("user_achievements")
-}
-
-// ===================== Auth.js 备用（JWT 策略下可省 Account/Session） =====================
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expiresAt  DateTime
-  @@unique([identifier, token])
-  @@map("verification_tokens")
 }
 
 // ===================== 公告（V4：登录弹窗 + 顶栏入口） =====================

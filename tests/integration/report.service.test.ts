@@ -170,7 +170,7 @@ describe('治理服务（阶段 9 + V3-6）', () => {
 
   it('封号后登录 → FORBIDDEN', async () => {
     const email = `ban-${Date.now()}@szu.edu.cn`;
-    await saveCode(email, '123456');
+    await saveCode(email, '123456', 'register');
     const { userId } = await authService.register({
       email,
       code: '123456',
