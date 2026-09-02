@@ -26,6 +26,12 @@ const TABLES = [
   'achievements',
   'user_achievements',
   'verification_tokens',
+  'announcements',
+  'announcement_reads',
+  'roadmaps',
+  'roadmap_work_links',
+  'roadmap_favorites',
+  'roadmap_checks',
 ] as const;
 
 /** 清空所有表（按依赖顺序，TRUNCATE ... CASCADE 兜底） */

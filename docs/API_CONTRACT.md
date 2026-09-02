@@ -360,3 +360,69 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 
 - 新增 `/explore`（分类浏览：cat/tag/course/sort/price 组合）、`/user/[id]`（个人主页，本人 10 tab / 他人 4 tab）。
 - `/me`、`/creator/[id]`、`/creator-center`、`/income` 全部重定向至 `/user/[id]` 对应 tab。
+
+---
+
+## 7. 版本四变更（V4，2026-09-01）：运维控制台 / 公告 / 学习路线图
+
+> 本节为增量记录，与上文冲突处以本节为准。
+
+### 7.1 枚举与常量
+
+- 新增枚举 `AnnounceLevel`：`NORMAL|IMPORTANT`；`RoadmapCategory`：`BACKEND|FRONTEND|AI|ALGORITHM|EXAM|OTHER`。
+- `AuditAction` 新增 `DELETE`（管理员删除资料的审计动作）。
+- `NotificationType.AUDIT_RESULT` 正式启用：作品与路线图审核结果通知作者（此前闲置）。
+- `AuthUser` 响应新增 `unreadAnnouncements: number`（顶栏公告红点）。
+
+### 7.2 新增端点 — 公告
+
+| 方法   | 路径                            | 权限  | 说明                                                                                          |
+| ------ | ------------------------------- | ----- | --------------------------------------------------------------------------------------------- |
+| GET    | `/announcements`                | 公开  | `?page&pageSize&unread=true`；未登录带 unread 返回空列表；`{data:Announcement[],pagination}` |
+| POST   | `/announcements/read-all`       | 登录  | 全部标记已读（createMany skipDuplicates）→ `{read:n}`                                          |
+| GET    | `/admin/announcements`          | ADMIN | 管理列表（含已撤回）                                                                            |
+| POST   | `/admin/announcements`          | ADMIN | `{title≤120,content≤5000,level}`；content 入库前 sanitize                                      |
+| DELETE | `/admin/announcements/:id`     | ADMIN | 撤回（软删 deletedAt）                                                                          |
+
+### 7.3 新增端点 — 运维控制台配套
+
+| 方法 | 路径                    | 权限  | 说明                                                                   |
+| ---- | ----------------------- | ----- | ---------------------------------------------------------------------- |
+| GET  | `/admin/users/:id`     | ADMIN | 用户详情聚合（student/creator/\_count/钱包余额/封禁信息）                |
+| GET  | `/admin/works`         | ADMIN | 全量资料列表 `?page&pageSize&q&status&authorId`（直查不走缓存）          |
+| GET  | `/admin/orders`        | ADMIN | 订单列表 `?page&pageSize&payStatus&q`（只读）                            |
+
+- `GET /admin/users` 响应字段扩展（SAFE_SELECT 增加 avatarKey/bannedAt/bannedReason）。
+- `DELETE /works/:id`：ADMIN 删除时事务内写 AuditLog（action=DELETE, note=reason 可选）；请求体可带 `{reason}`。
+
+### 7.4 新增端点 — 学习路线图
+
+| 方法        | 路径                              | 权限            | 说明                                                                                                                         |
+| ----------- | --------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| GET         | `/roadmaps`                       | 公开            | `?page&pageSize&category&sort=favs\|newest` → `{data:RoadmapListItem[],pagination}`（仅 PUBLISHED）                            |
+| GET         | `/roadmaps/:id`                   | 公开            | 详情含 `content:{phases}`、关联 `works:WorkListItem[]`、`myFav`；PENDING/REJECTED 仅上传者与 ADMIN                          |
+| POST        | `/roadmaps`                       | 登录（限流 5/h） | `{title,summary,category,coverIcon?,mdSourceKey,workIds≤10,credentialKey?,experience?}`；ADMIN→直接 PUBLISHED，普通用户→PENDING 且学生证+经历必填；服务端从 MinIO 拉取 md 重新解析校验（≥1 阶段且 ≥3 步） |
+| POST/DELETE | `/roadmaps/:id/favorite`          | 登录            | 幂等 set，同 works favorite 模式 → `{favorited,favs}`                                                                        |
+| GET         | `/me/roadmap-favorites`           | 登录            | 我收藏的路线图（仅 PUBLISHED）→ `{data:RoadmapListItem[],pagination}`；个人主页收藏 tab 与资料收藏分组展示                        |
+| POST        | `/roadmaps/:id/check`             | 登录（限流 60/m） | `{stepId,checked}`；服务端校验 stepId 属于该路线图；勾选=打卡                                                                  |
+| GET         | `/roadmaps/:id/progress`          | 登录            | `{checked:[{stepId,createdAt}],byDay:{'YYYY-MM-DD':n},streakDays,totalChecked,stepsCount}`；**日界 UTC+8**                     |
+| GET         | `/admin/roadmaps/pending`         | ADMIN           | 待审列表（含 hasCredential）                                                                                                  |
+| GET         | `/admin/roadmaps/:id`             | ADMIN           | 审核详情：content + credentialUrl（presign 图）+ mdUrl（下载）+ works                                                        |
+| POST        | `/admin/roadmaps/:id/audit`       | ADMIN           | `{action:APPROVE\|REJECT,note?}`；审核留痕 reviewerId/reviewedAt；通知上传者（AUDIT_RESULT）                                    |
+
+### 7.5 修改端点
+
+- `POST /uploads/presign` kind 扩展：`roadmap`（roadmaps/ 前缀，OTHER 类型伪装，contentType text/markdown，≤2MB，扩展名 .md）、`credential`（credentials/ 前缀，IMAGE ≤5MB）。
+- `POST /auth/login` / requireUser：封禁文案携带原因 `账号已被封禁：{bannedReason}`。
+- `POST /admin/works/:id/audit`：APPROVE/REJECT/TAKE_DOWN 均新增作者通知（此前只有粉丝通知）。
+
+### 7.6 前端路由与数据模型
+
+- 新增页面：`/announcements`（公告中心，管理员可发布/撤回）、`/ops/users(/:id)`、`/ops/works`、`/ops/orders`、`/roadmaps(/upload)`、`/roadmaps/[id]`（todolist 打卡 + 热力图）。
+- `/ops` 业务概览五卡可点入详情页；`/admin` 支持 `?tab=` 深链，tab 调整为：资料审核 / 路线图审核 / 公告管理 / 举报队列 / 提现审批 / 创作者认证 / 用户管理。
+- 顶栏：搜索框占满剩余宽度；新增「公告」入口（未读红点）。
+- 新表：`announcements` / `announcement_reads` / `roadmaps` / `roadmap_work_links` / `roadmap_favorites` / `roadmap_checks`（详见 prisma/schema.prisma）。
+
+### 7.7 已知修复
+
+- `tests/setup.ts`：显式将 `DATABASE_URL_POOLED` 指向测试库（此前集成测试经 PgBouncer 误连开发库，flushDb 会清空 dev 数据）。

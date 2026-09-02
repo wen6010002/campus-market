@@ -1,6 +1,6 @@
 {
   "name": "campus-market",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Campus Market — 大学生成长社区 + 校园知识内容市场（Next.js 全栈单项目）",
   "scripts": {

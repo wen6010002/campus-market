@@ -4,6 +4,7 @@ import { enforceRateLimit } from '../lib/ratelimit';
 import { sendVerifyCode } from '../lib/mailer';
 import { hashPassword, verifyPassword } from '../auth/password';
 import { isEduEmail, generateCode, saveCode, consumeCode } from '../auth/verify-code';
+import { announceService } from './announce.service';
 import type { RegisterInput, LoginInput, CreatorApplyInput } from '@/lib/zod/auth';
 
 const RL_VERIFY_PER_HOUR = Number(process.env.RL_VERIFY_PER_HOUR ?? 5);
@@ -16,7 +17,10 @@ export async function buildAuthUser(userId: string) {
     include: { student: true, creator: true },
   });
   if (!user) throw appError('NOT_FOUND', '用户不存在');
-  const unreadCount = await prisma.notification.count({ where: { userId, read: false } });
+  const [unreadCount, unreadAnnouncements] = await Promise.all([
+    prisma.notification.count({ where: { userId, read: false } }),
+    announceService.unreadCount(userId),
+  ]);
   return {
     id: user.id,
     username: user.username,
@@ -26,6 +30,8 @@ export async function buildAuthUser(userId: string) {
     hasAvatar: !!user.avatarKey,
     avatarVer: user.updatedAt.getTime(),
     bio: user.bio ?? user.creator?.bio ?? '',
+    unreadCount,
+    unreadAnnouncements,
     student: user.student
       ? {
           school: user.student.school,
@@ -44,7 +50,6 @@ export async function buildAuthUser(userId: string) {
           verified: user.creator.verified,
         }
       : null,
-    unreadCount,
   };
 }
 
@@ -119,7 +124,12 @@ export const authService = {
     );
     if (!ok) throw appError('INVALID_CREDENTIAL', '邮箱或密码错误');
 
-    if (user.status === 'BANNED') throw appError('FORBIDDEN', '账号已被封禁');
+    if (user.status === 'BANNED') {
+      throw appError(
+        'FORBIDDEN',
+        user.bannedReason ? `账号已被封禁：${user.bannedReason}` : '账号已被封禁',
+      );
+    }
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 

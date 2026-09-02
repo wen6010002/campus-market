@@ -50,8 +50,16 @@ export async function requireUser(): Promise<Session> {
   const s = await getSession();
   if (!s) throw appError('UNAUTHENTICATED', '请先登录');
   // 封号即时生效：JWT 无状态，这里查 DB 状态拦截
-  const user = await prisma.user.findUnique({ where: { id: s.userId }, select: { status: true } });
-  if (!user || user.status === 'BANNED') throw appError('FORBIDDEN', '账号已被封禁');
+  const user = await prisma.user.findUnique({
+    where: { id: s.userId },
+    select: { status: true, bannedReason: true },
+  });
+  if (!user || user.status === 'BANNED') {
+    throw appError(
+      'FORBIDDEN',
+      user?.bannedReason ? `账号已被封禁：${user.bannedReason}` : '账号已被封禁',
+    );
+  }
   return s;
 }
 

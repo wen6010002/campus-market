@@ -162,8 +162,42 @@ export const AuditAction = {
   REJECT: 'REJECT',
   TAKE_DOWN: 'TAKE_DOWN',
   REQUEST_CHANGES: 'REQUEST_CHANGES',
+  DELETE: 'DELETE',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
+
+// ===== V4 公告 =====
+export const AnnounceLevel = { NORMAL: 'NORMAL', IMPORTANT: 'IMPORTANT' } as const;
+export type AnnounceLevel = (typeof AnnounceLevel)[keyof typeof AnnounceLevel];
+
+export const ANNOUNCE_LEVELS: { key: AnnounceLevel; label: string; desc: string }[] = [
+  { key: 'NORMAL', label: '普通', desc: '常规通知，弹窗默认样式' },
+  { key: 'IMPORTANT', label: '重要', desc: '重要公告，弹窗与列表高亮展示' },
+];
+
+// ===== V4 学习路线图 =====
+export const RoadmapCategory = {
+  BACKEND: 'BACKEND',
+  FRONTEND: 'FRONTEND',
+  AI: 'AI',
+  ALGORITHM: 'ALGORITHM',
+  EXAM: 'EXAM',
+  OTHER: 'OTHER',
+} as const;
+export type RoadmapCategory = (typeof RoadmapCategory)[keyof typeof RoadmapCategory];
+
+export const ROADMAP_CATEGORIES: { key: RoadmapCategory; label: string; icon: string }[] = [
+  { key: 'BACKEND', label: '后端开发', icon: '☕' },
+  { key: 'FRONTEND', label: '前端开发', icon: '🎨' },
+  { key: 'AI', label: '人工智能', icon: '🤖' },
+  { key: 'ALGORITHM', label: '算法竞赛', icon: '🧩' },
+  { key: 'EXAM', label: '升学备考', icon: '🧗' },
+  { key: 'OTHER', label: '其他方向', icon: '🗺' },
+];
+
+export const ROADMAP_CATEGORY_LABEL: Record<RoadmapCategory, string> = Object.fromEntries(
+  ROADMAP_CATEGORIES.map((c) => [c.key, c.label]),
+) as Record<RoadmapCategory, string>;
 
 export const EduVerifyStatus = {
   UNVERIFIED: 'UNVERIFIED',

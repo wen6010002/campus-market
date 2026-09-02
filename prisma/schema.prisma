@@ -128,6 +128,21 @@ enum AuditAction {
   REJECT
   TAKE_DOWN
   REQUEST_CHANGES
+  DELETE
+}
+
+enum AnnounceLevel {
+  NORMAL
+  IMPORTANT
+}
+
+enum RoadmapCategory {
+  BACKEND
+  FRONTEND
+  AI
+  ALGORITHM
+  EXAM
+  OTHER
 }
 
 enum DynamicType {
@@ -190,6 +205,13 @@ model User {
   dynamics      Dynamic[]
   achievements  UserAchievement[]
   auditActions  AuditLog[]   @relation("AuditReviewer")
+
+  announcements         Announcement[]       @relation("AnnouncementAuthor")
+  announcementReads     AnnouncementRead[]
+  uploadedRoadmaps      Roadmap[]            @relation("RoadmapUploader")
+  reviewedRoadmaps      Roadmap[]            @relation("RoadmapReviewer")
+  roadmapFavorites      RoadmapFavorite[]
+  roadmapChecks         RoadmapCheck[]
 
   @@index([status])
   @@map("users")
@@ -283,6 +305,7 @@ model Work {
   likes_rel     Like[]
   dynamics      Dynamic[]
   auditLogs     AuditLog[]
+  roadmapLinks  RoadmapWorkLink[]
 
   @@index([status, quality, publishedAt(sort: Desc)])
   @@index([authorId, status])
@@ -568,4 +591,109 @@ model VerificationToken {
   expiresAt  DateTime
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// ===================== 公告（V4：登录弹窗 + 顶栏入口） =====================
+model Announcement {
+  id          String        @id @default(cuid())
+  title       String        @db.VarChar(120)
+  content     String        // 入库前 sanitize（b/strong/i/em/br 白名单）
+  level       AnnounceLevel @default(NORMAL)
+  authorId    String
+  author      User          @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  publishedAt DateTime      @default(now())
+  deletedAt   DateTime?     // 软删 = 撤回
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  reads AnnouncementRead[]
+
+  @@index([deletedAt, publishedAt(sort: Desc)])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  userId         String
+  announcementId String
+  readAt         DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  @@unique([userId, announcementId])
+  @@index([userId])
+  @@map("announcement_reads")
+}
+
+// ===================== 学习路线图（V4：md 上传 → 结构化 todolist + 打卡热力图） =====================
+model Roadmap {
+  id              String           @id @default(cuid())
+  title           String           @db.VarChar(120)
+  summary         String           @db.VarChar(500)
+  category        RoadmapCategory  @default(OTHER)
+  coverIcon       String           @default("🗺")
+  coverTheme      String           @default("g-default")
+  uploaderId      String
+  uploader        User             @relation("RoadmapUploader", fields: [uploaderId], references: [id])
+  status          WorkStatus       @default(PENDING) // 复用作品状态机：ADMIN 上传直接 PUBLISHED，普通用户 PENDING 审核后上架
+  stepsCount      Int              @default(0) // 冗余：content 内步骤总数
+  favs            Int              @default(0)
+  content         Json             // 解析后结构：{phases:[{title,desc,steps:[{id,text,note?}]}]}
+  mdSourceKey     String           // 原始 md（MinIO roadmaps/）
+  credentialKey   String?          // 上传者学生证（MinIO credentials/，普通用户上传必填）
+  experience      String?          @db.VarChar(500) // 上传者个人经历（供审核参考）
+  reviewerId      String?          // 审核留痕（adminAudit 写入）
+  reviewedAt      DateTime?
+  publishedAt     DateTime?
+  rejectedReason  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  reviewer        User?            @relation("RoadmapReviewer", fields: [reviewerId], references: [id])
+  workLinks       RoadmapWorkLink[]
+  favorites_rel   RoadmapFavorite[]
+  checks          RoadmapCheck[]
+
+  @@index([status, category, favs(sort: Desc)])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([uploaderId])
+  @@map("roadmaps")
+}
+
+model RoadmapWorkLink {
+  id        String  @id @default(cuid())
+  roadmapId String
+  workId    String
+  sortNo    Int     @default(0)
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  work      Work    @relation(fields: [workId], references: [id], onDelete: Cascade)
+  @@unique([roadmapId, workId])
+  @@map("roadmap_work_links")
+}
+
+model RoadmapFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  roadmapId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  roadmap   Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  @@unique([userId, roadmapId])
+  @@map("roadmap_favorites")
+}
+
+// 打卡记录：勾选步骤 = insert，取消 = delete；唯一索引前缀 (userId,roadmapId) 即 progress 查询索引
+model RoadmapCheck {
+  id        String   @id @default(cuid())
+  userId    String
+  roadmapId String
+  stepId    String   @db.VarChar(20) // p{phaseIdx}-s{stepIdx}，content Json 内稳定 id
+  phaseIdx  Int
+  stepIdx   Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  roadmap   Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  @@unique([userId, roadmapId, stepId])
+  @@index([userId, roadmapId, createdAt])
+  @@map("roadmap_checks")
 }

@@ -15,12 +15,12 @@ const EXT: Record<FileType, string> = {
   OTHER: 'bin',
 };
 
-/** 上传用途（V3）：不同前缀 / 类型白名单 / 大小上限 */
-export type PresignKind = 'work' | 'cover' | 'avatar' | 'preview';
+/** 上传用途（V3 + V4 路线图）：不同前缀 / 类型白名单 / 大小上限 */
+export type PresignKind = 'work' | 'cover' | 'avatar' | 'preview' | 'roadmap' | 'credential';
 
 const KIND_RULES: Record<
   PresignKind,
-  { prefix: string; types: FileType[]; maxSize: number; contentType: (t: FileType) => string }
+  { prefix: string; types: FileType[]; maxSize: number; contentType: (t: FileType) => string; ext?: string }
 > = {
   work: {
     prefix: 'works',
@@ -46,6 +46,21 @@ const KIND_RULES: Record<
     maxSize: 30 * 1024 * 1024,
     contentType: () => 'application/pdf',
   },
+  // V4：路线图 md 原文（FileType 无 MD，走 OTHER + text/markdown + .md 扩展名特判）
+  roadmap: {
+    prefix: 'roadmaps',
+    types: ['OTHER'],
+    maxSize: 2 * 1024 * 1024,
+    contentType: () => 'text/markdown; charset=utf-8',
+    ext: 'md',
+  },
+  // V4：路线图上传者学生证（供审核）
+  credential: {
+    prefix: 'credentials',
+    types: ['IMAGE'],
+    maxSize: 5 * 1024 * 1024,
+    contentType: () => 'image/jpeg',
+  },
 };
 
 export const uploadService = {
@@ -57,16 +72,20 @@ export const uploadService = {
     const kind: PresignKind = input.kind ?? 'work';
     const rule = KIND_RULES[kind];
     if (!rule.types.includes(input.fileType)) {
-      throw appError('FILE_TYPE_DENIED', '不支持该文件类型');
+      throw appError(
+        'FILE_TYPE_DENIED',
+        kind === 'roadmap' ? '路线图仅支持 .md 文件' : '不支持该文件类型',
+      );
     }
     if (input.fileSize <= 0 || input.fileSize > rule.maxSize) {
       throw appError(
         'FILE_TOO_LARGE',
-        kind === 'work' ? '文件超出 200MB 上限' : '文件超出 5MB 上限',
+        kind === 'work' ? '文件超出 200MB 上限' : '文件超出上限',
       );
     }
     await enforceRateLimit(`rl:upload:${userId}`, 10, 3600_000);
-    const fileKey = `${rule.prefix}/${userId}/${randomUUID()}.${EXT[input.fileType]}`;
+    const ext = rule.ext ?? EXT[input.fileType];
+    const fileKey = `${rule.prefix}/${userId}/${randomUUID()}.${ext}`;
     const putUrl = await presignPut(fileKey, rule.contentType(input.fileType));
     return { fileKey, putUrl };
   },

@@ -10,6 +10,9 @@ const SAFE_SELECT = {
   role: true,
   status: true,
   avatarColor: true,
+  avatarKey: true,
+  bannedAt: true,
+  bannedReason: true,
   createdAt: true,
   lastLoginAt: true,
 } as const;
@@ -199,6 +202,140 @@ export const adminService = {
       revenue: (revenue._sum.amount ?? 0).toFixed(2),
       pendingWorks,
       pendingPayouts,
+    };
+  },
+
+  /** 用户详情聚合（/ops/users/:id，V4） */
+  async getUserDetail(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        student: true,
+        creator: { include: { wallet: true } },
+        _count: { select: { works: true, orders: true, favorites: true, reports: true } },
+      },
+    });
+    if (!user) throw appError('NOT_FOUND', '用户不存在');
+    const {
+      passwordHash: _ph,
+      passwordPepper: _pp,
+      ...safe
+    } = user as typeof user & { passwordHash?: string; passwordPepper?: string };
+    return {
+      ...safe,
+      walletBalance: user.creator?.wallet?.balance.toFixed(2) ?? null,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+      lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+      bannedAt: user.bannedAt?.toISOString() ?? null,
+    };
+  },
+
+  /** 全量作品管理列表（/ops/works，V4）——直查不走缓存，保证删除/下架实时可见 */
+  async listWorks(opts: {
+    page: number;
+    pageSize: number;
+    q?: string;
+    status?: string;
+    authorId?: string;
+  }) {
+    const where: any = { deletedAt: null };
+    if (opts.q) where.title = { contains: opts.q, mode: 'insensitive' };
+    if (opts.status) where.status = opts.status;
+    if (opts.authorId) where.authorId = opts.authorId;
+
+    const [total, works] = await Promise.all([
+      prisma.work.count({ where }),
+      prisma.work.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          course: true,
+          coverIcon: true,
+          category: true,
+          isFree: true,
+          price: true,
+          status: true,
+          quality: true,
+          downloads: true,
+          favs: true,
+          views: true,
+          createdAt: true,
+          publishedAt: true,
+          deletedAt: true,
+          author: { select: { id: true, username: true, avatarColor: true, avatarKey: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (opts.page - 1) * opts.pageSize,
+        take: opts.pageSize,
+      }),
+    ]);
+    return {
+      data: works.map((w) => ({
+        ...w,
+        price: w.price.toFixed(2),
+        createdAt: w.createdAt.toISOString(),
+        publishedAt: w.publishedAt?.toISOString() ?? null,
+      })),
+      pagination: {
+        page: opts.page,
+        pageSize: opts.pageSize,
+        total,
+        totalPages: Math.ceil(total / opts.pageSize),
+      },
+    };
+  },
+
+  /** 订单管理列表（/ops/orders，V4） */
+  async listOrders(opts: { page: number; pageSize: number; payStatus?: string; q?: string }) {
+    const where: any = {};
+    if (opts.payStatus) where.payStatus = opts.payStatus;
+    if (opts.q) {
+      where.OR = [
+        { id: { contains: opts.q } },
+        { work: { title: { contains: opts.q, mode: 'insensitive' } } },
+        { buyer: { username: { contains: opts.q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, orders] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.findMany({
+        where,
+        select: {
+          id: true,
+          amount: true,
+          platformFee: true,
+          creatorAmount: true,
+          payMethod: true,
+          payStatus: true,
+          transactionId: true,
+          paidAt: true,
+          createdAt: true,
+          work: { select: { id: true, title: true } },
+          buyer: { select: { id: true, username: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (opts.page - 1) * opts.pageSize,
+        take: opts.pageSize,
+      }),
+    ]);
+    return {
+      data: orders.map((o) => ({
+        ...o,
+        amount: o.amount.toFixed(2),
+        platformFee: o.platformFee.toFixed(2),
+        creatorAmount: o.creatorAmount.toFixed(2),
+        paidAt: o.paidAt?.toISOString() ?? null,
+        createdAt: o.createdAt.toISOString(),
+      })),
+      pagination: {
+        page: opts.page,
+        pageSize: opts.pageSize,
+        total,
+        totalPages: Math.ceil(total / opts.pageSize),
+      },
     };
   },
 };

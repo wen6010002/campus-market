@@ -15,6 +15,8 @@ import type {
   ReportTargetType,
   NotificationType,
   DynamicType,
+  AnnounceLevel,
+  RoadmapCategory,
 } from './constants';
 
 export interface StudentProfile {
@@ -45,6 +47,7 @@ export interface AuthUser {
   student?: StudentProfile;
   creator?: CreatorProfile | null;
   unreadCount: number;
+  unreadAnnouncements?: number;
 }
 
 export interface WorkAuthor {
@@ -327,4 +330,64 @@ export interface CreatorDataWork {
 
 export interface CreatorData {
   works: CreatorDataWork[];
+}
+
+// ===== V4 公告 =====
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  level: AnnounceLevel;
+  author: { id: string; username: string };
+  publishedAt: string;
+  deletedAt?: string | null;
+}
+
+// ===== V4 学习路线图 =====
+export interface RoadmapStepLite {
+  id: string;
+  text: string;
+  note?: string;
+}
+
+export interface RoadmapPhaseLite {
+  title: string;
+  desc: string;
+  steps: RoadmapStepLite[];
+}
+
+/** 路线图列表项（不含 content） */
+export interface RoadmapListItem {
+  id: string;
+  title: string;
+  summary: string;
+  category: RoadmapCategory;
+  coverIcon: string;
+  coverTheme: string;
+  status: WorkStatus;
+  stepsCount: number;
+  favs: number;
+  uploader: { id: string; username: string; role: Role; hasAvatar: boolean; avatarVer: number };
+  publishedAt: string | null;
+  rejectedReason?: string | null;
+  createdAt: string;
+  myFav?: boolean;
+}
+
+/** 路线图详情（含解析后 content + 关联资料） */
+export interface RoadmapDetail extends RoadmapListItem {
+  content: { phases: RoadmapPhaseLite[] };
+  works: WorkListItem[];
+  experience?: string | null;
+  hasCredential?: boolean;
+}
+
+/** 我的打卡进度 */
+export interface RoadmapProgress {
+  roadmapId: string;
+  checked: { stepId: string; createdAt: string }[];
+  byDay: Record<string, number>; // 'YYYY-MM-DD'（UTC+8）→ 当日完成步骤数
+  streakDays: number;
+  totalChecked: number;
+  stepsCount: number;
 }

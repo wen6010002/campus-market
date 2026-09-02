@@ -32,6 +32,7 @@ export function Nav() {
   };
 
   const unread = user?.unreadCount ?? 0;
+  const unreadAnn = user?.unreadAnnouncements ?? 0;
 
   return (
     <header className="nav">
@@ -73,6 +74,11 @@ export function Nav() {
             {unread > 0 ? <span className="dot" /> : null}
             <span>动态</span>
           </Link>
+          <Link className="nav-link" href="/announcements">
+            <Icon name="bell" width={17} />
+            {unreadAnn > 0 ? <span className="dot" /> : null}
+            <span>公告</span>
+          </Link>
           <Link className="nav-link" href="/me?tab=library">
             <Icon name="fav" width={17} />
             <span>学习清单</span>
@@ -113,6 +119,9 @@ export function Nav() {
                   >
                     <Icon name="bell" width={16} /> 通知中心{' '}
                     {unread > 0 ? <span className="pill">{unread}</span> : null}
+                  </Link>
+                  <Link className="dropdown-item" href="/announcements" onClick={() => setOpen(false)}>
+                    📢 全部公告
                   </Link>
                   {user.role === 'ADMIN' ? (
                     <>

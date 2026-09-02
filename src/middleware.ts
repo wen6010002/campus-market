@@ -18,7 +18,9 @@ export function middleware(req: NextRequest) {
       (pathname.startsWith('/api/v1/works') ||
         pathname.startsWith('/api/v1/search') ||
         pathname.startsWith('/api/v1/ranks') ||
-        pathname.startsWith('/api/v1/users')));
+        pathname.startsWith('/api/v1/users') ||
+        pathname.startsWith('/api/v1/announcements') ||
+        pathname.startsWith('/api/v1/roadmaps')));
 
   if (isPublic) return NextResponse.next();
 

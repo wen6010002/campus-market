@@ -30,7 +30,7 @@ export interface WorkCreateInput {
 export function usePresign() {
   return useMutation({
     mutationFn: (input: {
-      kind?: 'work' | 'cover' | 'avatar' | 'preview';
+      kind?: 'work' | 'cover' | 'avatar' | 'preview' | 'roadmap' | 'credential';
       fileType: FileType;
       fileSize: number;
       sha?: string;

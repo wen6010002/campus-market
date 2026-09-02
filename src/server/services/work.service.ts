@@ -339,14 +339,32 @@ export const workService = {
     return toListItem(updated);
   },
 
-  /** 删除（owner/admin，软删） */
-  async remove(id: string, userId: string, isAdmin: boolean) {
+  /** 删除（owner/admin，软删；admin 删除留审计记录） */
+  async remove(id: string, userId: string, isAdmin: boolean, reason?: string) {
     const work = await prisma.work.findFirst({ where: { id, deletedAt: null } });
     if (!work) throw appError('NOT_FOUND', '作品不存在');
     if (!isAdmin && work.authorId !== userId) throw appError('FORBIDDEN', '无权删除');
-    await prisma.work.update({ where: { id }, data: { deletedAt: new Date() } });
+    await prisma.$transaction(async (tx) => {
+      await tx.work.update({ where: { id }, data: { deletedAt: new Date() } });
+      if (isAdmin) {
+        await tx.auditLog.create({
+          data: { workId: id, action: 'DELETE', reviewerId: userId, note: reason ?? null },
+        });
+      }
+    });
     await invalidateWorkCaches(id);
     return { ok: true };
+  },
+
+  /** 按 id 集合取已上架作品（保持传入顺序；路线图关联资料用，V4） */
+  async byIds(ids: string[]) {
+    if (!ids.length) return [];
+    const works = await prisma.work.findMany({
+      where: { id: { in: ids }, status: 'PUBLISHED', deletedAt: null },
+      include: WORK_LIST_INCLUDE,
+    });
+    const byId = new Map(works.map((w) => [w.id, w]));
+    return ids.map((id) => byId.get(id)).filter(Boolean).map((w) => toListItem(w));
   },
 
   /** 相关推荐（同作者/同标签，公开） */
@@ -489,9 +507,29 @@ export const workService = {
       return w;
     });
 
-    // 上架：写 Dynamic(PUBLISH) + 通知粉丝
+    // 上架：写 Dynamic(PUBLISH) + 通知粉丝；审核结果通知作者（V4：补 AUDIT_RESULT 缺口）
     if (action === 'APPROVE') {
       await notifyService.onWorkPublished(work.authorId, work.id, work.title);
+      await notifyService.createNotification(
+        work.authorId,
+        'AUDIT_RESULT',
+        `你的作品<b>${work.title}</b>已通过审核并上架`,
+        `/work/${work.id}`,
+      );
+    } else if (action === 'REJECT' || action === 'REQUEST_CHANGES') {
+      await notifyService.createNotification(
+        work.authorId,
+        'AUDIT_RESULT',
+        `你的作品<b>${work.title}</b>未通过审核${note ? `：${note}` : ''}`,
+        `/work/${work.id}`,
+      );
+    } else if (action === 'TAKE_DOWN') {
+      await notifyService.createNotification(
+        work.authorId,
+        'AUDIT_RESULT',
+        `你的作品<b>${work.title}</b>已被下架${note ? `：${note}` : ''}`,
+        `/work/${work.id}`,
+      );
     }
 
     await invalidateWorkCaches(id);
