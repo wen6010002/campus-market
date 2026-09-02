@@ -24,3 +24,9 @@ export async function cacheDelByPattern(pattern: string): Promise<void> {
   const keys = await redis.keys(pattern);
   if (keys.length) await redis.del(...keys);
 }
+
+// ---------- 约定 key（性能优化 V4.1）----------
+// 用户状态（封禁拦截）：值 { status, bannedReason } | false（用户不存在）；封/解封时主动失效
+export const userStatusKey = (id: string) => `user:status:${id}`;
+// /auth/me 聚合响应：值 = buildAuthUser 结果；资料/通知/公告/封禁变化时主动失效
+export const meKey = (id: string) => `me:${id}`;

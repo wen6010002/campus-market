@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { cacheGet, cacheSet, userStatusKey } from '../lib/cache';
 import type { Role } from '@/lib/constants';
 
 const COOKIE = process.env.JWT_COOKIE_NAME ?? 'cm_token';
@@ -49,15 +50,23 @@ export async function getSession(): Promise<Session | null> {
 export async function requireUser(): Promise<Session> {
   const s = await getSession();
   if (!s) throw appError('UNAUTHENTICATED', '请先登录');
-  // 封号即时生效：JWT 无状态，这里查 DB 状态拦截
-  const user = await prisma.user.findUnique({
-    where: { id: s.userId },
-    select: { status: true, bannedReason: true },
-  });
-  if (!user || user.status === 'BANNED') {
+  // 封号拦截：JWT 无状态，需核对用户状态。每个登录态请求都走这里——
+  // 加 30s Redis 缓存（P0-2），封号/解封在 admin/report 处置时主动失效，做到准实时。
+  let status = await cacheGet<{ status: string; bannedReason: string | null } | false>(
+    userStatusKey(s.userId),
+  );
+  if (status === null) {
+    const user = await prisma.user.findUnique({
+      where: { id: s.userId },
+      select: { status: true, bannedReason: true },
+    });
+    status = user ? { status: user.status, bannedReason: user.bannedReason } : false;
+    await cacheSet(userStatusKey(s.userId), status, 30);
+  }
+  if (status === false || status.status === 'BANNED') {
     throw appError(
       'FORBIDDEN',
-      user?.bannedReason ? `账号已被封禁：${user.bannedReason}` : '账号已被封禁',
+      status && status.bannedReason ? `账号已被封禁：${status.bannedReason}` : '账号已被封禁',
     );
   }
   return s;

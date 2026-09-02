@@ -4,17 +4,28 @@ import { enforceRateLimit } from '../lib/ratelimit';
 import { getObjectText, presignGet, presignGetInline, objectExists } from '../storage/minio';
 import { notifyService } from './notify.service';
 import { workService } from './work.service';
+import { cacheGet, cacheSet, cacheDelByPattern } from '../lib/cache';
 import { parseRoadmapMd, validateRoadmap, type RoadmapContent } from '@/lib/roadmap/parse';
 import type { RoadmapInput, RoadmapQuery } from '@/lib/zod/roadmap';
 import type { Roadmap } from '@prisma/client';
 
 // 学习路线图服务（V4）：md 上传 → 服务端解析为结构化 todolist；打卡 = 勾选步骤；
 // 状态机复用 WorkStatus：ADMIN 上传直接 PUBLISHED，普通用户 PENDING → 审核 → PUBLISHED/REJECTED（单向，无编辑）。
+// 性能（V4.1）：列表 60s 缓存（上架/审核通过时失效；收藏数变化容忍 TTL 内漂移，同 works:list 模式）；
+// PUBLISHED 详情的公共部分（content+works）内容不可变，300s 缓存，myFav 按访问者单独查。
 
 const UPLOADER_SELECT = { id: true, username: true, role: true, avatarColor: true, avatarKey: true, updatedAt: true };
 
 type RoadmapWithUploader = Roadmap & {
   uploader: { id: string; username: string; role: string; avatarColor: string; avatarKey: string | null; updatedAt: Date };
+};
+
+/** 详情公共部分（不含 myFav，按访问者叠加） */
+type RoadmapDetail = ReturnType<typeof toListItem> & {
+  content: RoadmapContent;
+  works: unknown[];
+  experience: string | null;
+  hasCredential: boolean;
 };
 
 function toListItem(r: RoadmapWithUploader, myFav = false) {
@@ -60,32 +71,28 @@ async function assertStepExists(content: unknown, stepId: string) {
 export const roadmapService = {
   /** 列表（公开，仅 PUBLISHED） */
   async list(q: RoadmapQuery) {
-    const where: any = { status: 'PUBLISHED', deletedAt: null };
-    if (q.category) where.category = q.category;
-
-    const [total, roadmaps] = await Promise.all([
-      prisma.roadmap.count({ where }),
-      prisma.roadmap.findMany({
-        where,
-        include: { uploader: { select: UPLOADER_SELECT } },
-        orderBy: q.sort === 'newest' ? { publishedAt: 'desc' } : { favs: 'desc' },
-        skip: (q.page - 1) * q.pageSize,
-        take: q.pageSize,
-      }),
-    ]);
-    return {
-      data: roadmaps.map((r) => toListItem(r)),
-      pagination: {
-        page: q.page,
-        pageSize: q.pageSize,
-        total,
-        totalPages: Math.ceil(total / q.pageSize),
-      },
-    };
+    const cacheKey = `roadmaps:list:${JSON.stringify(q)}`;
+    const cached = await cacheGet<Awaited<ReturnType<typeof queryList>>>(cacheKey);
+    if (cached) return cached;
+    const result = await queryList(q);
+    await cacheSet(cacheKey, result, 60);
+    return result;
   },
 
   /** 详情（公开 PUBLISHED；PENDING/REJECTED 仅上传者与 ADMIN；附 myFav 与关联资料） */
   async get(id: string, viewerId?: string, viewerRole?: string) {
+    // PUBLISHED 的公共部分内容不可变 → 300s 缓存；myFav 按访问者叠加
+    const cacheKey = `roadmap:detail:${id}`;
+    const base = await cacheGet<RoadmapDetail>(cacheKey);
+    if (base) {
+      const myFav = viewerId
+        ? !!(await prisma.roadmapFavorite.findUnique({
+            where: { userId_roadmapId: { userId: viewerId, roadmapId: id } },
+          }))
+        : false;
+      return { ...base, myFav };
+    }
+
     const r = await prisma.roadmap.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -105,13 +112,15 @@ export const roadmapService = {
         }))
       : false;
 
-    return {
-      ...toListItem(r, myFav),
+    const detail: RoadmapDetail = {
+      ...toListItem(r),
       content: r.content as unknown as RoadmapContent,
       works,
       experience: r.experience,
       hasCredential: !!r.credentialKey,
     };
+    if (r.status === 'PUBLISHED') await cacheSet(cacheKey, detail, 300);
+    return { ...detail, myFav };
   },
 
   /** 上传（登录；ADMIN 直接发布，普通用户进审核并必须提交学生证+经历） */
@@ -172,6 +181,7 @@ export const roadmapService = {
       }
       return r;
     });
+    if (isAdmin) await invalidateRoadmapListCaches(); // 直发上架 → 列表立即可见
 
     return {
       id: created.id,
@@ -348,6 +358,7 @@ export const roadmapService = {
         },
       });
     });
+    if (action === 'APPROVE') await invalidateRoadmapListCaches(); // 上架 → 列表立即可见
 
     await notifyService.createNotification(
       r.uploaderId,
@@ -361,3 +372,34 @@ export const roadmapService = {
     return { id: updated.id, status: updated.status };
   },
 };
+
+/** 列表查询本体（cacheGet 的类型来源） */
+async function queryList(q: RoadmapQuery) {
+  const where: any = { status: 'PUBLISHED', deletedAt: null };
+  if (q.category) where.category = q.category;
+
+  const [total, roadmaps] = await Promise.all([
+    prisma.roadmap.count({ where }),
+    prisma.roadmap.findMany({
+      where,
+      include: { uploader: { select: UPLOADER_SELECT } },
+      orderBy: q.sort === 'newest' ? { publishedAt: 'desc' } : { favs: 'desc' },
+      skip: (q.page - 1) * q.pageSize,
+      take: q.pageSize,
+    }),
+  ]);
+  return {
+    data: roadmaps.map((r) => toListItem(r)),
+    pagination: {
+      page: q.page,
+      pageSize: q.pageSize,
+      total,
+      totalPages: Math.ceil(total / q.pageSize),
+    },
+  };
+}
+
+/** 上架状态变化时失效路线图列表缓存 */
+async function invalidateRoadmapListCaches() {
+  await cacheDelByPattern('roadmaps:list:*');
+}

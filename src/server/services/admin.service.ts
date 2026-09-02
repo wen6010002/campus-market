@@ -1,7 +1,14 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { cacheDel, userStatusKey, meKey } from '../lib/cache';
 import type { Role } from '@/lib/constants';
 import { hashPassword } from '../auth/password';
+
+/** 用户状态/聚合缓存失效：封禁拦截（requireUser）与 /auth/me 都要立即看到变化 */
+async function invalidateUserCaches(userId: string) {
+  await cacheDel(userStatusKey(userId));
+  await cacheDel(meKey(userId));
+}
 
 const SAFE_SELECT = {
   id: true,
@@ -107,23 +114,29 @@ export const adminService = {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw appError('NOT_FOUND', '用户不存在');
     if (user.role === 'ADMIN') throw appError('FORBIDDEN', '不能封禁管理员');
-    return prisma.user.update({
+    const updated = await prisma.user.update({
       where: { id: userId },
       data: { status: 'BANNED', bannedAt: new Date(), bannedReason: reason ?? null },
     });
+    await invalidateUserCaches(userId);
+    return updated;
   },
 
   /** 解封 */
   async unbanUser(userId: string) {
-    return prisma.user.update({
+    const updated = await prisma.user.update({
       where: { id: userId },
       data: { status: 'ACTIVE', bannedAt: null, bannedReason: null },
     });
+    await invalidateUserCaches(userId);
+    return updated;
   },
 
   /** 改角色 */
   async setRole(userId: string, role: Role) {
-    return prisma.user.update({ where: { id: userId }, data: { role } });
+    const updated = await prisma.user.update({ where: { id: userId }, data: { role } });
+    await invalidateUserCaches(userId);
+    return updated;
   },
 
   /** 创建独立后台测试账号；仅现有管理员可通过路由调用。 */

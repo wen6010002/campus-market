@@ -5,10 +5,20 @@ import { sendVerifyCode } from '../lib/mailer';
 import { hashPassword, verifyPassword } from '../auth/password';
 import { isEduEmail, generateCode, saveCode, consumeCode } from '../auth/verify-code';
 import { announceService } from './announce.service';
+import { cacheGet, cacheSet, cacheDel, meKey } from '../lib/cache';
 import type { RegisterInput, LoginInput, CreatorApplyInput } from '@/lib/zod/auth';
 
 const RL_VERIFY_PER_HOUR = Number(process.env.RL_VERIFY_PER_HOUR ?? 5);
 const RL_LOGIN_PER_MIN = Number(process.env.RL_LOGIN_PER_MIN ?? 10);
+
+/** /auth/me 30s 短缓存（P1-3）：Nav 每页都拉；失效点见各写路径（资料/通知/公告/封禁） */
+export async function buildAuthUserCached(userId: string) {
+  const hit = await cacheGet<Awaited<ReturnType<typeof buildAuthUser>>>(meKey(userId));
+  if (hit) return hit;
+  const data = await buildAuthUser(userId);
+  await cacheSet(meKey(userId), data, 30);
+  return data;
+}
 
 // 构建 AuthUser 响应（契约 §3）
 export async function buildAuthUser(userId: string) {
@@ -132,6 +142,7 @@ export const authService = {
     }
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await cacheDel(meKey(user.id)); // 登录后返回聚合数据前先失效，保证最新
 
     return {
       userId: user.id,
@@ -160,6 +171,7 @@ export const authService = {
         wallet: { create: { balance: 0, pending: 0, withdrawn: 0 } },
       },
     });
+    await cacheDel(meKey(userId));
 
     return creator;
   },
