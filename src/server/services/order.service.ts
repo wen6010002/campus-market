@@ -219,9 +219,16 @@ export const orderService = {
             settleAt: settleAt(new Date()),
           },
         });
-        await tx.wallet.update({
+        // upsert 自愈：V3「开放发布」ensurePublisher 建档的创作者可能没有钱包行，update 会炸整个结算事务
+        await tx.wallet.upsert({
           where: { creatorId: creator.id },
-          data: { pending: { increment: order.creatorAmount } },
+          update: { pending: { increment: order.creatorAmount } },
+          create: {
+            creatorId: creator.id,
+            balance: 0,
+            pending: order.creatorAmount,
+            withdrawn: 0,
+          },
         });
       }
 

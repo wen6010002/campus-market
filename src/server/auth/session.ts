@@ -94,7 +94,13 @@ export async function ensureCreatorProfile(userId: string): Promise<string> {
   let cp = await prisma.creatorProfile.findUnique({ where: { userId } });
   if (!cp) {
     cp = await prisma.creatorProfile.create({
-      data: { userId, bio: '', direction: '校园分享者', verified: false },
+      data: {
+        userId,
+        bio: '',
+        direction: '校园分享者',
+        verified: false,
+        wallet: { create: { balance: 0, pending: 0, withdrawn: 0 } }, // 无钱包会让首单结算事务失败
+      },
     });
   }
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
