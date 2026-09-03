@@ -205,8 +205,7 @@ export interface Order {
 }
 
 export type PayParams =
-  | { provider: 'wechat'; codeUrl?: string; mwebUrl?: string }
-  | { provider: 'alipay'; redirectUrl: string }
+  | { provider: 'alipay'; redirectUrl: string } // 码支付 payurl 跳转（V6，微信收款已下线）
   | { provider: 'mock'; paid: true };
 
 export interface CreateOrderResult {

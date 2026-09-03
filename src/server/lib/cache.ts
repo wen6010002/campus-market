@@ -19,6 +19,12 @@ export async function cacheDel(key: string): Promise<void> {
   await redis.del(key);
 }
 
+/** 原子占位（SET NX EX）：抢到才继续——用于并发下只放一个请求穿透（如支付兜底查单节流） */
+export async function cacheSetNx(key: string, ttlSec: number): Promise<boolean> {
+  const ok = await redis.set(key, '1', 'EX', ttlSec, 'NX');
+  return ok === 'OK';
+}
+
 /** 按模式删除（如 works:list:*） */
 export async function cacheDelByPattern(pattern: string): Promise<void> {
   const keys = await redis.keys(pattern);

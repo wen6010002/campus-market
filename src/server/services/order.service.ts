@@ -1,5 +1,7 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { cacheSetNx } from '../lib/cache';
 import { presignGet } from '../storage/minio';
 import { getProvider } from '../payment';
 import type { PayParams } from '../payment';
@@ -109,32 +111,85 @@ export const orderService = {
       title: order.work.title,
       payMethod: order.payMethod,
     });
+    // 重新拉起支付顺带续期，防止「支付中订单被 order-timeout 关掉 → 回调被拒 → 钱收了权限不给」
+    if (pay.provider !== 'mock') {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { expiresAt: new Date(Date.now() + ORDER_TIMEOUT_MIN * 60_000) },
+      });
+    }
     if (pay.provider === 'mock') {
       await this.markPaid(order.id, `mock-${order.id}`, `mock-${order.id}`);
     }
     return { pay };
   },
 
-  /** 查单（owner） */
+  /** 查单（owner）。PENDING 且非 mock 时兜底向网关查单（每 10s 一次，notify 丢失自愈） */
   async get(orderId: string, userId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    let order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw appError('NOT_FOUND', '订单不存在');
     if (order.buyerId !== userId) throw appError('FORBIDDEN', '无权查看他人订单');
+
+    if (order.payStatus === 'PENDING' && order.payMethod !== 'MOCK') {
+      const got = await cacheSetNx(`payq:${orderId}`, 10);
+      if (got) {
+        try {
+          const r = await getProvider(order.payMethod).queryOrder(order.id);
+          if (r.status === 'PAID') {
+            await this.markPaid(order.id, r.tradeNo ?? order.id, `epay:${r.tradeNo ?? order.id}`);
+            order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+          }
+        } catch (e) {
+          logger.warn({ err: e, orderId }, 'pay fallback query failed'); // 查单失败不阻塞读
+        }
+      }
+    }
     return toOrder(order);
   },
 
   /**
    * 支付成功事务（§8.2，幂等）：
    * 订单 PAID → Download → CreatorIncome(PENDING) → Wallet.pending+ → Work.downloads+ → 通知买家。
+   * V6 加固：金额校验（回调 money 与订单 amount 比对）；CLOSED 订单在已验签+金额相符的
+   * 回调路径允许重开结算（买家在超时关单后才完成付款时，钱不能白收）。
    */
-  async markPaid(orderId: string, transactionId: string, idempotencyKey: string) {
+  async markPaid(
+    orderId: string,
+    transactionId: string,
+    idempotencyKey: string,
+    opts?: { paidAmount?: string },
+  ) {
     let creatorUserId: string | undefined;
     const result = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw appError('NOT_FOUND', '订单不存在');
-      if (order.payStatus === 'PAID') return { ok: true, already: true }; // 幂等
+      if (order.payStatus === 'PAID') {
+        // 幂等：但不同流水 = 买家可能付了两笔（旧支付页也付了），需人工在商户后台退
+        if (order.transactionId && order.transactionId !== transactionId) {
+          logger.error(
+            { orderId, paid: order.transactionId, incoming: transactionId },
+            '同订单收到两笔不同流水，疑似重复支付，需人工退款',
+          );
+        }
+        return { ok: true, already: true };
+      }
 
-      if (order.payStatus === 'CLOSED') throw appError('ORDER_CLOSED', '订单已关闭');
+      // 纵深防御：回调金额与订单不符（伪造/错单）拒绝，500 不 ack 让平台重试直至放弃
+      if (opts?.paidAmount && Math.abs(Number(opts.paidAmount) - Number(order.amount)) >= 0.005) {
+        throw appError(
+          'FORBIDDEN',
+          `回调金额不符: notify=${opts.paidAmount} order=${order.amount}`,
+        );
+      }
+      // 已退款订单不重新结算（退款后迟到的回调视为重复支付，人工处理）
+      if (order.payStatus === 'REFUNDED') {
+        logger.error(
+          { orderId, incoming: transactionId },
+          'REFUNDED 订单收到支付回调，疑似重复支付，需人工退款',
+        );
+        return { ok: true, already: true };
+      }
+      // CLOSED 不再拒绝：调用方已验签 + 金额校验，买家可能是关单后才完成付款（钱不能白收）
 
       await tx.order.update({
         where: { id: orderId },

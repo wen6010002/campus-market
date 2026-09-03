@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { WorkStatus, Quality, FileType, PayMethod } from '../constants';
+import { WorkStatus, Quality, FileType } from '../constants';
 
 // 分页与排序（契约 §0.2）
 export const paginationQuery = z.object({
@@ -24,4 +24,3 @@ export const roleSchema = z.enum(['STUDENT', 'CREATOR', 'ADMIN']);
 export const workStatusSchema = z.nativeEnum(WorkStatus);
 export const qualitySchema = z.nativeEnum(Quality);
 export const fileTypeSchema = z.nativeEnum(FileType);
-export const payMethodSchema = z.nativeEnum(PayMethod);
