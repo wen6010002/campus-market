@@ -18,7 +18,7 @@ interface Props {
 /** 提现弹窗（校验 ≤ 可提现余额） */
 export function WithdrawModal({ open, withdrawable, onClose, onSuccess }: Props) {
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<PayMethod>('WECHAT');
+  const [method, setMethod] = useState<PayMethod>('ALIPAY'); // V6：提现统一支付宝（线下人工转账）
   const [submitting, setSubmitting] = useState(false);
   const payout = usePayout();
 
@@ -47,7 +47,7 @@ export function WithdrawModal({ open, withdrawable, onClose, onSuccess }: Props)
 
   return (
     <Modal open={open} onClose={onClose} sm>
-      <ModalHead title="提现到微信" onClose={onClose} />
+      <ModalHead title="提现到支付宝" onClose={onClose} />
       <ModalBody>
         <div className="field">
           <label>提现金额（可提现 ¥{withdrawable}）</label>
@@ -64,17 +64,14 @@ export function WithdrawModal({ open, withdrawable, onClose, onSuccess }: Props)
         <div className="field">
           <label>到账方式</label>
           <div className="opt-list">
-            <div
-              className={`opt ${method === 'WECHAT' ? 'active' : ''}`}
-              onClick={() => setMethod('WECHAT')}
-            >
+            <div className={`opt active`} onClick={() => setMethod('ALIPAY')}>
               <span className="opt-radio" />
               <div className="opt-main">
-                <b>微信零钱</b>
-                <span>推荐</span>
+                <b>支付宝</b>
+                <span>平台人工转账，1-3 个工作日到账</span>
               </div>
               <div className="opt-meta" style={{ fontSize: 20 }}>
-                💚
+                💙
               </div>
             </div>
           </div>
