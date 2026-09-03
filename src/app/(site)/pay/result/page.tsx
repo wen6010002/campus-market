@@ -4,16 +4,52 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useOrder } from '@/hooks/useOrder';
+import { ApiError } from '@/lib/api/client';
 
 /** 支付宝支付完成后的落地页（码支付 return_url）。轮询订单状态，PAID 后引导下载。 */
 function PayResult() {
   const sp = useSearchParams();
   const orderId = sp.get('out_trade_no');
-  const { data: order, isLoading } = useOrder(orderId);
+  const { data: order, isLoading, error } = useOrder(orderId);
 
   if (!orderId) {
     return (
       <Card icon="🧾" title="缺少订单号" desc="支付结果链接无效，可到「我的 → 订单」查看订单状态" />
+    );
+  }
+
+  // 查询失败 = 终态：订单不存在（已被处理/清理）或当前浏览器不是买家登录态
+  // （扫码付款的人和下单登录的浏览器往往不是同一个，比如同学代付）
+  if (error) {
+    const status = error instanceof ApiError ? error.status : 0;
+    if (status === 401) {
+      return (
+        <Card
+          icon="🔐"
+          title="请登录后查看支付结果"
+          desc="如已完成付款，用下单时的账号登录后再打开本页即可看到结果"
+          actions={
+            <Link
+              className="btn btn-primary"
+              href={`/login?from=${encodeURIComponent(`/pay/result?out_trade_no=${orderId}`)}`}
+            >
+              去登录
+            </Link>
+          }
+        />
+      );
+    }
+    return (
+      <Card
+        icon="🧾"
+        title="订单不存在"
+        desc="该订单可能已被处理或已失效；如已付款但未收到资料，请联系平台核实"
+        actions={
+          <Link className="btn btn-light" href="/">
+            回首页
+          </Link>
+        }
+      />
     );
   }
 
