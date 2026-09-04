@@ -606,6 +606,8 @@ model UserAchievement {
   expiresAt     DateTime?
   // 佩戴中（最多 5 枚，佩戴序=pinnedAt 先后）
   pinned        Boolean     @default(false)
+  // 展示成就（唯一一枚自选，inline 展示位挂它；空则回落佩戴第一枚）
+  featured      Boolean     @default(false)
   pinnedAt      DateTime?
   // 解锁弹层已展示（false=下次打开页面弹礼花）
   popped        Boolean     @default(false)

@@ -6823,3 +6823,69 @@ body {
     animation: none !important;
   }
 }
+
+/* V8 增补：展示成就 hover 说明卡 + 荣誉墙展示成就按钮 */
+.badge-inline {
+  position: relative;
+}
+.badge-pop {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(4px);
+  z-index: 60;
+  width: max-content;
+  max-width: 230px;
+  background: #141d2d;
+  color: #e9eff8;
+  border-radius: 10px;
+  padding: 9px 12px;
+  box-shadow: 0 12px 30px rgba(10, 16, 28, 0.35);
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+.badge-pop::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #141d2d;
+}
+.badge-inline:hover .badge-pop {
+  display: block;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.badge-pop b {
+  display: block;
+  font-size: 13px;
+}
+.badge-pop i {
+  display: block;
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: #7fe8d2;
+  margin-top: 2px;
+}
+.badge-pop small {
+  display: block;
+  font-size: 11px;
+  color: #9db0c8;
+  margin-top: 4px;
+}
+.honor-feat {
+  margin-top: 4px;
+}
+.honor-feat.on {
+  color: #e8930c;
+  border-color: #f5a623;
+}

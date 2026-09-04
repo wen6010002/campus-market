@@ -57,6 +57,14 @@ export interface WorkAuthor {
   hasAvatar?: boolean;
   avatarVer?: number;
   verified: boolean;
+  /** V8 展示成就（作品卡作者名旁，一枚；无则 null） */
+  badge?: {
+    key: string;
+    title: string;
+    rarity: string;
+    symbol: string;
+    description?: string | null;
+  } | null;
 }
 
 export interface WorkListItem {
@@ -192,7 +200,13 @@ export interface Rating {
     hasAvatar?: boolean;
     avatarVer?: number;
     /** V8 佩戴勋章（名字旁小徽章；无佩戴为 null） */
-    badge?: { key: string; title: string; rarity: string; symbol: string } | null;
+    badge?: {
+      key: string;
+      title: string;
+      rarity: string;
+      symbol: string;
+      description?: string | null;
+    } | null;
   };
   tags: string[];
   _mine?: boolean;

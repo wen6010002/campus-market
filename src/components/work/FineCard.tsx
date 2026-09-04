@@ -7,6 +7,7 @@ import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
 import { FREE_MODE } from '@/lib/constants';
 import { WorkCover } from '@/components/work/WorkCover';
+import { BadgeInline } from '@/components/medal/BadgeInline';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import type { WorkListItem } from '@/lib/types';
 
@@ -45,6 +46,7 @@ export function FineCard({ work }: { work: WorkListItem }) {
             }}
           >
             {work.author.username}
+            <BadgeInline badge={work.author.badge} size={18} />
           </span>
           <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-soft)' }}>
             已帮助 {formatNum(work.downloads)} 位同学

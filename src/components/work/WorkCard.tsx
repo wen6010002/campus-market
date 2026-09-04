@@ -6,6 +6,7 @@ import { Icon } from '@/lib/icons';
 import { QualityBadge, FREE_MODE } from '@/lib/constants';
 import { formatNum } from '@/lib/format';
 import { WorkCover } from '@/components/work/WorkCover';
+import { BadgeInline } from '@/components/medal/BadgeInline';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import type { WorkListItem } from '@/lib/types';
 
@@ -83,7 +84,10 @@ export function WorkCard({ work }: Props) {
             }}
           >
             <UserAvatar id={work.author.id} user={work.author} size={24} radius={6} />
-            <span className="wa-name">{work.author.username}</span>
+            <span className="wa-name">
+              {work.author.username}
+              <BadgeInline badge={work.author.badge} size={18} />
+            </span>
           </div>
           {free ? (
             <span className="work-price free">免费</span>

@@ -259,6 +259,66 @@ describe('周榜授予（worker）', () => {
   });
 });
 
+describe('展示成就（featured）：inline 位唯一一枚，自选优先', () => {
+  it('设为展示 → inlineBadges 优先返回它（覆盖佩戴第一枚）；换设另一枚保持唯一；未解锁拒绝', async () => {
+    // OTHER 已佩戴 HELP_10（佩戴组用例后剩 4 枚佩戴，HELP_10 已卸下——重戴保底）
+    await achievementService.pin(OTHER, 'HELP_10', true);
+    // 未解锁拒绝
+    const b3 = await prisma.user.create({
+      data: {
+        id: 'ach_b3',
+        email: 'b3@szu.edu.cn',
+        username: '第三人',
+        passwordHash: 'hash',
+        passwordPepper: 'seed',
+        role: 'STUDENT',
+      },
+    });
+    await expect(achievementService.setFeatured(b3.id, 'HELP_10', true)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+    // 默认：回落佩戴第一枚（pinnedAt 最早 = 佩戴组用例中最先佩戴的 HELP_50；HELP_10 刚重戴最晚）
+    let badges = await achievementService.inlineBadges([OTHER]);
+    expect(badges[OTHER].key).toBe('HELP_50');
+    // 设 HELP_100 为展示成就 → inline 变为它
+    await achievementService.setFeatured(OTHER, 'HELP_100', true);
+    badges = await achievementService.inlineBadges([OTHER]);
+    expect(badges[OTHER].key).toBe('HELP_100');
+    expect(badges[OTHER].description).toContain('100');
+    // 换设 HELP_500 → 唯一（HELP_100 不再 featured）
+    await achievementService.setFeatured(OTHER, 'HELP_500', true);
+    badges = await achievementService.inlineBadges([OTHER]);
+    expect(badges[OTHER].key).toBe('HELP_500');
+    const feats = await prisma.userAchievement.count({ where: { userId: OTHER, featured: true } });
+    expect(feats).toBe(1);
+    // 取消 → 回落佩戴第一枚（pinnedAt 最早 = HELP_50）
+    await achievementService.setFeatured(OTHER, 'HELP_500', false);
+    badges = await achievementService.inlineBadges([OTHER]);
+    expect(badges[OTHER].key).toBe('HELP_50');
+  });
+
+  it('作品列表/详情的 author.badge 联动（卡片作者名旁）', async () => {
+    // AUTHOR 已有多枚（含 HELP_10），未佩戴未设展示 → null
+    const { workService } = await import('@/server/services/work.service');
+    let list: any = await workService.list({ page: 1, pageSize: 50, sort: 'complex' } as any);
+    let mine = list.data.find((w: any) => w.author.id === AUTHOR);
+    expect(mine.author.badge ?? null).toBeNull();
+    // 设展示成就 → 列表回填（list 有 30s 缓存，先清）
+    await achievementService.setFeatured(AUTHOR, 'HELP_10', true);
+    const { cacheDelByPattern } = await import('@/server/lib/cache');
+    await cacheDelByPattern('works:list:*');
+    list = await workService.list({ page: 1, pageSize: 50, sort: 'complex' } as any);
+    mine = list.data.find((w: any) => w.author.id === AUTHOR);
+    expect(mine.author.badge.key).toBe('HELP_10');
+    // 详情同样（带 viewerId 不走缓存）
+    const detail: any = await workService.get('ach_w1', BUYER);
+    expect(detail.author.badge?.key).toBe('HELP_10');
+    // 取消展示恢复（顺手清理状态）
+    await achievementService.setFeatured(AUTHOR, 'HELP_10', false);
+    await cacheDelByPattern('works:list:*');
+  });
+});
+
 describe('评论区徽章回填', () => {
   it('评价列表 user.badge = 佩戴第一枚', async () => {
     // BUYER 给 ach_w1 写一条评价（已下载 ✓ 有权限）

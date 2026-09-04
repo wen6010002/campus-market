@@ -4,7 +4,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/stores/ui';
 import { Medal, RARITY, type Rarity } from './Medal';
 import { THRESHOLD_LADDER } from '@/lib/achievements';
-import { useMyHonor, usePinAchievement, type HonorItem } from '@/hooks/useAchievement';
+import {
+  useMyHonor,
+  usePinAchievement,
+  useFeaturedAchievement,
+  type HonorItem,
+} from '@/hooks/useAchievement';
 
 /** 数量轴 key 前缀 → 进度指标（灰格「已帮助 87 / 100」） */
 const METRIC_BY_PREFIX: Record<string, keyof typeof THRESHOLD_LADDER> = {
@@ -46,6 +51,7 @@ export function HonorWall({ isSelf }: { isSelf: boolean }) {
   const qc = useQueryClient();
   const honor = useMyHonor(isSelf);
   const pin = usePinAchievement();
+  const feat = useFeaturedAchievement();
 
   if (honor.isLoading)
     return (
@@ -62,6 +68,17 @@ export function HonorWall({ isSelf }: { isSelf: boolean }) {
     if (!groups.has(ax)) groups.set(ax, []);
     groups.get(ax)!.push(it);
   }
+
+  const toggleFeat = (it: HonorItem) => {
+    feat.mutate(
+      { key: it.key, on: !it.featured },
+      {
+        onSuccess: () =>
+          toast(it.featured ? '已取消展示成就' : `「${it.title}」已设为展示成就`, 'ok'),
+        onError: (e: any) => toast(e?.message ?? '操作失败', 'warn'),
+      },
+    );
+  };
 
   const togglePin = (it: HonorItem) => {
     pin.mutate(
@@ -143,13 +160,23 @@ export function HonorWall({ isSelf }: { isSelf: boolean }) {
                     </div>
                   )}
                   {isSelf && it.active ? (
-                    <button
-                      className={`btn ${it.pinned ? 'btn-light' : 'btn-outline'} btn-sm honor-pin`}
-                      disabled={pin.isPending}
-                      onClick={() => togglePin(it)}
-                    >
-                      {it.pinned ? '卸下' : '佩戴'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      <button
+                        className={`btn ${it.pinned ? 'btn-light' : 'btn-outline'} btn-sm honor-pin`}
+                        disabled={pin.isPending}
+                        onClick={() => togglePin(it)}
+                      >
+                        {it.pinned ? '卸下' : '佩戴'}
+                      </button>
+                      <button
+                        className={`btn ${it.featured ? 'btn-light honor-feat on' : 'btn-outline honor-feat'} btn-sm`}
+                        disabled={feat.isPending}
+                        title="展示成就：作品卡/评论区/排行榜名字旁挂这一枚（不设则挂佩戴第一枚）"
+                        onClick={() => toggleFeat(it)}
+                      >
+                        {it.featured ? '★ 展示中' : '☆ 设为展示'}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               );

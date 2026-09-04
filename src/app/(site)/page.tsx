@@ -8,6 +8,7 @@ import { DynamicCard } from '@/components/creator/DynamicCard';
 import { Empty } from '@/components/common/Empty';
 import { useWorks } from '@/hooks/useWorks';
 import { useRank } from '@/hooks/useSearch';
+import { BadgeInline } from '@/components/medal/BadgeInline';
 import { useAuth } from '@/hooks/useAuth';
 import { useFollowingFeed } from '@/hooks/useCreator';
 import { FreshmanBanner, FRESHMAN_ZONE_ENABLED } from '@/components/home/FreshmanBanner';
@@ -211,7 +212,13 @@ export default function HomePage() {
                       </div>
                       <UserAvatar id={av.id} user={av} size={36} radius={8} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <b style={{ fontSize: 14 }}>{e.username ?? e.title}</b>
+                        <b style={{ fontSize: 14 }}>
+                          {e.username ?? e.title}
+                          <BadgeInline
+                            badge={av.badge ?? (r.work as any)?.author?.badge}
+                            size={20}
+                          />
+                        </b>
                         {e.direction ? (
                           <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
                             {e.direction}

@@ -159,6 +159,7 @@ export const achievementService = {
           got: !!m,
           active,
           pinned: !!(m?.pinned && active),
+          featured: !!(m?.featured && active),
           earnedAt: m?.earnedAt.toISOString() ?? null,
           expiresAt: m?.expiresAt?.toISOString() ?? null,
           popped: m?.popped ?? false,
@@ -214,16 +215,26 @@ export const achievementService = {
     }));
   },
 
-  /** 名字旁小徽章（评论区等）：批量取每用户佩戴的第一枚（未过期） */
+  /**
+   * inline 展示徽章（评论区/作品卡/排行榜）：每用户一枚——
+   * 优先「展示成就」（featured，荣誉墙自选），未设则回落佩戴第一枚。
+   * 返回带 description 供前端 hover 说明卡。
+   */
   async inlineBadges(userIds: string[]) {
-    if (!userIds.length)
-      return {} as Record<string, { key: string; title: string; rarity: string; symbol: string }>;
+    const empty = {} as Record<
+      string,
+      { key: string; title: string; rarity: string; symbol: string; description: string | null }
+    >;
+    if (!userIds.length) return empty;
     const rows = await prisma.userAchievement.findMany({
-      where: { userId: { in: userIds }, pinned: true, ...ACTIVE() },
+      where: {
+        userId: { in: userIds },
+        AND: [ACTIVE(), { OR: [{ featured: true }, { pinned: true }] }],
+      },
       include: { achievement: true },
-      orderBy: { pinnedAt: 'asc' },
+      orderBy: [{ featured: 'desc' }, { pinnedAt: 'asc' }],
     });
-    const map: Record<string, { key: string; title: string; rarity: string; symbol: string }> = {};
+    const map: typeof empty = {};
     for (const r of rows) {
       if (!map[r.userId]) {
         map[r.userId] = {
@@ -231,10 +242,37 @@ export const achievementService = {
           title: r.achievement.title,
           rarity: r.achievement.rarity,
           symbol: r.achievement.symbol,
+          description: r.achievement.description,
         };
       }
     }
     return map;
+  },
+
+  /** 设/取消展示成就（唯一；必须已解锁且未过期；取消后 inline 回落佩戴第一枚） */
+  async setFeatured(userId: string, key: AchievementKey, on: boolean) {
+    const achievement = await prisma.achievement.findUnique({ where: { key } });
+    if (!achievement) return { featured: false };
+    const mine = await prisma.userAchievement.findUnique({
+      where: { userId_achievementId: { userId, achievementId: achievement.id } },
+    });
+    if (!mine) throw appError('VALIDATION', '还未解锁这枚勋章');
+    if (mine.expiresAt && mine.expiresAt <= new Date()) {
+      throw appError('VALIDATION', '限时勋章已过期，不能设为展示成就');
+    }
+    await prisma.$transaction([
+      // 唯一性：先清掉旧的 featured 再设新的
+      ...(on
+        ? [
+            prisma.userAchievement.updateMany({
+              where: { userId, featured: true },
+              data: { featured: false },
+            }),
+          ]
+        : []),
+      prisma.userAchievement.update({ where: { id: mine.id }, data: { featured: on } }),
+    ]);
+    return { featured: on };
   },
 
   /** 解锁弹层：取一条未展示的（展示后 confirmPop） */

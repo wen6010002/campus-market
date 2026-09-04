@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { timeAgo } from '@/lib/format';
 import { FREE_MODE } from '@/lib/constants';
+import { BadgeInline } from '@/components/medal/BadgeInline';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import type { Dynamic } from '@/lib/types';
 
@@ -27,6 +28,7 @@ export function DynamicCard({ dynamic }: { dynamic: Dynamic }) {
         <div className="dh-info">
           <div className="dh-name" onClick={() => router.push(`/user/${c.id}`)}>
             {c.username}
+            <BadgeInline badge={(c as any).badge} size={18} />
             {c.verified ? <span className="dh-check">✓</span> : null}
           </div>
           <div className="dh-time">{timeAgo(dynamic.createdAt)}</div>

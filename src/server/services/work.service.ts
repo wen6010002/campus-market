@@ -21,7 +21,11 @@ const WORK_LIST_INCLUDE = {
   tags: { include: { tag: true } },
 };
 
-function toListItem(w: any, viewerId?: string) {
+function toListItem(
+  w: any,
+  viewerId?: string,
+  badge?: { key: string; title: string; rarity: string; symbol: string } | null,
+) {
   return {
     id: w.id,
     title: w.title,
@@ -53,6 +57,7 @@ function toListItem(w: any, viewerId?: string) {
       hasAvatar: !!w.author.avatarKey,
       avatarVer: w.author.updatedAt.getTime(),
       verified: w.author.creator?.verified ?? false,
+      badge: badge ?? null, // V8 佩戴勋章（作品卡作者名旁）
     },
     publishedAt: w.publishedAt?.toISOString() ?? null,
     updatedAt: w.updatedAt.toISOString(),
@@ -103,8 +108,10 @@ export const workService = {
     ]);
 
     const totalPages = Math.ceil(total / q.pageSize);
+    // V8：批量回填作者佩戴勋章（作品卡作者名旁）
+    const badges = await achievementService.inlineBadges(works.map((w) => w.authorId));
     const result = {
-      data: works.map((w) => toListItem(w)),
+      data: works.map((w) => toListItem(w, undefined, badges[w.authorId])),
       pagination: { page: q.page, pageSize: q.pageSize, total, totalPages },
     };
     await cacheSet(cacheKey, result, 30);
@@ -154,7 +161,10 @@ export const workService = {
       throw appError('NOT_FOUND', '作品不存在');
     }
 
-    const item = toListItem(work);
+    const [item, authorBadge] = await Promise.all([
+      Promise.resolve(toListItem(work)),
+      achievementService.inlineBadges([work.authorId]).then((m) => m[work.authorId] ?? null),
+    ]);
     let myFav = false;
     let myLiked = false; // V8 点赞态（详情页按钮）
     let myAccess = work.isFree || !paymentsEnabled(); // V7 全站免费：付费开关关闭时人人可看
@@ -205,6 +215,8 @@ export const workService = {
       myLiked,
       myAccess,
       author: {
+        ...item.author,
+        badge: authorBadge, // V8 佩戴勋章（详情页信任卡）
         id: author.id,
         username: author.username,
         avatarColor: author.avatarColor,
@@ -400,7 +412,8 @@ export const workService = {
       orderBy: { downloads: 'desc' },
       take: 8,
     });
-    return related.map((w) => toListItem(w));
+    const relBadges = await achievementService.inlineBadges(related.map((w) => w.authorId));
+    return related.map((w) => toListItem(w, undefined, relBadges[w.authorId]));
   },
 
   /** 在线预览（V3-4，md 扩展）：PDF 签 inline URL 走 iframe；MD 由服务端直接回文本（前端 marked 渲染，避免跨域 fetch MinIO）。

@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { cacheGet, cacheSet } from '../lib/cache';
+import { achievementService } from './achievement.service';
 
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
 
@@ -53,6 +54,8 @@ export const rankService = {
         orderBy: { favs: 'desc' },
         take: 6,
       });
+      // V8：作品榜作者挂佩戴勋章
+      const workBadges = await achievementService.inlineBadges(works.map((w) => w.authorId));
       result = works.map((w, i) => ({
         rank: i + 1,
         work: {
@@ -70,6 +73,7 @@ export const rankService = {
             avatarColor: w.author.avatarColor,
             hasAvatar: !!w.author.avatarKey,
             avatarVer: w.author.updatedAt.getTime(),
+            badge: workBadges[w.authorId] ?? null,
           },
         },
         metric: w.favs,
@@ -80,7 +84,9 @@ export const rankService = {
         include: CREATOR_INCLUDE,
       });
 
-      const list = creators.map(toCreator);
+      // V8：创作者榜挂佩戴勋章（佩戴第一枚）
+      const creatorBadges = await achievementService.inlineBadges(creators.map((c) => c.id));
+      const list = creators.map((c) => ({ ...toCreator(c), badge: creatorBadges[c.id] ?? null }));
       if (type === 'help') list.sort((a, b) => b.helped - a.helped);
       else if (type === 'creator') list.sort((a, b) => b.fans * b.works - a.fans * a.works);
       else list.sort((a, b) => Number(b.rate) * b.works - Number(a.rate) * a.works); // rate 加权

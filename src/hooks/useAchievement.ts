@@ -13,6 +13,7 @@ export interface HonorItem {
   got: boolean;
   active: boolean;
   pinned: boolean;
+  featured: boolean;
   earnedAt: string | null;
   expiresAt: string | null;
 }
@@ -39,6 +40,19 @@ export function useHonorPublic(userId: string) {
     queryKey: ['users', userId, 'achievements'],
     queryFn: () => apiFetch<{ items: HonorItem[] }>(`/users/${userId}/achievements`),
     staleTime: 60_000,
+  });
+}
+
+/** 设/取消展示成就（inline 位唯一一枚） */
+export function useFeaturedAchievement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, on }: { key: string; on: boolean }) =>
+      apiFetch(`/me/achievements/${key}/featured`, on ? { method: 'POST' } : { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me', 'achievements'] });
+      qc.invalidateQueries({ queryKey: ['works', 'list'] });
+    },
   });
 }
 

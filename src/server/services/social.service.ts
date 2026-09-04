@@ -256,11 +256,14 @@ export const socialService = {
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
+    // V8：动态流作者挂展示成就勋章
+    const dynBadges = await achievementService.inlineBadges(dynamics.map((d) => d.creatorId));
     return dynamics.map((d) => ({
       id: d.id,
       type: d.type,
       createdAt: d.createdAt.toISOString(),
       creator: {
+        badge: dynBadges[d.creatorId] ?? null,
         id: d.creator.id,
         username: d.creator.username,
         avatarColor: d.creator.avatarColor,
@@ -334,10 +337,14 @@ export const socialService = {
       }),
     ]);
     // V8：已下载标记（收藏≠已存本地）批量判定
-    const dlRows = await prisma.download.findMany({
-      where: { userId, workId: { in: favorites.map((f) => f.workId) } },
-      select: { workId: true },
-    });
+    const [dlRows, favBadges] = await Promise.all([
+      prisma.download.findMany({
+        where: { userId, workId: { in: favorites.map((f) => f.workId) } },
+        select: { workId: true },
+      }),
+      // V8：收藏列表作者挂佩戴勋章
+      achievementService.inlineBadges(favorites.map((f) => f.work.authorId)),
+    ]);
     const dlSet = new Set(dlRows.map((d) => d.workId));
     return {
       data: favorites.map((f) => {
@@ -375,6 +382,7 @@ export const socialService = {
             username: w.author.username,
             avatarColor: w.author.avatarColor,
             verified: w.author.creator?.verified ?? false,
+            badge: favBadges[w.authorId] ?? null,
           },
           publishedAt: w.publishedAt?.toISOString() ?? null,
           updatedAt: w.updatedAt.toISOString(),
