@@ -457,3 +457,39 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 - `markPaid` 新增金额校验（回调 `money` 与订单 `amount` 差 ≥0.005 元拒绝）；CLOSED 订单收到**已验签且金额相符**的回调允许重开结算（防超时关单后买家完成付款导致资金悬空）；重复流水的第二笔回调幂等吞掉并告警日志。
 - `GET /orders/:id` 在订单 PENDING 时每 10s 向网关兜底查单一次（notify 丢失自愈）。
 - 退款：码支付无退款 API，`refund` 在 epay 通道直接报错（商户后台人工处理）；mock 通道保留（测试用）。
+
+## 11. 版本八变更（V8，2026-09-04）：荣耀引擎（成就勋章体系）
+
+> V7（支付封存·全站免费）见 `docs/` 部署记录与 `src/server/lib/payments.ts`；本节只记 V8 契约增量。
+
+**数据模型**（迁移 `20260904160000_v8_achievements`，纯增量）：
+
+- `AchievementKey` 新增 12 值（HELP_10/100/500/10000、LIKES_10/100/1000、FAVS_10/100、FIRST_WORK、WORKS_10、MONTHLY_STAR）；`NotificationType` 新增 `ACHIEVEMENT`。
+- `achievements` 加 `rarity`（bronze|silver|gold|plat|diamond|lgd）/ `symbol`（符号 id）/ `description`（获取条件文案）；字典由 seed 幂等 upsert（单一事实源 `src/lib/achievements.ts`，17 枚）。
+- `user_achievements` 加 `expiresAt`（限时到期，null=永久；到期从佩戴栏/名字徽章/荣誉墙隐藏，数据保留，重新上榜可续期=卫冕）/ `pinned`+`pinnedAt`（佩戴 ≤5，序=pinnedAt）/ `popped`（解锁弹层是否已展示）。
+- `favorites` 加 `pinned`+`pinnedAt`（收藏栏置顶）。
+
+**新端点**：
+
+- `GET /me/achievements` → `{ items: HonorItem[], pinnedCount, progresses: {helped,likes,favs,works} }`（本人；灰格进度用）
+- `POST|DELETE /me/achievements/:key/pin` → `{ pinned }`（佩戴/卸下；超 5 枚 → VALIDATION「最多佩戴 5 枚勋章」；过期/未解锁静默 `{pinned:false}`）
+- `GET /me/achievement-pop` → 待弹勋章 or null；`POST /me/achievement-pop {id}` = 确认已弹并返回下一条
+- `GET /users/:id/achievements` → `{ items }`（公开只读荣誉墙）
+- `POST|DELETE /me/favorites/:workId/pin` → `{ pinned }`（收藏置顶）
+
+**既有端点变更**：
+
+- `GET /works/:id`（详情）新增 `myLiked`（点赞态）。
+- `GET /ratings`（作品评价列表）`user` 新增 `badge`（佩戴第一枚勋章 `{key,title,rarity,symbol}` | null，评论区名字旁小徽章）。
+- `GET /users/:id` 新增 `badges`（佩戴栏 ≤5，含 `expiresAt`）。
+- `GET /me/favorites` 行项新增 `pinned` / `downloaded`（已存本地标记）/ `workStatus`+`deletedAt`（下架灰显）/ `category`；排序改为置顶优先。
+- `POST /works/:id/like`（已有端点首次接入 UI）：详情页点赞按钮 + burst 动效。
+
+**事件与判定**（fire-and-forget，不阻塞主链路）：
+
+- 首次下载（免费/免费模式）→ 作者 help 轴阶梯判定；点赞/收藏 on → likes/favs 轴；审核通过 → works 轴；五星评价 → 满分卷面（沿用 FIRST_FIVE_STAR）。
+- 解锁 → `ACHIEVEMENT` 通知（link 荣誉墙）+ `popped=false`（下次打开页面全屏弹层，多条连弹）。
+- 赞/藏作者通知：Redis SETNX 每作品每日至多一条（`nt:{kind}:{workId}:{date}`）。
+- worker 新任务：周一 03:40 周榜 Top3 → WEEKLY_HOT（7 天限时）；每月 1 号 03:50 月榜 Top1 → MONTHLY_STAR（30 天）。
+
+**V7 免费模式备忘**（同日上线）：`PAYMENT_MODE=off` → 下单/二次支付 FORBIDDEN「付费功能已暂停，全部资料免费开放」；付费作品完整预览（mode=full）+ 登录即免费下载（首次下载计数）；价格数据全保留，恢复付费即还原。前端 `FREE_MODE` 构建期注入（Dockerfile ARG `NEXT_PUBLIC_PAYMENT_MODE` 默认 off）。
