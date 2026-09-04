@@ -1739,10 +1739,11 @@ img {
 }
 .road-items {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 .road-item {
+  min-width: 0;
   background: var(--bg-soft);
   border: 1px solid var(--line-2);
   border-radius: var(--r-lg);
@@ -4309,7 +4310,9 @@ body {
   height: 40px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   font-size: 20px;
+  line-height: 1;
   border-radius: 9px;
   background: var(--bg-soft);
   flex: none;
@@ -5116,6 +5119,21 @@ body {
     gap: 8px;
   }
   .fb-work {
+    min-width: 0;
+  }
+  .fb-work .fbw-cover {
+    font-size: 18px;
+  }
+
+  /* 成长路线的图标和文字只在卡片内部排版，避免地图等 emoji 撑出手机视口。 */
+  .roadmap {
+    padding: 16px;
+  }
+  .road-items {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .road-item .ft {
     min-width: 0;
   }
 
