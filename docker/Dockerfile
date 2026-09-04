@@ -10,6 +10,9 @@ FROM node:20-alpine AS build
 RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
+# V7 全站免费开关（构建期注入前端；默认 off = fail-safe，恢复付费时传 epay 重建）
+ARG NEXT_PUBLIC_PAYMENT_MODE=off
+ENV NEXT_PUBLIC_PAYMENT_MODE=${NEXT_PUBLIC_PAYMENT_MODE}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm prisma:generate && pnpm build

@@ -3,6 +3,7 @@ import { appError } from '../lib/errors';
 import { redis } from '../lib/redis';
 import { cacheGet, cacheSet, cacheDel, cacheDelByPattern } from '../lib/cache';
 import { enforceRateLimit } from '../lib/ratelimit';
+import { paymentsEnabled } from '../lib/payments';
 import { headObject, presignGet, presignGetInline, getObjectText } from '../storage/minio';
 import { notifyService } from './notify.service';
 import { EXT } from './upload.service';
@@ -154,7 +155,7 @@ export const workService = {
 
     const item = toListItem(work);
     let myFav = false;
-    let myAccess = work.isFree;
+    let myAccess = work.isFree || !paymentsEnabled(); // V7 全站免费：付费开关关闭时人人可看
     let myRating: { stars: number; text: string } | null = null;
     if (viewerId) {
       const [fav, access, rating] = await Promise.all([
@@ -174,7 +175,10 @@ export const workService = {
         }),
       ]);
       myFav = !!fav;
-      myAccess = work.isFree || !!(Array.isArray(access) ? access[0] || access[1] : access);
+      myAccess =
+        work.isFree ||
+        !paymentsEnabled() ||
+        !!(Array.isArray(access) ? access[0] || access[1] : access);
       myRating = rating ? { stars: rating.stars, text: rating.text } : null;
     }
 
@@ -190,7 +194,7 @@ export const workService = {
       applyGrade: work.applyGrade,
       applyCrowd: work.applyCrowd,
       ratingDist: work.ratingDist as Record<string, number>,
-      hasSample: !work.isFree && !!work.previewKey,
+      hasSample: !work.isFree && !!work.previewKey && paymentsEnabled(),
       previewOnly: !work.isFree && !myAccess,
       myRating,
       myFav,
@@ -425,7 +429,8 @@ export const workService = {
       };
     }
 
-    let myAccess = work.isFree || work.authorId === viewerId;
+    // V7 全站免费：付费开关关闭时付费作品也走完整预览（不再发试读副本）
+    let myAccess = !paymentsEnabled() || work.isFree || work.authorId === viewerId;
     if (!myAccess && viewerId) {
       const [order, download] = await prisma.$transaction([
         prisma.order.findFirst({

@@ -1,11 +1,21 @@
 {$DOMAIN} {
 	encode gzip
+	# V7 MinIO 对外（浏览器 presigned 直传/下载/预览）：按 bucket 路径反代。
+	# path 不 strip —— MinIO 原生把 /{bucket}/{key} 解析为桶+对象，strip 会让 SigV4 验签挂；
+	# Host 保序 —— SigV4 签名含 host 头，Caddy 默认改写为 upstream 地址会验签失败。
+	handle /campus-market/* {
+		reverse_proxy minio:9000 {
+			header_up Host {host}
+		}
+	}
 	# 多副本负载均衡（V4.1）：app 服务 replicas>1，Docker DNS 返回多条 A 记录。
 	# 静态写 reverse_proxy app:3000 会在长连接上钉死单容器；dynamic a 维护动态地址池自动轮询。
-	reverse_proxy {
-		dynamic a {
-			name app
-			port 3000
+	handle {
+		reverse_proxy {
+			dynamic a {
+				name app
+				port 3000
+			}
 		}
 	}
 }

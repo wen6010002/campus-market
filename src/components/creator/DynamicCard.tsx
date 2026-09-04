@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { timeAgo } from '@/lib/format';
+import { FREE_MODE } from '@/lib/constants';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import type { Dynamic } from '@/lib/types';
 
@@ -40,8 +41,8 @@ export function DynamicCard({ dynamic }: { dynamic: Dynamic }) {
           <div className="dh-winfo">
             <h5>{w.title}</h5>
             <div className="row">
-              {w.isFree ? (
-                <span className="badge-free">免费</span>
+              {w.isFree || FREE_MODE ? (
+                <span className="badge-free">{FREE_MODE && !w.isFree ? '限时免费' : '免费'}</span>
               ) : (
                 <span className="badge-fine">💎 精品</span>
               )}

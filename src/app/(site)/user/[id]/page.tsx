@@ -18,7 +18,7 @@ import { ReportModal } from '@/components/form/ReportModal';
 import { WithdrawModal } from '@/components/form/WithdrawModal';
 import { formatCny, formatNum, timeAgo } from '@/lib/format';
 import type { WorkListItem, Order, Notification, FollowRow, RoadmapListItem } from '@/lib/types';
-import { ROADMAP_CATEGORY_LABEL } from '@/lib/constants';
+import { ROADMAP_CATEGORY_LABEL, FREE_MODE } from '@/lib/constants';
 
 /** 资料库行（/me/library 返回，弱类型） */
 type LibraryItem = {
@@ -423,7 +423,8 @@ function FavsTab() {
   const workFavs = favs.data ?? [];
   const bothEmpty = !favs.isLoading && !roadmapFavs.isLoading && !rmFavs.length && !workFavs.length;
 
-  if (bothEmpty) return <Empty icon="💝" title="暂无收藏" desc="遇到喜欢的资料或路线图点个收藏吧" />;
+  if (bothEmpty)
+    return <Empty icon="💝" title="暂无收藏" desc="遇到喜欢的资料或路线图点个收藏吧" />;
   return (
     <>
       {rmFavs.length ? (
@@ -448,7 +449,8 @@ function FavsTab() {
                 <div style={{ minWidth: 0 }}>
                   <b>{r.title}</b>
                   <div className="fr-sub">
-                    {ROADMAP_CATEGORY_LABEL[r.category] ?? r.category} · {r.stepsCount} 步 · ♥ {r.favs}
+                    {ROADMAP_CATEGORY_LABEL[r.category] ?? r.category} · {r.stepsCount} 步 · ♥{' '}
+                    {r.favs}
                   </div>
                 </div>
               </Link>
@@ -586,6 +588,21 @@ function IncomeTab() {
 
   return (
     <div>
+      {FREE_MODE ? (
+        <div
+          className="hint"
+          style={{
+            fontSize: 12.5,
+            color: 'var(--ink-soft)',
+            background: 'var(--mint-50, #f0faf6)',
+            padding: '10px 12px',
+            borderRadius: 10,
+            marginBottom: 14,
+          }}
+        >
+          🎁 付费功能暂停中，当前全部资料免费开放；历史收益与提现不受影响
+        </div>
+      ) : null}
       <div className="stat-grid">
         <div className="stat-card">
           <div className="lb">累计收益</div>

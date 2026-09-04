@@ -6,7 +6,7 @@ import { usePresign, useCreateWork, usePublishWork } from '@/hooks/useUpload';
 import { uploadFile, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
 import { toast } from '@/stores/ui';
-import { CATEGORIES, PRESET_TAGS } from '@/lib/constants';
+import { CATEGORIES, PRESET_TAGS, FREE_MODE } from '@/lib/constants';
 import type { FileType, CategoryKey } from '@/lib/constants';
 
 /** 封面图标库（学科/用途向）与主题色板（对应 globals.css g-* 类） */
@@ -227,7 +227,9 @@ export default function UploadPage() {
     if (!form.title || !form.description || !form.course) return toast('请填写作品信息', 'warn');
     if (!category) return toast('请选择用途大类', 'warn');
     if (!form.copyright) return toast('请勾选原创/授权声明', 'warn');
-    if (!form.isFree && !form.price) return toast('请填写价格', 'warn');
+    // V7 全站免费：免费模式下提交恒为免费作品
+    const submitFree = FREE_MODE || form.isFree;
+    if (!submitFree && !form.price) return toast('请填写价格', 'warn');
     if (isPreviewable === false && !nonPdfAck)
       return toast('请先勾选「了解该格式无法在线预览」', 'warn');
 
@@ -265,7 +267,7 @@ export default function UploadPage() {
       }
       // 付费作品生成试读副本（V3-4）：PDF 截前 5 页 / MD 截前 30%，预览端点只对未购者签该副本
       let previewKey: string | undefined;
-      if ((fileType === 'PDF' || fileType === 'MD') && !form.isFree) {
+      if ((fileType === 'PDF' || fileType === 'MD') && !submitFree) {
         try {
           const sample =
             fileType === 'PDF' ? await makePreviewSample(file) : await makeMdSample(file);
@@ -293,8 +295,8 @@ export default function UploadPage() {
         coverIcon,
         coverTheme,
         category: category as CategoryKey,
-        isFree: form.isFree,
-        price: form.isFree ? undefined : form.price,
+        isFree: submitFree,
+        price: submitFree ? undefined : form.price,
         tags,
         previewToc: [],
         isOriginal: form.isOriginal,
@@ -315,7 +317,7 @@ export default function UploadPage() {
       <div className="page-head">
         <div>
           <h1>发布作品</h1>
-          <div className="sub">分享你的知识，帮助同学，获得收益</div>
+          <div className="sub">分享你的知识，帮助同学，共同成长</div>
         </div>
       </div>
 
@@ -499,29 +501,44 @@ export default function UploadPage() {
         </div>
         <div className="field">
           <label>定价</label>
-          <div className="opt-list">
+          {FREE_MODE ? (
             <div
-              className={`opt ${form.isFree ? 'active' : ''}`}
-              onClick={() => setForm((f) => ({ ...f, isFree: true }))}
+              className="hint"
+              style={{
+                fontSize: 12.5,
+                color: 'var(--ink-soft)',
+                background: 'var(--mint-50, #f0faf6)',
+                padding: '10px 12px',
+                borderRadius: 10,
+              }}
             >
-              <span className="opt-radio" />
-              <div className="opt-main">
-                <b>免费</b>
-                <span>积累影响力</span>
+              🎁 付费功能暂停中，当前全部作品免费开放；你的定价会保留，功能恢复后自动生效
+            </div>
+          ) : (
+            <div className="opt-list">
+              <div
+                className={`opt ${form.isFree ? 'active' : ''}`}
+                onClick={() => setForm((f) => ({ ...f, isFree: true }))}
+              >
+                <span className="opt-radio" />
+                <div className="opt-main">
+                  <b>免费</b>
+                  <span>积累影响力</span>
+                </div>
+              </div>
+              <div
+                className={`opt ${!form.isFree ? 'active' : ''}`}
+                onClick={() => setForm((f) => ({ ...f, isFree: false }))}
+              >
+                <span className="opt-radio" />
+                <div className="opt-main">
+                  <b>精品付费</b>
+                  <span>获得收益（抽成 10%）</span>
+                </div>
               </div>
             </div>
-            <div
-              className={`opt ${!form.isFree ? 'active' : ''}`}
-              onClick={() => setForm((f) => ({ ...f, isFree: false }))}
-            >
-              <span className="opt-radio" />
-              <div className="opt-main">
-                <b>精品付费</b>
-                <span>获得收益（抽成 10%）</span>
-              </div>
-            </div>
-          </div>
-          {!form.isFree ? (
+          )}
+          {!FREE_MODE && !form.isFree ? (
             <input
               className="input"
               type="number"

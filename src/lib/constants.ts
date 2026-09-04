@@ -227,3 +227,7 @@ export type AchievementKey = (typeof AchievementKey)[keyof typeof AchievementKey
 export const MAX_FILE_SIZE = 209715200; // 200MB
 export const MAX_PAGE_SIZE = 50;
 export const DEFAULT_PAGE_SIZE = 20;
+
+/** V7 全站免费（支付封存）：NEXT_PUBLIC_PAYMENT_MODE=off 时前端统一按免费展示/交互。
+ *  构建期由 Dockerfile ARG 注入（默认 off，fail-safe）；服务端同口径开关在 server/lib/payments.ts。 */
+export const FREE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === 'off';

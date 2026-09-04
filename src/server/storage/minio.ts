@@ -11,15 +11,24 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 // MinIO（S3 兼容）客户端 + presigned 直传/下载。
 const bucket = process.env.S3_BUCKET ?? 'campus-market';
 
-const s3 = new S3Client({
-  endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+const clientOptions = {
   region: process.env.S3_REGION ?? 'us-east-1',
   credentials: {
     accessKeyId: process.env.S3_ACCESS_KEY ?? 'minioadmin',
     secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
   },
-  forcePathStyle: true,
-});
+  forcePathStyle: true as const,
+};
+const internalEndpoint = process.env.S3_ENDPOINT ?? 'http://localhost:9000';
+
+// V7 双端点：服务端调用走内网（S3_ENDPOINT，如 http://minio:9000）；
+// 给浏览器的 presigned URL 走对外地址（S3_PUBLIC_ENDPOINT，如 https://kedahub.cn，
+// 由 Caddy 按 bucket 路径反代 minio —— 同域免 CORS，Host 保序保 SigV4 验签）。
+// 不设 S3_PUBLIC_ENDPOINT 时两者一致（本地 dev / 测试的默认行为）。
+const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT ?? internalEndpoint;
+
+const s3 = new S3Client({ endpoint: internalEndpoint, ...clientOptions });
+const s3Signer = new S3Client({ endpoint: publicEndpoint, ...clientOptions });
 
 let bucketReady: Promise<void> | null = null;
 
@@ -48,7 +57,7 @@ async function ensureBucket() {
 export async function presignPut(key: string, contentType = 'application/octet-stream') {
   await ensureBucket();
   const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
-  return getSignedUrl(s3, cmd, { expiresIn: 300 });
+  return getSignedUrl(s3Signer, cmd, { expiresIn: 300 });
 }
 
 /** 下载 GET（10 分钟，Content-Disposition: attachment） */
@@ -58,7 +67,7 @@ export async function presignGet(key: string, filename: string) {
     Key: key,
     ResponseContentDisposition: `attachment; filename="${encodeURIComponent(filename)}"`,
   });
-  return getSignedUrl(s3, cmd, { expiresIn: 600 });
+  return getSignedUrl(s3Signer, cmd, { expiresIn: 600 });
 }
 
 /** 内联展示 GET（1 小时，inline）——封面 / 头像 / 预览 PDF 用（V3） */
@@ -68,7 +77,7 @@ export async function presignGetInline(key: string) {
     Key: key,
     ResponseContentDisposition: 'inline',
   });
-  return getSignedUrl(s3, cmd, { expiresIn: 3600 });
+  return getSignedUrl(s3Signer, cmd, { expiresIn: 3600 });
 }
 
 /** 校验对象存在 + 大小匹配（发布前） */

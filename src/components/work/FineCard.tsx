@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Stars } from '@/components/common/Stars';
 import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
+import { FREE_MODE } from '@/lib/constants';
 import { WorkCover } from '@/components/work/WorkCover';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import type { WorkListItem } from '@/lib/types';
@@ -61,8 +62,14 @@ export function FineCard({ work }: { work: WorkListItem }) {
             </span>
           </span>
           <span className="fine-price">
-            ¥{work.price}
-            {work.oldPrice ? <small>¥{work.oldPrice}</small> : null}
+            {FREE_MODE || work.isFree ? (
+              '免费'
+            ) : (
+              <>
+                ¥{work.price}
+                {work.oldPrice ? <small>¥{work.oldPrice}</small> : null}
+              </>
+            )}
           </span>
         </div>
       </div>

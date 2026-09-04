@@ -7,7 +7,7 @@ import { apiFetch, apiFetchPage } from '@/lib/api/client';
 import { WorkCard } from '@/components/work/WorkCard';
 import { FineCard } from '@/components/work/FineCard';
 import { Empty } from '@/components/common/Empty';
-import { CATEGORIES, PRESET_TAGS } from '@/lib/constants';
+import { CATEGORIES, PRESET_TAGS, FREE_MODE } from '@/lib/constants';
 import type { CategoryKey } from '@/lib/constants';
 import type { WorkListItem } from '@/lib/types';
 
@@ -171,7 +171,7 @@ function ExploreContent() {
           ) : null}
           <div className="explore-toolbar">
             <div className="tabs" style={{ borderBottom: 'none', gap: 4 }}>
-              {PRICES.map((p) => (
+              {PRICES.filter((p) => !FREE_MODE || p.key === 'all').map((p) => (
                 <button
                   key={p.key}
                   className={`tab-btn ${price === p.key ? 'active' : ''}`}

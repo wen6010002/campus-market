@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/lib/icons';
-import { QualityBadge } from '@/lib/constants';
+import { QualityBadge, FREE_MODE } from '@/lib/constants';
 import { formatNum } from '@/lib/format';
 import { WorkCover } from '@/components/work/WorkCover';
 import { UserAvatar } from '@/components/common/UserAvatar';
@@ -16,6 +16,7 @@ interface Props {
 /** 作品卡（对应原型 .work-card）— 外层用 Link 获得 Next 路由预取 */
 export function WorkCard({ work }: Props) {
   const router = useRouter();
+  const free = work.isFree || FREE_MODE; // V7 全站免费
   const h = 150 + (Math.abs(work.title.length * 7) % 50);
   const qb = work.quality === 'SELECTED' ? '🏅 精选' : work.quality === 'HIGH' ? '⭐ 高评' : '';
 
@@ -27,8 +28,8 @@ export function WorkCard({ work }: Props) {
         style={{ height: h }}
         badges={
           <div className="work-badges">
-            {work.isFree ? (
-              <span className="badge-free">免费</span>
+            {free ? (
+              <span className="badge-free">{FREE_MODE && !work.isFree ? '限时免费' : '免费'}</span>
             ) : (
               <span className="badge-fine">💎 精品</span>
             )}
@@ -60,7 +61,7 @@ export function WorkCard({ work }: Props) {
             <Icon name="fav" width={13} />
             {work.favs}
           </span>
-          {work.isFree ? (
+          {free ? (
             <span>
               <Icon name="eye" width={13} />
               {formatNum(Number(work.views))}
@@ -84,7 +85,7 @@ export function WorkCard({ work }: Props) {
             <UserAvatar id={work.author.id} user={work.author} size={24} radius={6} />
             <span className="wa-name">{work.author.username}</span>
           </div>
-          {work.isFree ? (
+          {free ? (
             <span className="work-price free">免费</span>
           ) : (
             <span className="work-price fine">

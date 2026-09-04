@@ -23,6 +23,7 @@ import { useRatings } from '@/hooks/useRatings';
 import { useFavorite } from '@/hooks/useSocial';
 import { Icon } from '@/lib/icons';
 import { formatNum } from '@/lib/format';
+import { FREE_MODE } from '@/lib/constants';
 import { toast } from '@/stores/ui';
 import type { WorkDetail, WorkListItem, DownloadResult } from '@/lib/types';
 
@@ -38,6 +39,8 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: work, isLoading } = useWork(id, initialWork);
+  // V7 全站免费：付费开关关闭时按免费作品展示（原定价保留在库，恢复付费即还原）
+  const free = !!work && (work.isFree || FREE_MODE);
   const { user } = useAuth();
   const [orderOpen, setOrderOpen] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
@@ -189,8 +192,10 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               containerClassName="cover-top"
               badges={
                 <div className="badges">
-                  {work.isFree ? (
-                    <span className="badge-free">免费</span>
+                  {free ? (
+                    <span className="badge-free">
+                      {FREE_MODE && !work.isFree ? '限时免费' : '免费'}
+                    </span>
                   ) : (
                     <span className="badge-fine">💎 精品</span>
                   )}
@@ -209,7 +214,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               </span>
               <span>{(work.fileSize / 1024 / 1024).toFixed(1)} MB</span>
               {work.pages ? <span>📄 {work.pages} 页</span> : null}
-              {work.isFree ? (
+              {free ? (
                 <span>
                   <Icon name="eye" width={13} />
                   {formatNum(Number(work.views))} 观看
@@ -240,7 +245,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               <div className="pe-txt">
                 <b>在线预览</b>
                 <small>
-                  {work.isFree || work.myAccess
+                  {free || work.myAccess
                     ? work.fileType === 'MD'
                       ? '无需下载，直接阅读全文'
                       : '无需下载，直接翻阅完整内容'
@@ -332,7 +337,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
           <div className="info-card">
             <h1>{work.title}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {work.isFree ? (
+              {free ? (
                 <span className="badge-free">免费作品</span>
               ) : (
                 <span className="badge-fine">💎 精品作品</span>
@@ -354,8 +359,8 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
             <div className="info-row">
               <span className="lb">热度</span>
               <span className="v">
-                {work.isFree
-                  ? `观看 ${formatNum(Number(work.views))} · 收藏 ${work.favs}`
+                {free
+                  ? `观看 ${formatNum(Number(work.views))} · 下载 ${work.downloads} · 收藏 ${work.favs}`
                   : `下载 ${work.downloads} · 收藏 ${work.favs} · 观看 ${formatNum(Number(work.views))}`}
               </span>
             </div>
@@ -388,7 +393,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               </span>
             </div>
             <div className="info-actions">
-              {work.isFree ? (
+              {free || work.myAccess ? (
                 <>
                   <button
                     className="btn btn-mint btn-block btn-lg"
@@ -399,20 +404,6 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
                   <button className="btn btn-light btn-block btn-lg" onClick={doDownload}>
                     ⬇ 下载
                   </button>
-                </>
-              ) : work.myAccess ? (
-                <>
-                  <button className="btn btn-primary btn-block btn-lg" onClick={doDownload}>
-                    下载作品
-                  </button>
-                  {work.fileType === 'PDF' || work.fileType === 'MD' ? (
-                    <button
-                      className="btn btn-light btn-block btn-lg"
-                      onClick={() => setPreviewOpen(true)}
-                    >
-                      ▶ 在线预览
-                    </button>
-                  ) : null}
                 </>
               ) : (
                 <>
@@ -433,7 +424,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
                 </>
               )}
               <div style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center' }}>
-                {work.isFree
+                {free || work.myAccess
                   ? '在线观看 + 本地下载，下载后可评价'
                   : '购买后获得永久下载权限，可随时评价'}
               </div>

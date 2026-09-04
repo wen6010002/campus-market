@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { cacheSetNx } from '../lib/cache';
+import { paymentsEnabled } from '../lib/payments';
 import { presignGet } from '../storage/minio';
 import { getProvider } from '../payment';
 import type { PayParams } from '../payment';
@@ -30,6 +31,10 @@ function toOrder(o: any) {
 export const orderService = {
   /** 下单（幂等：已购/已下载 → access；PENDING 复用） */
   async createOrder(userId: string, workId: string, payMethod: PayMethod) {
+    // V7 支付封存：全站免费，下单接口下线（代码保留，PAYMENT_MODE 恢复即复活）
+    if (!paymentsEnabled()) {
+      throw appError('FORBIDDEN', '付费功能已暂停，全部资料免费开放');
+    }
     const work = await prisma.work.findFirst({
       where: { id: workId, deletedAt: null, status: 'PUBLISHED' },
     });
@@ -94,6 +99,9 @@ export const orderService = {
 
   /** 二次发起支付（owner） */
   async pay(orderId: string, userId: string) {
+    if (!paymentsEnabled()) {
+      throw appError('FORBIDDEN', '付费功能已暂停，全部资料免费开放');
+    }
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: { work: { select: { title: true } } },
@@ -268,12 +276,16 @@ export const orderService = {
       prisma.download.findUnique({ where: { workId_userId: { workId, userId } } }),
       prisma.order.findFirst({ where: { workId, buyerId: userId, payStatus: 'PAID' } }),
     ]);
-    if (!work.isFree && !dl && !order) throw appError('PAYMENT_REQUIRED', '该作品需付费后才能下载');
+    // V7 全站免费：付费开关关闭时登录即可下载；首次下载照常计数（下载数是创作激励核心指标）
+    const freeMode = !paymentsEnabled();
+    if (!freeMode && !work.isFree && !dl && !order) {
+      throw appError('PAYMENT_REQUIRED', '该作品需付费后才能下载');
+    }
 
     // 幂等写 Download；免费首次下载计数
     if (!dl) {
       await prisma.download.create({ data: { workId, userId } });
-      if (work.isFree) {
+      if (work.isFree || freeMode) {
         await prisma.work.update({ where: { id: workId }, data: { downloads: { increment: 1 } } });
       }
     }
