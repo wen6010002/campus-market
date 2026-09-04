@@ -243,6 +243,10 @@ export const orderService = {
 
       // 作品下载数 +1（购买计下载）
       await tx.work.update({ where: { id: order.workId }, data: { downloads: { increment: 1 } } });
+      // V8 帮助轴成就判定（事务提交后异步，不阻塞结算）
+      if (creator) {
+        queueMicrotask(() => achievementService.checkHelp(creator.id).catch(() => {}));
+      }
 
       // 通知买家
       await tx.notification.create({
@@ -287,6 +291,8 @@ export const orderService = {
       await prisma.download.create({ data: { workId, userId } });
       if (work.isFree || freeMode) {
         await prisma.work.update({ where: { id: workId }, data: { downloads: { increment: 1 } } });
+        // V8 帮助轴成就判定（fire-and-forget，不阻塞下载）
+        achievementService.checkHelp(work.authorId).catch(() => {});
       }
     }
 

@@ -19,6 +19,7 @@ import { OrderModal } from '@/components/form/OrderModal';
 import { RatingModal } from '@/components/form/RatingModal';
 import { ReportModal } from '@/components/form/ReportModal';
 import { useDownload } from '@/hooks/useOrder';
+import { useLike } from '@/hooks/useSocial';
 import { useRatings } from '@/hooks/useRatings';
 import { useFavorite } from '@/hooks/useSocial';
 import { Icon } from '@/lib/icons';
@@ -50,6 +51,9 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const download = useDownload(id);
   const ratings = useRatings(id, reviewSort);
   const favorite = useFavorite(id);
+  const like = useLike(id); // V8 点赞（含成就/通知链路）
+  const [likeBurst, setLikeBurst] = useState(false);
+  const [favBurst, setFavBurst] = useState(false);
 
   const audit = useMutation({
     mutationFn: (action: 'APPROVE' | 'REJECT') =>
@@ -125,7 +129,27 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
           <button className="btn btn-light btn-sm" onClick={() => toast('链接已复制', 'ok')}>
             分享
           </button>
-          <button className="btn btn-light btn-sm" onClick={() => favorite.mutate(!work.myFav)}>
+          <button
+            className={`btn btn-light btn-sm burst pink ${likeBurst ? 'on' : ''}`}
+            onClick={() => {
+              if (!user) return router.push('/login');
+              if (!work.myLiked) setLikeBurst(true);
+              like.mutate(!work.myLiked);
+            }}
+          >
+            {work.myLiked ? '♥ 已赞' : '♡ 点赞'}
+            <span className="num-bump" style={{ marginLeft: 4 }}>
+              {work.likes}
+            </span>
+          </button>
+          <button
+            className={`btn btn-light btn-sm burst ${favBurst ? 'on' : ''}`}
+            onClick={() => {
+              if (!user) return router.push('/login');
+              if (!work.myFav) setFavBurst(true);
+              favorite.mutate(!work.myFav);
+            }}
+          >
             {work.myFav ? '♥ 已收藏' : '♡ 收藏'}
           </button>
           {!isAuthor ? (

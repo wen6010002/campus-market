@@ -12,6 +12,7 @@ import {
   Category,
 } from '@prisma/client';
 import { hashPassword } from '../src/server/auth/password';
+import { ACHIEVEMENT_DICT } from '../src/lib/achievements';
 import { putObject, objectExists } from '../src/server/storage/minio';
 import { parseRoadmapMd } from '../src/lib/roadmap/parse';
 
@@ -78,14 +79,7 @@ function toQuality(q: string): Quality {
 }
 
 // ---------- 成就字典（6） ----------
-const ACHIEVEMENTS = [
-  { key: 'HELP_50' as const, emoji: '🏆', title: '帮助 50 位同学' },
-  { key: 'HELP_1000' as const, emoji: '🏆', title: '帮助 1000 位同学' },
-  { key: 'FIRST_FIVE_STAR' as const, emoji: '⭐', title: '首个五星作品' },
-  { key: 'WEEKLY_HOT' as const, emoji: '🔥', title: '本周热门创作者' },
-  { key: 'COLLEGE_EXCELLENT' as const, emoji: '🎓', title: '学院优秀创作者' },
-  { key: 'FIRST_INCOME' as const, emoji: '💰', title: '首次获得收益' },
-];
+const ACHIEVEMENTS = ACHIEVEMENT_DICT;
 
 // ---------- 评分标签（正/负） ----------
 const RATING_TAGS = [
@@ -1089,7 +1083,8 @@ const ROADMAPS: {
   {
     id: 'rm_backend',
     title: '新生到 Java 后端开发：从语法到实习',
-    summary: '写给想走后端方向的大一大二同学：一年半的完整路径，每一步都有明确产出，学完可投暑期实习。',
+    summary:
+      '写给想走后端方向的大一大二同学：一年半的完整路径，每一步都有明确产出，学完可投暑期实习。',
     category: 'BACKEND',
     coverIcon: '☕',
     workIds: ['w_javard', 'w_db1', 'w_juc'],
@@ -1180,7 +1175,8 @@ const ROADMAPS: {
   {
     id: 'rm_ai',
     title: 'AI 应用开发路线：从 Python 到大模型应用',
-    summary: '不卷算法也入行 AI：面向应用层开发，覆盖 Python、LLM API、RAG 与 Agent，贴合当前实习需求。',
+    summary:
+      '不卷算法也入行 AI：面向应用层开发，覆盖 Python、LLM API、RAG 与 Agent，贴合当前实习需求。',
     category: 'AI',
     coverIcon: '🤖',
     workIds: ['w_agent', 'w_ml', 'w_aitool'],
@@ -1228,7 +1224,24 @@ async function main() {
 
   // 1. 成就
   for (const a of ACHIEVEMENTS) {
-    await prisma.achievement.upsert({ where: { key: a.key }, update: {}, create: a });
+    await prisma.achievement.upsert({
+      where: { key: a.key },
+      update: {
+        title: a.title,
+        rarity: a.rarity,
+        symbol: a.symbol,
+        description: a.description,
+        emoji: a.emoji,
+      },
+      create: {
+        key: a.key,
+        emoji: a.emoji,
+        title: a.title,
+        rarity: a.rarity,
+        symbol: a.symbol,
+        description: a.description,
+      },
+    });
   }
 
   // 2. 评分标签 + V3 预设标签池
@@ -1528,14 +1541,17 @@ async function main() {
         const dayOffset =
           i >= doneStepIds.length - 5
             ? i - (doneStepIds.length - 5)
-            : 6 + Math.round(((doneStepIds.length - 6 - i) * 17) / Math.max(doneStepIds.length - 6, 1));
+            : 6 +
+              Math.round(((doneStepIds.length - 6 - i) * 17) / Math.max(doneStepIds.length - 6, 1));
         if (skipDays.has(dayOffset)) continue;
         const stepId = doneStepIds[i];
         const [p, s] = stepId.replace('p', '').split('-s').map(Number);
         // 定位到 UTC+8 当天凌晨 4 点（避免因当前时刻偏移把「今天」打卡算到相邻日期）
         const cstNow = Date.now() + 8 * 3600_000;
         const cstMidnight = Math.floor(cstNow / 86400_000) * 86400_000;
-        const createdAt = new Date(cstMidnight - dayOffset * 86400_000 + 4 * 3600_000 - 8 * 3600_000);
+        const createdAt = new Date(
+          cstMidnight - dayOffset * 86400_000 + 4 * 3600_000 - 8 * 3600_000,
+        );
         await prisma.roadmapCheck.upsert({
           where: { userId_roadmapId_stepId: { userId: 'u0', roadmapId: 'rm_ai', stepId } },
           update: {},

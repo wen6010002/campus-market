@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
@@ -14,6 +14,8 @@ import { useIncomeSummary, useIncomeTransactions, usePayouts, useMyWorks } from 
 import { WorkCard } from '@/components/work/WorkCard';
 import { Empty } from '@/components/common/Empty';
 import { UserAvatar as Avatar } from '@/components/common/UserAvatar';
+import { PinnedBadges } from '@/components/medal/PinnedBadges';
+import { HonorWall } from '@/components/medal/HonorWall';
 import { ReportModal } from '@/components/form/ReportModal';
 import { WithdrawModal } from '@/components/form/WithdrawModal';
 import { formatCny, formatNum, timeAgo } from '@/lib/format';
@@ -86,6 +88,7 @@ function UserContent() {
     ? [
         { key: 'works', label: '作品' },
         { key: 'ratings', label: '评价' },
+        { key: 'honor', label: '荣誉' },
         { key: 'following', label: '关注' },
         { key: 'followers', label: '粉丝' },
         { key: 'favs', label: '收藏' },
@@ -98,6 +101,7 @@ function UserContent() {
     : [
         { key: 'works', label: '作品' },
         { key: 'ratings', label: '评价' },
+        { key: 'honor', label: '荣誉' },
         { key: 'following', label: '关注' },
         { key: 'followers', label: '粉丝' },
       ];
@@ -120,6 +124,8 @@ function UserContent() {
           {profile.direction ? <div className="up-direction">{profile.direction}</div> : null}
           {profile.honor ? <div className="up-honor">🏅 {profile.honor}</div> : null}
           {profile.bio ? <div className="up-bio">{profile.bio}</div> : null}
+          {/* V8 佩戴勋章栏（≤5，公开） */}
+          {profile.badges?.length ? <PinnedBadges badges={profile.badges} /> : null}
         </div>
         <div className="h-acts">
           {isSelf ? (
@@ -197,6 +203,7 @@ function UserContent() {
       {tab === 'following' && <FollowsTab id={id} type="following" />}
       {tab === 'followers' && <FollowsTab id={id} type="followers" />}
       {isSelf && tab === 'favs' && <FavsTab />}
+      {tab === 'honor' && <HonorWall isSelf={isSelf} />}
       {isSelf && tab === 'library' && <LibraryTab />}
       {isSelf && tab === 'orders' && <OrdersTab />}
       {isSelf && tab === 'income' && <IncomeTab />}
@@ -409,14 +416,33 @@ function FollowRowCard({ row }: { row: FollowRow }) {
 
 /* ============ 收藏 tab（本人） ============ */
 function FavsTab() {
+  const qc = useQueryClient();
   const favs = useQuery({
     queryKey: ['me', 'favorites'],
-    queryFn: () => apiFetch<WorkListItem[]>('/me/favorites'),
+    queryFn: () =>
+      apiFetch<
+        (WorkListItem & {
+          pinned: boolean;
+          downloaded: boolean;
+          workStatus: string;
+          deletedAt: string | null;
+          category: string;
+        })[]
+      >('/me/favorites'),
   });
   // V4：收藏的路线图一并展示（分组）
   const roadmapFavs = useQuery({
     queryKey: ['me', 'roadmap-favorites'],
     queryFn: () => apiFetch<RoadmapListItem[]>('/me/roadmap-favorites'),
+  });
+
+  const togglePin = useMutation({
+    mutationFn: (workId: string) => apiFetch(`/me/favorites/${workId}/pin`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me', 'favorites'] }),
+  });
+  const unpin = useMutation({
+    mutationFn: (workId: string) => apiFetch(`/me/favorites/${workId}/pin`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me', 'favorites'] }),
   });
 
   const rmFavs = roadmapFavs.data ?? [];
@@ -461,29 +487,47 @@ function FavsTab() {
       {workFavs.length ? (
         <div className="card" style={{ padding: 8 }}>
           {rmFavs.length ? <div className="favs-sec-title">📚 资料</div> : null}
-          {workFavs.map((w) => (
-            <div key={w.id} className="fr-row">
-              <Link href={`/work/${w.id}`} className="fr-main">
-                <div
-                  className={`mini-cover ${w.coverTheme}`}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 8,
-                    display: 'grid',
-                    placeItems: 'center',
-                    flex: 'none',
-                  }}
+          {workFavs.map((w) => {
+            const offline = w.workStatus !== 'PUBLISHED' || !!w.deletedAt;
+            return (
+              <div key={w.id} className={`fr-row${offline ? ' is-offline' : ''}`}>
+                <button
+                  className={`fav-pin-btn${w.pinned ? ' pinned' : ''}`}
+                  title={w.pinned ? '取消置顶' : '置顶到收藏栏顶部'}
+                  onClick={() => (w.pinned ? unpin : togglePin).mutate(w.id)}
                 >
-                  {w.coverIcon}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <b>{w.title}</b>
-                  <div className="fr-sub">{w.course}</div>
-                </div>
-              </Link>
-            </div>
-          ))}
+                  {w.pinned ? '📌' : '☆'}
+                </button>
+                <Link href={`/work/${w.id}`} className="fr-main">
+                  <div
+                    className={`mini-cover ${w.coverTheme}`}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      display: 'grid',
+                      placeItems: 'center',
+                      flex: 'none',
+                    }}
+                  >
+                    {w.coverIcon}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <b>{w.title}</b>
+                    <div className="fr-sub">
+                      <span className="fav-cat">{w.course}</span>
+                    </div>
+                    <div className="fav-tags">
+                      {offline ? <span className="fav-tag off">已下架</span> : null}
+                      {!offline && w.downloaded ? (
+                        <span className="fav-tag dl">已存本地</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </>

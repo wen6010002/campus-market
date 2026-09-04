@@ -6,6 +6,7 @@ import { enforceRateLimit } from '../lib/ratelimit';
 import { paymentsEnabled } from '../lib/payments';
 import { headObject, presignGet, presignGetInline, getObjectText } from '../storage/minio';
 import { notifyService } from './notify.service';
+import { achievementService } from './achievement.service';
 import { EXT } from './upload.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
 import { WorkStatus, Quality } from '@/lib/constants';
@@ -155,11 +156,13 @@ export const workService = {
 
     const item = toListItem(work);
     let myFav = false;
+    let myLiked = false; // V8 点赞态（详情页按钮）
     let myAccess = work.isFree || !paymentsEnabled(); // V7 全站免费：付费开关关闭时人人可看
     let myRating: { stars: number; text: string } | null = null;
     if (viewerId) {
-      const [fav, access, rating] = await Promise.all([
+      const [fav, liked, access, rating] = await Promise.all([
         prisma.favorite.findUnique({ where: { userId_workId: { userId: viewerId, workId: id } } }),
+        prisma.like.findUnique({ where: { userId_workId: { userId: viewerId, workId: id } } }),
         work.isFree
           ? Promise.resolve(true)
           : prisma.$transaction([
@@ -175,6 +178,7 @@ export const workService = {
         }),
       ]);
       myFav = !!fav;
+      myLiked = !!liked;
       myAccess =
         work.isFree ||
         !paymentsEnabled() ||
@@ -198,6 +202,7 @@ export const workService = {
       previewOnly: !work.isFree && !myAccess,
       myRating,
       myFav,
+      myLiked,
       myAccess,
       author: {
         id: author.id,
@@ -530,6 +535,8 @@ export const workService = {
     // 上架：写 Dynamic(PUBLISH) + 通知粉丝；审核结果通知作者（V4：补 AUDIT_RESULT 缺口）
     if (action === 'APPROVE') {
       await notifyService.onWorkPublished(work.authorId, work.id, work.title);
+      // V8 作品轴成就判定（首个过审/十作品）
+      achievementService.checkWorks(work.authorId).catch(() => {});
       await notifyService.createNotification(
         work.authorId,
         'AUDIT_RESULT',

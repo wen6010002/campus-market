@@ -1,0 +1,37 @@
+-- V8 荣耀引擎：成就字典扩展（稀有度/符号/条件文案）、限时/佩戴/弹层字段、收藏置顶
+-- 纯增量：新增枚举值 + 可空/带默认列，无数据回填（成就字典由 seed 幂等 upsert）
+
+-- 判定维度：帮助（下载）/点赞/收藏/作品数量/周月榜
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'HELP_10';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'HELP_100';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'HELP_500';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'HELP_10000';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'LIKES_10';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'LIKES_100';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'LIKES_1000';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'FAVS_10';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'FAVS_100';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'FIRST_WORK';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'WORKS_10';
+ALTER TYPE "AchievementKey" ADD VALUE IF NOT EXISTS 'MONTHLY_STAR';
+
+-- 解锁通知类型
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'ACHIEVEMENT';
+
+-- 成就字典展示属性
+ALTER TABLE "achievements"
+  ADD COLUMN IF NOT EXISTS "rarity" TEXT NOT NULL DEFAULT 'bronze',
+  ADD COLUMN IF NOT EXISTS "symbol" TEXT NOT NULL DEFAULT 'trophy',
+  ADD COLUMN IF NOT EXISTS "description" TEXT;
+
+-- 用户成就：限时到期 / 佩戴（≤5）/ 解锁弹层展示标记
+ALTER TABLE "user_achievements"
+  ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "pinned" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "pinnedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "popped" BOOLEAN NOT NULL DEFAULT false;
+
+-- 收藏栏置顶（V8 收藏优化）
+ALTER TABLE "favorites"
+  ADD COLUMN IF NOT EXISTS "pinned" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "pinnedAt" TIMESTAMP(3);

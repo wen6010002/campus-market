@@ -7,6 +7,7 @@ import { redis } from '../lib/redis';
 import { cacheDel } from '../lib/cache';
 import { incomeService } from '../services/income.service';
 import { qualityService } from '../services/quality.service';
+import { achievementService } from '../services/achievement.service';
 import { logger } from '../lib/logger';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
@@ -22,6 +23,8 @@ const SCHEDULES: Array<[string, string]> = [
   ['order-timeout', '* * * * *'], // 每分钟关闭超时订单
   ['rank-refresh', '0 * * * *'], // 每小时刷新榜单（当前按需计算，此任务预留）
   ['notification-cleanup', '0 4 * * 0'], // 每周日 4 点清理 90 天已读通知
+  ['achievement-weekly', '40 3 * * 1'], // V8 每周一 3:40 周榜 Top3 授「燎原之火」(7天)
+  ['achievement-monthly', '50 3 1 * *'], // V8 每月 1 号 3:50 月榜 Top1 授「月度桂冠」(30天)
   ['view-sync', '*/5 * * * *'], // 每 5 分钟回写 views 异步计数到 DB
 ];
 
@@ -78,6 +81,18 @@ async function run(jobName: string) {
     case 'notification-cleanup': {
       const n = await cleanupNotifications();
       if (n > 0) logger.info({ n }, 'notification-cleanup deleted');
+      break;
+    }
+    case 'achievement-weekly': {
+      // 周下载榜 Top3 → 燎原之火（7 天限时，可卫冕续期）
+      const n = await achievementService.grantLeaderboard('WEEKLY_HOT', 3, 7);
+      logger.info({ n }, 'achievement-weekly done');
+      break;
+    }
+    case 'achievement-monthly': {
+      // 月下载榜 Top1 → 月度桂冠（30 天限时）
+      const n = await achievementService.grantLeaderboard('MONTHLY_STAR', 1, 30);
+      logger.info({ n }, 'achievement-monthly done');
       break;
     }
     case 'view-sync': {

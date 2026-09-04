@@ -158,14 +158,27 @@ enum NotificationType {
   ARRIVED
   RATING_REPLIED
   AUDIT_RESULT
+  ACHIEVEMENT
   SYSTEM
 }
 
 enum AchievementKey {
+  HELP_10
   HELP_50
+  HELP_100
+  HELP_500
   HELP_1000
+  HELP_10000
+  LIKES_10
+  LIKES_100
+  LIKES_1000
+  FAVS_10
+  FAVS_100
+  FIRST_WORK
+  WORKS_10
   FIRST_FIVE_STAR
   WEEKLY_HOT
+  MONTHLY_STAR
   COLLEGE_EXCELLENT
   FIRST_INCOME
 }
@@ -446,6 +459,9 @@ model Favorite {
   userId    String
   workId    String
   createdAt DateTime @default(now())
+  // V8 收藏栏置顶（「以后再看」的高频需求）
+  pinned    Boolean  @default(false)
+  pinnedAt  DateTime?
   user      User     @relation(fields: [userId], references: [id])
   work      Work     @relation(fields: [workId], references: [id])
   @@unique([userId, workId])
@@ -567,11 +583,17 @@ model AuditLog {
 }
 
 model Achievement {
-  id    String         @id @default(cuid())
-  key   AchievementKey @unique
-  emoji String
-  title String
-  users UserAchievement[]
+  id          String           @id @default(cuid())
+  key         AchievementKey   @unique
+  emoji       String
+  title       String
+  // V8 稀有度（bronze|silver|gold|plat|diamond|lgd），决定勋章底座金属与光效
+  rarity      String           @default("bronze")
+  // 中心符号 id（src/components/medal/symbols.ts 的键）
+  symbol      String           @default("trophy")
+  // 获取条件文案（未解锁灰格展示）
+  description String?
+  users       UserAchievement[]
   @@map("achievements")
 }
 
@@ -580,6 +602,13 @@ model UserAchievement {
   userId        String
   achievementId String
   earnedAt      DateTime    @default(now())
+  // 限时成就到期时间（null=永久）；到期后从佩戴栏/名字徽章/荣誉墙隐藏，数据保留
+  expiresAt     DateTime?
+  // 佩戴中（最多 5 枚，佩戴序=pinnedAt 先后）
+  pinned        Boolean     @default(false)
+  pinnedAt      DateTime?
+  // 解锁弹层已展示（false=下次打开页面弹礼花）
+  popped        Boolean     @default(false)
   user          User        @relation(fields: [userId], references: [id])
   achievement   Achievement @relation(fields: [achievementId], references: [id])
   @@unique([userId, achievementId])

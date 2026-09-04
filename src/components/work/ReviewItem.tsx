@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Stars } from '@/components/common/Stars';
 import { ReportModal } from '@/components/form/ReportModal';
 import { UserAvatar } from '@/components/common/UserAvatar';
+import { BadgeInline } from '@/components/medal/BadgeInline';
 import { timeAgo } from '@/lib/format';
 import type { Rating } from '@/lib/types';
 
@@ -15,7 +16,10 @@ export function ReviewItem({ rating }: { rating: Rating }) {
       <div className="review-top">
         <UserAvatar id={rating.user.id} user={rating.user} size={30} radius={8} />
         <div style={{ flex: 1 }}>
-          <b style={{ fontSize: 13.5 }}>{rating.user.username}</b>
+          <b style={{ fontSize: 13.5 }}>
+            {rating.user.username}
+            <BadgeInline badge={rating.user.badge} />
+          </b>
           <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>
             {timeAgo(rating.createdAt)}
           </div>

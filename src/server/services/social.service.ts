@@ -1,7 +1,30 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { redis } from '../lib/redis';
+import { notifyService } from './notify.service';
+import { achievementService } from './achievement.service';
 
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
+
+/** 赞/藏作者通知：每作品每日至多一条（SETNX 防轰炸），fire-and-forget */
+async function notifyOwnerOnce(
+  kind: 'like' | 'fav',
+  authorId: string,
+  workId: string,
+  title: string,
+) {
+  const day = new Date().toISOString().slice(0, 10);
+  const got = await redis.set(`nt:${kind}:${workId}:${day}`, '1', 'EX', 86400, 'NX');
+  if (got !== 'OK') return;
+  await notifyService.createNotification(
+    authorId,
+    'SYSTEM',
+    kind === 'like'
+      ? `👍 你的《${title}》今天收到了新的点赞`
+      : `🔖 有同学把你的《${title}》收进了资料库`,
+    `/work/${workId}`,
+  );
+}
 
 /** 收藏（幂等 set：value=true 收藏 / false 取消） */
 async function setFavorite(userId: string, workId: string, value: boolean) {
@@ -12,6 +35,9 @@ async function setFavorite(userId: string, workId: string, value: boolean) {
     if (value && !existing) {
       await tx.favorite.create({ data: { userId, workId } });
       await tx.work.update({ where: { id: workId }, data: { favs: { increment: 1 } } });
+      // V8：收藏轴成就 + 作者通知（不阻塞）
+      achievementService.checkFavs(work.authorId).catch(() => {});
+      notifyOwnerOnce('fav', work.authorId, workId, work.title).catch(() => {});
     } else if (!value && existing) {
       await tx.favorite.delete({ where: { userId_workId: { userId, workId } } });
       await tx.work.update({ where: { id: workId }, data: { favs: { decrement: 1 } } });
@@ -32,6 +58,9 @@ async function setLike(userId: string, workId: string, value: boolean) {
     if (value && !existing) {
       await tx.like.create({ data: { userId, workId } });
       await tx.work.update({ where: { id: workId }, data: { likes: { increment: 1 } } });
+      // V8：点赞轴成就 + 作者通知（不阻塞）
+      achievementService.checkLikes(work.authorId).catch(() => {});
+      notifyOwnerOnce('like', work.authorId, workId, work.title).catch(() => {});
     } else if (!value && existing) {
       await tx.like.delete({ where: { userId_workId: { userId, workId } } });
       await tx.work.update({ where: { id: workId }, data: { likes: { decrement: 1 } } });
@@ -75,7 +104,7 @@ export const socialService = {
     });
     if (!user) throw appError('NOT_FOUND', '用户不存在');
 
-    const [helped, fans, following, works, avgRating, myFollow] = await Promise.all([
+    const [helped, fans, following, works, avgRating, myFollow, badges] = await Promise.all([
       prisma.work.aggregate({ where: { authorId: userId }, _sum: { downloads: true } }),
       prisma.follow.count({ where: { followingId: userId } }),
       prisma.follow.count({ where: { followerId: userId } }),
@@ -89,6 +118,8 @@ export const socialService = {
             where: { followerId_followingId: { followerId: viewerId, followingId: userId } },
           })
         : Promise.resolve(null),
+      // V8：佩戴勋章栏（≤5，限时过期自动隐藏）
+      achievementService.listPinned(userId),
     ]);
 
     return {
@@ -112,6 +143,7 @@ export const socialService = {
       rate: ratingStr(avgRating._avg.rating ?? 0),
       myFollow: !!myFollow,
       isSelf: viewerId === userId,
+      badges, // V8 佩戴勋章栏（≤5，公开）
     };
   },
 
@@ -187,6 +219,19 @@ export const socialService = {
 
   favorite: (userId: string, workId: string) => setFavorite(userId, workId, true),
   unfavorite: (userId: string, workId: string) => setFavorite(userId, workId, false),
+
+  /** V8 收藏置顶（收藏栏「以后再看」） */
+  async favoritePin(userId: string, workId: string, on: boolean) {
+    const f = await prisma.favorite.findUnique({
+      where: { userId_workId: { userId, workId } },
+    });
+    if (!f) throw appError('NOT_FOUND', '未收藏该作品');
+    await prisma.favorite.update({
+      where: { id: f.id },
+      data: { pinned: on, ...(on ? { pinnedAt: new Date() } : {}) },
+    });
+    return { pinned: on };
+  },
   like: (userId: string, workId: string) => setLike(userId, workId, true),
   unlike: (userId: string, workId: string) => setLike(userId, workId, false),
   follow: (userId: string, creatorId: string) => setFollow(userId, creatorId, true),
@@ -282,11 +327,18 @@ export const socialService = {
             include: { author: { include: { creator: true } }, tags: { include: { tag: true } } },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        // V8：置顶优先，其余按收藏时间倒序
+        orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
     ]);
+    // V8：已下载标记（收藏≠已存本地）批量判定
+    const dlRows = await prisma.download.findMany({
+      where: { userId, workId: { in: favorites.map((f) => f.workId) } },
+      select: { workId: true },
+    });
+    const dlSet = new Set(dlRows.map((d) => d.workId));
     return {
       data: favorites.map((f) => {
         const w = f.work;
@@ -300,8 +352,14 @@ export const socialService = {
           pages: w.pages,
           coverIcon: w.coverIcon,
           coverTheme: w.coverTheme,
+          category: w.category,
           isFree: w.isFree,
           price: w.price.toFixed(2),
+          // V8：置顶 / 已下载 / 下架感知（下架灰显而非消失）
+          pinned: f.pinned,
+          downloaded: dlSet.has(w.id),
+          workStatus: w.status,
+          deletedAt: w.deletedAt?.toISOString() ?? null,
           oldPrice: w.oldPrice?.toFixed(2) ?? null,
           quality: w.quality,
           status: w.status,

@@ -134,8 +134,13 @@ export const ratingService = {
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
+    // V8：评论区名字旁徽章（佩戴第一枚，未过期）批量回填
+    const badges = await achievementService.inlineBadges(ratings.map((r: any) => r.userId));
     return {
-      data: ratings.map((r) => toRating(r)),
+      data: ratings.map((r) => ({
+        ...toRating(r),
+        user: { ...toRating(r).user, badge: badges[r.userId] ?? null },
+      })),
       pagination: { page, pageSize, total, totalPages },
       summary: {
         rating: ratingStr(work.rating),

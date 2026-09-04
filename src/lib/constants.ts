@@ -137,6 +137,7 @@ export const NotificationType = {
   ARRIVED: 'ARRIVED',
   RATING_REPLIED: 'RATING_REPLIED',
   AUDIT_RESULT: 'AUDIT_RESULT',
+  ACHIEVEMENT: 'ACHIEVEMENT',
   SYSTEM: 'SYSTEM',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
@@ -215,10 +216,22 @@ export const OrderBizType = { PURCHASE: 'PURCHASE' } as const;
 export type OrderBizType = (typeof OrderBizType)[keyof typeof OrderBizType];
 
 export const AchievementKey = {
+  HELP_10: 'HELP_10',
   HELP_50: 'HELP_50',
+  HELP_100: 'HELP_100',
+  HELP_500: 'HELP_500',
   HELP_1000: 'HELP_1000',
+  HELP_10000: 'HELP_10000',
+  LIKES_10: 'LIKES_10',
+  LIKES_100: 'LIKES_100',
+  LIKES_1000: 'LIKES_1000',
+  FAVS_10: 'FAVS_10',
+  FAVS_100: 'FAVS_100',
+  FIRST_WORK: 'FIRST_WORK',
+  WORKS_10: 'WORKS_10',
   FIRST_FIVE_STAR: 'FIRST_FIVE_STAR',
   WEEKLY_HOT: 'WEEKLY_HOT',
+  MONTHLY_STAR: 'MONTHLY_STAR',
   COLLEGE_EXCELLENT: 'COLLEGE_EXCELLENT',
   FIRST_INCOME: 'FIRST_INCOME',
 } as const;

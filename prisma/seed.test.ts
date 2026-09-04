@@ -1,15 +1,28 @@
 // 测试种子：最小确定性 fixture。供 tests/integration 与 `pnpm db:seed:test` 使用。
 import { PrismaClient, Role } from '@prisma/client';
+import { ACHIEVEMENT_DICT } from '../src/lib/achievements';
 
 export async function seedTestData(prisma: PrismaClient) {
   // 成就 + 标签（评分/作品标签需 FK）
-  for (const a of [
-    { key: 'HELP_50' as const, emoji: '🏆', title: '帮助 50 位同学' },
-    { key: 'HELP_1000' as const, emoji: '🏆', title: '帮助 1000 位同学' },
-    { key: 'FIRST_FIVE_STAR' as const, emoji: '⭐', title: '首个五星作品' },
-    { key: 'FIRST_INCOME' as const, emoji: '💰', title: '首次获得收益' },
-  ]) {
-    await prisma.achievement.upsert({ where: { key: a.key }, update: {}, create: a });
+  for (const a of ACHIEVEMENT_DICT) {
+    await prisma.achievement.upsert({
+      where: { key: a.key },
+      update: {
+        rarity: a.rarity,
+        symbol: a.symbol,
+        description: a.description,
+        title: a.title,
+        emoji: a.emoji,
+      },
+      create: {
+        key: a.key,
+        emoji: a.emoji,
+        title: a.title,
+        rarity: a.rarity,
+        symbol: a.symbol,
+        description: a.description,
+      },
+    });
   }
   for (const n of ['内容详细', '通俗易懂']) {
     await prisma.ratingTag.upsert({

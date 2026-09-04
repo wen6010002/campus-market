@@ -26,7 +26,7 @@ describe('数据模型（阶段 1）', () => {
   it('seed 后各表行数正确', async () => {
     expect(await prisma.user.count()).toBe(2);
     expect(await prisma.work.count()).toBe(1);
-    expect(await prisma.achievement.count()).toBe(4);
+    expect(await prisma.achievement.count()).toBe(18); // V8 荣耀引擎全量字典
     expect(await prisma.creatorProfile.count()).toBe(1);
     expect(await prisma.studentProfile.count()).toBe(2);
   });

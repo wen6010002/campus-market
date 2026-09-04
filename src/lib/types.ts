@@ -85,6 +85,7 @@ export interface WorkListItem {
   tags: string[];
   author: WorkAuthor;
   myFav?: boolean;
+  myLiked?: boolean;
   myAccess?: boolean;
   publishedAt: string | null;
   updatedAt: string;
@@ -131,6 +132,14 @@ export interface UserProfile {
   rate: string;
   myFollow: boolean;
   isSelf: boolean;
+  /** V8 佩戴勋章栏（≤5，公开；无佩戴为空数组） */
+  badges: {
+    key: string;
+    title: string;
+    rarity: string;
+    symbol: string;
+    expiresAt: string | null;
+  }[];
 }
 
 /** 关注/粉丝行卡（V3-5） */
@@ -182,6 +191,8 @@ export interface Rating {
     avatarColor: string;
     hasAvatar?: boolean;
     avatarVer?: number;
+    /** V8 佩戴勋章（名字旁小徽章；无佩戴为 null） */
+    badge?: { key: string; title: string; rarity: string; symbol: string } | null;
   };
   tags: string[];
   _mine?: boolean;
