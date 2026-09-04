@@ -6074,6 +6074,41 @@ body {
     font-size: 18px;
   }
 
+  /* 路线规划建议区：H5 不再横滑露出下一张卡，避免整页被卡片撑宽而错位。 */
+  .rm-banner {
+    min-width: 0;
+    overflow: hidden;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .rm-banner-main,
+  .rm-banner-intro,
+  .rm-banner-rail {
+    width: 100%;
+    min-width: 0;
+  }
+  .rm-banner-main {
+    gap: 16px;
+  }
+  .rm-banner-intro {
+    flex: none;
+  }
+  .rm-banner-intro h2 {
+    font-size: 20px;
+  }
+  .rm-banner-rail.dyn-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    overflow: visible;
+    padding: 0;
+  }
+  .rm-banner-rail .rm-card.compact {
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+
   /* 成长路线的图标和文字只在卡片内部排版，避免地图等 emoji 撑出手机视口。 */
   .roadmap {
     padding: 16px;
