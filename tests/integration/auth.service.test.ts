@@ -118,6 +118,14 @@ describe('鉴权服务（阶段 2）', () => {
     await expect(authService.sendCode(email)).rejects.toMatchObject({ code: 'RATE_LIMITED' });
   });
 
+  it('发送验证码：已注册邮箱 → EMAIL_TAKEN（明确提示去登录，不再假发送）', async () => {
+    const email = `dup-${uniq()}@szu.edu.cn`;
+    await registerUser(email, '重复注册者');
+    await expect(authService.sendCode(email)).rejects.toMatchObject({ code: 'EMAIL_TAKEN' });
+    // 且不留验证码（不能拿旧码绕过）
+    expect(await redis.get(`verify:register:email:${email}`)).toBeNull();
+  });
+
   it('创作者申请：STUDENT 可申请，重复申请 → ALREADY_CREATOR', async () => {
     const email = `c-${uniq()}@szu.edu.cn`;
     const { userId } = await registerUser(email, '准创作者');

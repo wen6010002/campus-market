@@ -73,13 +73,13 @@ export async function buildAuthUser(userId: string) {
 }
 
 export const authService = {
-  /** 发送注册验证码（防邮箱枚举：已注册邮箱也返回 ok，但不实际发） */
+  /** 发送注册验证码（校园封闭域名，已注册邮箱直接提示去登录，不做防枚举假发送） */
   async sendCode(email: string) {
     if (!isEduEmail(email)) throw appError('NOT_EDU', '请使用深圳大学教育邮箱');
     await enforceRateLimit(`rl:verify:${email.toLowerCase()}`, RL_VERIFY_PER_HOUR, 3600_000);
 
     const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) return { ok: true }; // 防枚举
+    if (exists) throw appError('EMAIL_TAKEN', '该邮箱已注册，请直接登录；忘记密码可用邮箱找回');
 
     const code = generateCode();
     await saveCode(email, code, 'register');
@@ -122,7 +122,12 @@ export const authService = {
       include: { student: true, creator: true },
     });
 
-    return { userId: user.id, role: user.role, creatorProfileId: undefined, pwdVersion: user.pwdVersion };
+    return {
+      userId: user.id,
+      role: user.role,
+      creatorProfileId: undefined,
+      pwdVersion: user.pwdVersion,
+    };
   },
 
   /** 登录（防枚举统一文案；封号拦截） */
