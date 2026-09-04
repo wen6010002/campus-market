@@ -8,8 +8,9 @@
 // mix：
 //   read   只打公开读接口（无需登录）
 //   mixed  读为主 + 登录态读 + 受限写的综合负载（默认，最接近真实流量）
-//   write  写为主（打卡/收藏/点赞，按每用户限流自动配速）
+//   write  写为主（打卡/收藏/点赞/下载/评价/佩戴，按每用户限流自动配速）
 //   login  登录专项（bcrypt 成本探测，按邮箱限流 10/min 自动配速）
+//   honor  V8 荣耀引擎专项（荣誉墙/弹层/收藏夹读 + 佩戴/展示/下载写）
 //
 // 压测账号由 scripts/stress-users.ts 创建（stress001@szu.edu.cn / Stress1234）。
 
@@ -80,7 +81,7 @@ function request(method, path, { cookie, body } = {}) {
 
 // ---------- 场景 ----------
 // ctx 在发现阶段填充真实 id；minInterval 为同一 VU 两次该场景的最小间隔（适配服务端限流）。
-const ctx = { workId: '', roadmapId: '', stepIds: [], userId: 'u0', term: 'Java' };
+const ctx = { workId: '', workIds: [], roadmapId: '', stepIds: [], userId: 'u0', term: 'Java' };
 
 const SCENARIOS = {
   health: { mix: ['read', 'mixed'], w: 2, run: () => ({ m: 'GET', p: '/api/health' }) },
@@ -89,7 +90,7 @@ const SCENARIOS = {
     w: 10,
     run: (vu) => ({ m: 'GET', p: `/api/v1/works?page=${(vu.n % 5) + 1}&pageSize=12` }),
   },
-  workDetail: { mix: ['read', 'mixed'], w: 8, auth: false, run: () => ({ m: 'GET', p: `/api/v1/works/${ctx.workId}` }) },
+  workDetail: { mix: ['read', 'mixed'], w: 8, auth: false, run: (vu) => ({ m: 'GET', p: `/api/v1/works/${ctx.workIds[vu.n % ctx.workIds.length]}` }) },
   search: {
     mix: ['read', 'mixed'],
     w: 8,
@@ -108,12 +109,18 @@ const SCENARIOS = {
   roadmapDetail: { mix: ['read', 'mixed'], w: 6, run: () => ({ m: 'GET', p: `/api/v1/roadmaps/${ctx.roadmapId}` }) },
   announcements: { mix: ['read', 'mixed'], w: 3, run: () => ({ m: 'GET', p: '/api/v1/announcements' }) },
   userProfile: { mix: ['read', 'mixed'], w: 3, run: () => ({ m: 'GET', p: `/api/v1/users/${ctx.userId}` }) },
+  // V8：公开荣誉墙（读，无缓存，含全字典+解锁态）
+  userHonor: { mix: ['read', 'mixed'], w: 3, run: () => ({ m: 'GET', p: `/api/v1/users/${ctx.userId}/achievements` }) },
   // ---- 登录态读 ----
   me: { mix: ['mixed', 'auth'], w: 6, auth: true, run: () => ({ m: 'GET', p: '/api/v1/auth/me' }) },
   feed: { mix: ['mixed', 'auth'], w: 4, auth: true, run: () => ({ m: 'GET', p: '/api/v1/me/following/feed?page=1&pageSize=10' }) },
   progress: { mix: ['mixed', 'auth'], w: 4, auth: true, run: () => ({ m: 'GET', p: `/api/v1/roadmaps/${ctx.roadmapId}/progress` }) },
   myFavs: { mix: ['mixed', 'auth'], w: 3, auth: true, run: () => ({ m: 'GET', p: '/api/v1/me/roadmap-favorites' }) },
   notifications: { mix: ['mixed', 'auth'], w: 3, auth: true, run: () => ({ m: 'GET', p: '/api/v1/me/notifications' }) },
+  // V8：每次开页都调的弹层探测 + 荣誉墙 + 增强收藏夹
+  achPop: { mix: ['mixed', 'honor'], w: 4, auth: true, run: () => ({ m: 'GET', p: '/api/v1/me/achievement-pop' }) },
+  myHonor: { mix: ['honor'], w: 4, auth: true, run: () => ({ m: 'GET', p: '/api/v1/me/achievements' }) },
+  myFavorites: { mix: ['mixed', 'honor'], w: 3, auth: true, run: () => ({ m: 'GET', p: '/api/v1/me/favorites?page=1&pageSize=20' }) },
   // ---- 写（限流配速）----
   check: {
     mix: ['mixed', 'write'],
@@ -131,14 +138,49 @@ const SCENARIOS = {
     w: 3,
     auth: true,
     minInterval: 1000,
-    run: (vu) => ({ m: vu.n % 2 ? 'DELETE' : 'POST', p: `/api/v1/works/${ctx.workId}/favorite` }),
+    run: (vu) => ({ m: vu.n % 2 ? 'DELETE' : 'POST', p: `/api/v1/works/${ctx.workIds[vu.n % ctx.workIds.length]}/favorite` }),
   },
   workLike: {
     mix: ['mixed', 'write'],
     w: 3,
     auth: true,
     minInterval: 1000,
-    run: (vu) => ({ m: vu.n % 2 ? 'DELETE' : 'POST', p: `/api/v1/works/${ctx.workId}/like` }),
+    run: (vu) => ({ m: vu.n % 2 ? 'DELETE' : 'POST', p: `/api/v1/works/${ctx.workIds[vu.n % ctx.workIds.length]}/like` }),
+  },
+  // V7 免费下载：登录即可下，幂等（首下载计数+成就判定，后续仅查询+presign）
+  download: {
+    mix: ['mixed', 'write', 'honor'],
+    w: 5,
+    auth: true,
+    minInterval: 2500,
+    run: (vu) => ({ m: 'POST', p: `/api/v1/works/${ctx.workIds[vu.n % ctx.workIds.length]}/download` }),
+  },
+  // V8 评价写路径：每用户每作品唯一，重复提交业务 409（不算系统错误）；FOR UPDATE 锁 Work 行是热点
+  rating: {
+    mix: ['write'],
+    w: 4,
+    auth: true,
+    minInterval: 3000,
+    run: (vu) => ({
+      m: 'POST',
+      p: `/api/v1/works/${ctx.workIds[vu.n % ctx.workIds.length]}/ratings`,
+      body: { stars: 4 + (vu.n % 2), text: '压测评价：内容扎实有帮助', tags: [] },
+    }),
+  },
+  // V8 成就佩戴/展示切换（幂等写；压测账号预授 HELP_10/HELP_50）
+  pin: {
+    mix: ['write', 'honor'],
+    w: 2,
+    auth: true,
+    minInterval: 5000,
+    run: (vu) => ({ m: vu.n % 2 ? 'DELETE' : 'POST', p: '/api/v1/me/achievements/HELP_10/pin' }),
+  },
+  featured: {
+    mix: ['write', 'honor'],
+    w: 2,
+    auth: true,
+    minInterval: 5000,
+    run: (vu) => ({ m: vu.n % 2 ? 'DELETE' : 'POST', p: '/api/v1/me/achievements/HELP_50/featured' }),
   },
   login: {
     mix: ['login'],
@@ -192,8 +234,10 @@ async function discover() {
   const list = works.json?.data ?? [];
   if (!list.length) throw new Error('works 列表为空，无法发现 workId（先跑 seed）');
   ctx.workId = list[0].id;
+  ctx.workIds = list.map((w) => w.id); // 多作品轮换：详情/下载/评价分散写热点
+  ctx.userId = list[0].author?.id ?? 'u0'; // 修复：真实作者 id（旧版打 /users/u0 一直 404）
   ctx.term = (list[0].title ?? 'Java').slice(0, 4);
-  console.log(`✔ 发现作品 ${ctx.workId}（${list[0].title}），搜索词「${ctx.term}」`);
+  console.log(`✔ 发现 ${ctx.workIds.length} 个作品（主 ${ctx.workId}），作者 ${ctx.userId}，搜索词「${ctx.term}」`);
 
   const rms = await request('GET', '/api/v1/roadmaps');
   const rlist = rms.json?.data ?? [];
