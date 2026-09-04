@@ -6,21 +6,29 @@ import { login, register, adminApi, rateWork, getVerifyCode } from './helpers';
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
-test('1. 注册→登录→购买(mock)→评分→评价出现', async ({ page }) => {
+test('1. 注册→登录→获取作品→评分→评价出现', async ({ page }) => {
   const ts = Date.now();
   const email = `e2e1-${ts}@szu.edu.cn`;
   await register(page, email, `E2E一号${ts}`);
 
-  // 首页 → 点付费作品详情
+  // 首页 → 点付费作品详情（dev=PAYMENT_MODE mock 付费模式：购买按钮在；
+  // 生产=off 全免费：显示下载按钮。两形态都断言详情可见后走各自获取路径）
   await page.goto('/work/w_agentpro');
   await expect(page.getByRole('heading', { name: /AI Agent 项目实战/ })).toBeVisible();
 
-  // 购买（mock 立即成功）
-  await page.click('button:has-text("立即购买")');
-  await page.click('button:has-text("立即支付")');
-  await expect(page.getByText('购买成功')).toBeVisible();
+  const buyBtn = page.locator('button:has-text("立即购买")');
+  if (await buyBtn.count()) {
+    // 付费模式（dev）：mock 立即支付成功
+    await buyBtn.click();
+    await page.click('button:has-text("立即支付")');
+    await expect(page.getByText('购买成功')).toBeVisible();
+  } else {
+    // V7 全免费模式（生产）：登录即可下载
+    await page.click('button:has-text("⬇ 下载")');
+    await expect(page.getByText('下载已开始')).toBeVisible();
+  }
 
-  // 评分（购买后获得 myAccess）
+  // 评分（获得 myAccess 后）
   await rateWork(page);
 });
 
@@ -154,7 +162,7 @@ test('10. 个人主页（V3-5）：匿名看他人 4 tab + 跳转', async ({ pag
   await page.waitForURL((url) => url.pathname === '/user/c_lin');
   await expect(page.locator('.up-tabs .tab-btn').first()).toBeVisible({ timeout: 10_000 });
   const tabs = await page.locator('.up-tabs .tab-btn').allInnerTexts();
-  expect(tabs.join(',')).toBe('作品,评价,关注,粉丝');
+  expect(tabs.join(',')).toBe('作品,评价,荣誉,关注,粉丝');
   await page.click('button:has-text("粉丝")');
   await expect(page.locator('.fr-row').first()).toBeVisible();
 });
