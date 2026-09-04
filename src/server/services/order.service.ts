@@ -7,6 +7,7 @@ import { getProvider } from '../payment';
 import type { PayParams } from '../payment';
 import { splitFee, settleAt } from '../algos/income';
 import { achievementService } from './achievement.service';
+import { EXT } from './upload.service';
 import { PayMethod, PayStatus } from '@/lib/constants';
 
 const ORDER_TIMEOUT_MIN = Number(process.env.ORDER_TIMEOUT_MIN ?? 15);
@@ -277,7 +278,7 @@ export const orderService = {
       }
     }
 
-    const url = await presignGet(work.fileKey, work.title);
+    const url = await presignGet(work.fileKey, `${work.title}.${EXT[work.fileType]}`);
     return { url, expiresIn: 600 };
   },
 

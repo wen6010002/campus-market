@@ -12,6 +12,9 @@ describe('edu 邮箱正则（V5：仅深大，任意级子域）', () => {
     expect(isEduEmail('a@mail.szu.edu.cn')).toBe(true);
     expect(isEduEmail('a@x.y.szu.edu.cn')).toBe(true);
   });
+  it('接受深大企微邮箱 szdx.wecom.work（2024 级及以后新生）', () => {
+    expect(isEduEmail('zhuangyuqing@szdx.wecom.work')).toBe(true);
+  });
   it('拒绝非深大域名与伪装', () => {
     expect(isEduEmail('x@edu.cn')).toBe(false); // V5 行为变更：旧正则放行
     expect(isEduEmail('b@tsinghua.edu.cn')).toBe(false); // V5 行为变更：外校 edu 不再放行
@@ -20,6 +23,10 @@ describe('edu 邮箱正则（V5：仅深大，任意级子域）', () => {
     expect(isEduEmail('a@163.edu.com')).toBe(false);
     expect(isEduEmail('a@xszu.edu.cn')).toBe(false); // 后缀伪装
     expect(isEduEmail('a@szu.edu.cn.com')).toBe(false); // 后缀伪装
+    expect(isEduEmail('a@wecom.work')).toBe(false); // 企微裸域（任意企业可注册）
+    expect(isEduEmail('a@othercorp.wecom.work')).toBe(false); // 其他企业的企微邮箱
+    expect(isEduEmail('a@fake-szdx.wecom.work')).toBe(false); // 前缀伪装
+    expect(isEduEmail('a@szdx.wecom.work.com')).toBe(false); // 后缀伪装
   });
 });
 

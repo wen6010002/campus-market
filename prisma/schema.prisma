@@ -47,6 +47,7 @@ enum Quality {
 
 enum FileType {
   PDF
+  MD
   DOC
   DOCX
   PPT

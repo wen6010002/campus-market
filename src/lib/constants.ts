@@ -18,6 +18,7 @@ export type Quality = (typeof Quality)[keyof typeof Quality];
 
 export const FileType = {
   PDF: 'PDF',
+  MD: 'MD',
   DOC: 'DOC',
   DOCX: 'DOCX',
   PPT: 'PPT',

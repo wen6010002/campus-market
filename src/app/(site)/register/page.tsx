@@ -81,7 +81,8 @@ export default function RegisterPage() {
       <div className="card" style={{ width: 440, maxWidth: '100%', padding: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>注册课搭</h1>
         <div className="sub" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 }}>
-          需使用深圳大学教育邮箱（@szu.edu.cn / @mails.szu.edu.cn），验证通过即可加入
+          需使用深圳大学教育邮箱（@szu.edu.cn 及子域，或新生企微邮箱
+          @szdx.wecom.work），验证通过即可加入
         </div>
         <form onSubmit={submit}>
           <div className="field">

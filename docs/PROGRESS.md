@@ -1188,3 +1188,15 @@
 - **测试隔离**：`flushDb` 同时清全部业务缓存前缀（新增 `flushCache` 导出，只删缓存不动限流 key）。
 
 **复测（同矩阵）**：读 vu50 125→**415 RPS（3.3×）**、vu100 107→**472（4.4×）**、混合 vu50 93→**215（2.3×）**、并发登录 p50 4390→**1724ms（2.5×）**；读场景 p50 82-157ms；冒烟 28/28 + 缓存专项 10/10；typecheck/lint/122 测试 ✓；瓶颈离开应用进程数（三副本各 ~0.5 核，PG/Redis 仍 <5%）。已知小项：登录专项 3/130 瞬时 502（dynamic a 刷新窗口，自愈，见 PERFORMANCE.md §六）。
+
+## 2026-09-03 作品支持 Markdown 类型 + 在线预览渲染（含企微邮箱放行）
+
+- **企微邮箱**：`EDU_EMAIL_REGEX` 放行深大企微邮箱 `@szdx.wecom.work`（2024 级及以后新生邮箱绑定企业微信，腾讯企微域名 `{短域名}.wecom.work`；仅精确匹配该子域）。本地代码/文档/.env + 生产 `.env`（head/tail 行号法）+ `up -d app worker` 重建均已生效，线上 API 探测通过。
+- **MD 作品全链路**（迁移 `20260903120000_file_type_md`，`ALTER TYPE "FileType" ADD VALUE 'MD'`）：
+  - 上传：`.md/.markdown` → `MD`（存 `text/markdown` + `.md` 扩展名）；作品/试读副本共用 10MB 特判；付费 MD 客户端生成试读副本（`makeMdSample`：前 min(30%,3000) 字行边界截断 + 尾注）走既有 `kind=preview` 通道。
+  - 预览：`getPreview` 放行 MD，**服务端 `getObjectText` 直回 `content` 文本**（不走 presigned URL——前端 fetch MinIO 有跨域问题；PDF 保持 iframe+URL 不动）；响应统一 `{mode,url,content,pages,hasPreview}`（两字段恒存在、可空）。
+  - 前端：PreviewModal 新增 `fileType` prop，MD 分支 marked→DOMPurify→`.md-body` 渲染（dompurify 首次启用；marked 新依赖）；水印层/购买 CTA 复用。WorkDetailClient 三处预览入口条件加 MD。上传页 `isPreviewable`（PDF/MD）替换 `isPdf` 门控提示。
+  - 顺手修：下载文件名全类型补扩展名（`{title}.{EXT}`，order/adminDownload 两处，原所有类型下载均无后缀）。
+- **测试**：136/136（+6：upload 单测 MD 上限/preview kind 白名单、preview 集成 免费/试读/无副本 MD 三例 + 原「非 PDF→none」改 DOCX）；tsc/lint/build ✓。preview 集成测试的 minio mock 补 `getObjectText`。
+- **环境插曲**：macOS TCC 收回 Terminal 桌面访问权（读写不对称、materials 目录幸存），项目经 Finder AppleScript 迁至 `~/campus-market-0.2.0`（桌面本就是 iCloud 同步目录，dev 项目不宜放那）。
+- **部署注意**：本地基线仍为 V5（971d1d7），线上已是 V6（37d3605，epay）——上线本功能前必须先合并 V6，勿直接用本地 reset 服务器。

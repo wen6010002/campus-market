@@ -222,7 +222,7 @@ SMTP_PASS=...
 MAIL_FROM="Campus Market <no-reply@cm.dev>"
 VERIFY_CODE_TTL_MIN=10
 VERIFY_CODE_LEN=6
-EDU_EMAIL_REGEX=^[^@]+@([a-zA-Z0-9-]+\.)?edu\.cn$
+EDU_EMAIL_REGEX=^[^@]+@(([a-zA-Z0-9-]+\.)*szu\.edu\.cn|szdx\.wecom\.work)$
 
 # Storage (MinIO)
 S3_ENDPOINT=http://localhost:9000
@@ -319,7 +319,7 @@ enum EduVerifyStatus { UNVERIFIED PENDING VERIFIED REJECTED }
 
 enum WorkStatus { DRAFT PENDING PUBLISHED REJECTED TAKEN_DOWN }
 enum Quality { NORMAL HIGH SELECTED }
-enum FileType { PDF DOC DOCX PPT PPTX ZIP IMAGE OTHER }
+enum FileType { PDF MD DOC DOCX PPT PPTX ZIP IMAGE OTHER }
 
 enum PayMethod { WECHAT ALIPAY MOCK }
 enum PayStatus { PENDING PAID REFUNDED CLOSED FAILED }
@@ -720,7 +720,7 @@ model Session { /* 若用 DB session；本项目默认 JWT，可省 */ }
 
 ### 6.1 注册流程（深大 edu 邮箱）
 
-1. `POST /api/v1/auth/send-code { email }` → 校验 `EDU_EMAIL_REGEX`（默认仅 szu.edu.cn 及子域）→ Redis 存 `verify:register:email:{email}` → 6 位码 TTL 10 分钟 → 限流 `RL_VERIFY_PER_HOUR`。
+1. `POST /api/v1/auth/send-code { email }` → 校验 `EDU_EMAIL_REGEX`（默认 szu.edu.cn 及子域 + 深大企微邮箱 szdx.wecom.work）→ Redis 存 `verify:register:email:{email}` → 6 位码 TTL 10 分钟 → 限流 `RL_VERIFY_PER_HOUR`。
 2. `POST /api/v1/auth/register { email, code, username, password, school, college, major, grade }` → 校验码 → bcrypt(password+pepper) → 事务建 `User(STUDENT)`+`StudentProfile(VERIFIED,verifiedAt=now)` → 删码 → 签发 JWT cookie（含 `pwdVer` claim）。
 3. 忘记密码：`POST /auth/forgot-password`（未注册邮箱同样返回 ok 但不发，防枚举；码存 `verify:reset:email:{email}`）；`POST /auth/reset-password`（消费 reset 码 + 新密码，`pwdVersion` 自增 → 全端会话 401）。登录态改密：`POST /auth/change-password`（旧密码验证，同样自增 `pwdVersion`）。
 4. 角色：默认 STUDENT；创建 CreatorProfile 需 `POST /api/v1/me/creator/apply`（bio/direction/honor + 可选学生证）→ 管理员 `POST /admin/creators/:id/audit` 通过后 `verified=true`、role 升 CREATOR。
@@ -914,17 +914,18 @@ PUBLISHED --admin:TAKE_DOWN/版权命中--> TAKEN_DOWN
 ### 8.6 访问权限（下载/预览）
 
 - 免费：任何人登录即可 `download`（写 Download）。
-- 付费：`hasAccess = Download exists OR Order.paid exists`；否则只能 preview（前 N 页/目录，前端模糊）。
+- 付费：`hasAccess = Download exists OR Order.paid exists`；否则只能 preview（PDF 前 5 页试读副本 / MD 前 30% 截断文本，前端水印+购买卡）。
+- MD 作品预览：服务端 `getObjectText` 直回 `content`（PDF 走 inline 签名 URL + iframe），前端 marked+DOMPurify 渲染防 XSS。
 - `GET /works/:id` 返回 `myAccess` 标志供前端切换按钮。
 
 ---
 
 ## 9. 文件上传
 
-1. `POST /uploads/presign`：服务端校验 `fileType ∈ 白名单`、`fileSize ≤ 200MB`、`sha` 未被禁（黑名单/去重可选）→ 生成 `fileKey = works/{userId}/{cuid()}.{ext}` → MinIO `getSignedUrl(PUT, 5min)`。
+1. `POST /uploads/presign`：服务端校验 `fileType ∈ 白名单`、`fileSize ≤ 200MB`（MD 特判 10MB，存 `text/markdown`）、`sha` 未被禁（黑名单/去重可选）→ 生成 `fileKey = works/{userId}/{cuid()}.{ext}` → MinIO `getSignedUrl(PUT, 5min)`。
 2. 前端直传 → 回填 fileKey 调 `POST /works`。
 3. 发布审核时服务端 `headObject` 校验文件确实存在 + 大小匹配。
-4. 下载：`POST /works/:id/download` → `getSignedUrl(GET, 10min)`，`Content-Disposition: attachment`。
+4. 下载：`POST /works/:id/download` → `getSignedUrl(GET, 10min)`，`Content-Disposition: attachment`，文件名 `{title}.{ext}`（按 FileType 映射扩展名）。
 5. （可选）审核钩子调 ClamAV 扫毒；命中 → REJECTED + 通知。
 
 ---

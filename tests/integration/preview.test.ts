@@ -12,6 +12,7 @@ vi.mock('@/server/storage/minio', () => ({
   presignPut: vi.fn(async () => 'https://mock.local/put'),
   presignGet: vi.fn(async () => 'https://mock.local/get'),
   presignGetInline: vi.fn(async (key: string) => `https://mock.local/inline/${key}`),
+  getObjectText: vi.fn(async (key: string) => `# md 全文 ${key}`),
   headObject: vi.fn(async () => ({ ContentLength: 1024 })),
   S3_BUCKET: 'campus-market',
 }));
@@ -143,7 +144,7 @@ describe('在线预览（V3-4）：getPreview 权限矩阵', () => {
     expect(r.url).toContain('works/test/paid3.pdf');
   });
 
-  it('非 PDF → none', async () => {
+  it('非 PDF/MD → none', async () => {
     const w = await prisma.work.create({
       data: {
         authorId: CREATOR_ID,
@@ -161,6 +162,73 @@ describe('在线预览（V3-4）：getPreview 权限矩阵', () => {
     });
     const r = await workService.getPreview(w.id, undefined, '1.2.3.4');
     expect(r.mode).toBe('none');
+  });
+
+  it('免费 MD → full，服务端直回文本（无 URL）', async () => {
+    const w = await prisma.work.create({
+      data: {
+        authorId: CREATOR_ID,
+        title: 'md 免费',
+        description: 'x',
+        course: 'c',
+        fileType: 'MD',
+        fileKey: 'works/test/free.md',
+        fileSize: 2048,
+        isFree: true,
+        status: 'PUBLISHED',
+        previewToc: [],
+        copyrightAccepted: true,
+      },
+    });
+    const r = await workService.getPreview(w.id, undefined, '1.2.3.4');
+    expect(r.mode).toBe('full');
+    expect(r.content).toContain('works/test/free.md');
+    expect(r.url).toBeNull();
+  });
+
+  it('付费 MD 未购有试读副本 → sample，文本指向副本', async () => {
+    const w = await prisma.work.create({
+      data: {
+        authorId: CREATOR_ID,
+        title: 'md 付费带试读',
+        description: 'x',
+        course: 'c',
+        fileType: 'MD',
+        fileKey: 'works/test/md-paid.md',
+        previewKey: 'previews/test/md-sample.md',
+        fileSize: 2048,
+        isFree: false,
+        price: 4.9,
+        status: 'PUBLISHED',
+        previewToc: [],
+        copyrightAccepted: true,
+      },
+    });
+    const r = await workService.getPreview(w.id, undefined, '1.2.3.4');
+    expect(r.mode).toBe('sample');
+    expect(r.content).toContain('previews/test/md-sample.md');
+  });
+
+  it('付费 MD 未购无副本 → none', async () => {
+    const w = await prisma.work.create({
+      data: {
+        authorId: CREATOR_ID,
+        title: 'md 付费无试读',
+        description: 'x',
+        course: 'c',
+        fileType: 'MD',
+        fileKey: 'works/test/md-paid2.md',
+        fileSize: 2048,
+        isFree: false,
+        price: 4.9,
+        status: 'PUBLISHED',
+        previewToc: [],
+        copyrightAccepted: true,
+      },
+    });
+    const r = await workService.getPreview(w.id, undefined, '1.2.3.4');
+    expect(r.mode).toBe('none');
+    expect(r.content).toBeNull();
   });
 
   it('未发布作品 → NOT_FOUND（作者除外）', async () => {

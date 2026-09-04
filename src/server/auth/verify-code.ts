@@ -9,8 +9,10 @@ const CODE_LEN = Number(process.env.VERIFY_CODE_LEN ?? 6);
 
 export type CodePurpose = 'register' | 'reset';
 
+// szu.edu.cn 及任意级子域（老生 学号@mails.szu.edu.cn）；
+// szdx.wecom.work 为深大企业微信邮箱（2024 级及以后新生，腾讯企微邮箱域名）。
 export const EDU_EMAIL_REGEX = new RegExp(
-  process.env.EDU_EMAIL_REGEX ?? '^[^@]+@([a-zA-Z0-9-]+\\.)*szu\\.edu\\.cn$',
+  process.env.EDU_EMAIL_REGEX ?? '^[^@]+@(([a-zA-Z0-9-]+\\.)*szu\\.edu\\.cn|szdx\\.wecom\\.work)$',
 );
 
 export function isEduEmail(email: string): boolean {

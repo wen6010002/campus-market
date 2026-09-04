@@ -54,6 +54,7 @@ export const WorkStatus = {
 export const Quality = { NORMAL: 'NORMAL', HIGH: 'HIGH', SELECTED: 'SELECTED' } as const;
 export const FileType = {
   PDF: 'PDF',
+  MD: 'MD',
   DOC: 'DOC',
   DOCX: 'DOCX',
   PPT: 'PPT',
@@ -335,7 +336,7 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 | 方法        | 路径                                                 | 权限                                  | 说明                                                                                                                                                     |
 | ----------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET         | `/works/courses?category=`                           | 公开                                  | 大类下热门课程聚合 `[{course,count}]`（缓存 60s）                                                                                                        |
-| POST        | `/works/:id/preview`                                 | **匿名可访问**（middleware 单独放行） | `{mode:'full'                                                                                                                                            | 'sample'                                                                                                              | 'none', url, pages, hasPreview}`；免费/已购/作者→full 原文件；付费未购→sample（previewKey 5 页试读副本）；非 PDF→none。打开即计观看（去重）。限流 30/min |
+| POST        | `/works/:id/preview`                                 | **匿名可访问**（middleware 单独放行） | `{mode:'full'                                                                                                                                            | 'sample'                                                                                                              | 'none', url, content, pages, hasPreview}`；免费/已购/作者→full 原文件；付费未购→sample（previewKey 试读副本：PDF 前 5 页 / MD 前 30%）；非 PDF/MD→none。PDF→`url`（MinIO inline 签名，iframe 用）；MD→`content`（服务端直回文本，前端 marked+DOMPurify 渲染）。打开即计观看（去重）。限流 30/min |
 | GET         | `/works/:id/cover`                                   | 公开                                  | 302 → 封面图内联签名 URL（1h），`Cache-Control: public, max-age=3600`；无 coverKey→404（前端回退 emoji）                                                 |
 | GET         | `/users/:id`                                         | 公开                                  | 用户主页：`{username,avatarColor,hasAvatar,bio,direction,honor,college,major,grade,verified,isCreator,helped,fans,following,works,rate,myFollow,isSelf}` |
 | GET         | `/users/:id/works?filter=`                           | 公开                                  | 同原 `/creators/:id/works`                                                                                                                               |
@@ -442,10 +443,12 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 - **验证码 purpose 化**：Redis key `verify:email:{email}` → `verify:{register|reset}:email:{email}`，注册码与重置码隔离（防跨流程混用）。
 - **pwdVersion 会话失效**：`users.pwdVersion`（默认 0）+ JWT `pwdVer` claim；改密/重置后 `pwdVersion` 原子自增，`requireUser` 比对不一致 → 401「登录已过期」，即改密后全端下线。老 JWT 无 claim 视为 0，存量会话不受影响。
 - **注册邮箱收紧**：`EDU_EMAIL_REGEX` 默认值改为 `^[^@]+@([a-zA-Z0-9-]+\.)*szu\.edu\.cn$`（szu.edu.cn 及任意级子域，如 mails.szu.edu.cn）；仅影响发码入口，存量用户登录不受影响。
+- **深大企微邮箱放行**（2026-09-03）：`EDU_EMAIL_REGEX` 默认值改为 `^[^@]+@(([a-zA-Z0-9-]+\.)*szu\.edu\.cn|szdx\.wecom\.work)$`，新增放行 2024 级及以后新生的企业微信邮箱 `@szdx.wecom.work`（精确匹配该子域，不放行 wecom.work 裸域及其他企业子域）。
 - **防枚举**：forgot-password 对未注册邮箱同样返回 `{ok:true}` 但不存码不发信。
 - **防爆破**：reset-password 每邮箱尝试 10 次/小时（`RL_RESET_TRY_PER_HOUR`），错码不删 key 但消耗尝试次数。
 - 新增错误码 `WRONG_OLD_PASSWORD`；`NOT_EDU` 含义改为「非深圳大学教育邮箱」。
 - 删除无引用的 `verification_tokens` 表（Auth.js 备用残留）。
+- **作品支持 Markdown 类型 + 在线预览**（2026-09-03，迁移 `20260903120000_file_type_md`）：`FileType` 枚举新增 `MD`（DB enum `ALTER TYPE ADD VALUE`，对存量数据无影响）。上传：`.md/.markdown` → MD（存 `text/markdown`，扩展名 `.md`），作品与试读副本共用 10MB 上限（其余类型不变）；`kind=preview` 放行 MD。预览：`POST /works/:id/preview` 对 MD 由服务端直回 `content` 文本（`url` 为 null），PDF 仍回 `url`（`content` 为 null）；付费 MD 试读副本为客户端截断文本（前 min(30%,3000) 字 + 尾注）。下载：文件名全类型补扩展名（`{title}.{ext}`，原来所有类型都无后缀）。前端：PreviewModal 对 MD 走 marked+DOMPurify 渲染（`.md-body` 排版），PDF 保持 iframe。
 
 ## 10. 版本六变更（V6，2026-09-03）：码支付网关接入（仅支付宝）
 

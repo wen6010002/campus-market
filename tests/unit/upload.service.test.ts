@@ -20,4 +20,22 @@ describe('上传预签名校验', () => {
       uploadService.presign({ fileType: FileType.PDF, fileSize: 0 }, 'u1'),
     ).rejects.toMatchObject({ code: 'FILE_TOO_LARGE' });
   });
+
+  it('md 超过 10MB → FILE_TOO_LARGE（作品与试读副本同享上限）', async () => {
+    await expect(
+      uploadService.presign({ fileType: FileType.MD, fileSize: 10 * 1024 * 1024 + 1 }, 'u1'),
+    ).rejects.toMatchObject({ code: 'FILE_TOO_LARGE' });
+    await expect(
+      uploadService.presign(
+        { kind: 'preview', fileType: FileType.MD, fileSize: 10 * 1024 * 1024 + 1 },
+        'u1',
+      ),
+    ).rejects.toMatchObject({ code: 'FILE_TOO_LARGE' });
+  });
+
+  it('preview kind 仍拒绝 PDF/MD 之外类型', async () => {
+    await expect(
+      uploadService.presign({ kind: 'preview', fileType: FileType.DOCX, fileSize: 100 }, 'u1'),
+    ).rejects.toMatchObject({ code: 'FILE_TYPE_DENIED' });
+  });
 });
