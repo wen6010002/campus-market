@@ -2483,6 +2483,9 @@ footer {
 @media (max-width: 980px) {
   .rm-banner-main {
     flex-direction: column;
+    /* 纵排后 cross轴变水平：flex-start 会让 rail 收缩为内容宽（3×240 卡=748px），
+       架空 dyn-rail 的 overflow-x 横滑、把整页撑出横向滚动。stretch 恢复撑满宽。 */
+    align-items: stretch;
   }
   .rm-banner-intro {
     flex: none;
