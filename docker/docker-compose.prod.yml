@@ -21,6 +21,8 @@ services:
       DATABASE_URL_POOLED: postgresql://${POSTGRES_USER:-cm}:${POSTGRES_PASSWORD:-cm}@postgres:5432/${POSTGRES_DB:-campus_market}
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
+      # V7：给浏览器的 presigned URL 走公网域名（Caddy /campus-market/* 反代 minio；留空=与内网一致）
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
     depends_on:
       pgbouncer:
         condition: service_healthy

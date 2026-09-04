@@ -24,8 +24,8 @@ const internalEndpoint = process.env.S3_ENDPOINT ?? 'http://localhost:9000';
 // V7 双端点：服务端调用走内网（S3_ENDPOINT，如 http://minio:9000）；
 // 给浏览器的 presigned URL 走对外地址（S3_PUBLIC_ENDPOINT，如 https://kedahub.cn，
 // 由 Caddy 按 bucket 路径反代 minio —— 同域免 CORS，Host 保序保 SigV4 验签）。
-// 不设 S3_PUBLIC_ENDPOINT 时两者一致（本地 dev / 测试的默认行为）。
-const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT ?? internalEndpoint;
+// 不设 S3_PUBLIC_ENDPOINT 时两者一致（本地 dev / 测试的默认行为；compose 注空串同样回退）。
+const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT || internalEndpoint;
 
 const s3 = new S3Client({ endpoint: internalEndpoint, ...clientOptions });
 const s3Signer = new S3Client({ endpoint: publicEndpoint, ...clientOptions });
