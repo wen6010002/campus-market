@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { hashPassword } from '../src/server/auth/password';
 import { putObject, objectExists } from '../src/server/storage/minio';
+import { parseRoadmapMd } from '../src/lib/roadmap/parse';
 
 const prisma = new PrismaClient();
 
@@ -1074,6 +1075,154 @@ const PRESET_TAG_POOL: string[] = [
   '生活费攻略',
 ];
 
+// ===== V4 学习路线图种子：3 条官方路线（详细 md，PUBLISHED） =====
+const ROADMAPS: {
+  id: string;
+  title: string;
+  summary: string;
+  category: 'BACKEND' | 'FRONTEND' | 'AI';
+  coverIcon: string;
+  workIds: string[];
+  favs: number;
+  md: string;
+}[] = [
+  {
+    id: 'rm_backend',
+    title: '新生到 Java 后端开发：从语法到实习',
+    summary: '写给想走后端方向的大一大二同学：一年半的完整路径，每一步都有明确产出，学完可投暑期实习。',
+    category: 'BACKEND',
+    coverIcon: '☕',
+    workIds: ['w_javard', 'w_db1', 'w_juc'],
+    favs: 34,
+    md: `## 阶段一：Java 核心语法（第 1-6 周）
+先打牢语法与面向对象，不急着碰框架。
+- [ ] 环境搭建：JDK 17 + IDEA + Git/GitHub
+  用学生邮箱申请 JetBrains 全家桶免费授权
+- [ ] 变量 / 流程控制 / 数组 / 字符串
+- [ ] 面向对象：类、继承、接口、多态
+  重点理解抽象与组合优于继承
+- [ ] 集合框架：List / Map / Set 及底层结构
+- [ ] 异常处理与 IO 流
+- [ ] Lambda 与 Stream API
+
+## 阶段二：数据库与 MySQL（第 7-10 周）
+后端工程师 60% 的时间在和数据库打交道。
+- [ ] SQL 基础：增删改查 + 多表连接
+- [ ] 索引原理：B+ 树、最左前缀、执行计划
+- [ ] 事务与隔离级别（面试高频）
+- [ ] 用 MySQL 完成一个课设级数据库设计
+  比如：校园二手交易平台的表结构
+
+## 阶段三：并发编程（第 11-14 周）
+大厂面试的分水岭，认真对待。
+- [ ] 线程基础：Thread / Runnable / 线程池
+- [ ] synchronized 与 Lock
+- [ ] volatile / CAS / AQS
+- [ ] JUC 常用工具：CountDownLatch / CompletableFuture
+- [ ] 手写一个简单线程安全的阻塞队列
+
+## 阶段四：Spring 生态与项目实战（第 15-24 周）
+用真实项目把知识串起来。
+- [ ] Spring Boot 入门：依赖注入 / 自动装配 / 配置
+- [ ] Spring MVC：RESTful API 设计
+- [ ] MyBatis-Plus 或 Spring Data JPA
+- [ ] Redis：缓存 / 分布式锁 / 常见数据结构
+- [ ] 完成一个可部署的完整项目（含登录/权限/分页）
+  项目要有 README 和线上演示地址
+- [ ] 学习用 Docker 部署自己的项目
+
+## 阶段五：求职准备（第 25-30 周）
+- [ ] 整理简历：一页纸，突出项目与量化结果
+- [ ] 八股文系统复习（配合面经资料）
+- [ ] 每周至少一次模拟面试
+- [ ] 投递暑期实习，先小厂练手再投大厂
+  3-4 月是暑期实习投递黄金期
+`,
+  },
+  {
+    id: 'rm_frontend',
+    title: '前端开发入门到上手 React',
+    summary: '从 HTML 一行不写到能独立开发组件化页面，适合零基础同学，三个月可见成果。',
+    category: 'FRONTEND',
+    coverIcon: '🎨',
+    workIds: ['w_aitool'],
+    favs: 21,
+    md: `## 阶段一：三件套基础（第 1-4 周）
+- [ ] HTML：语义化标签与页面结构
+- [ ] CSS：盒模型 / Flex / Grid 布局
+  每天临摹一个经典页面布局
+- [ ] CSS 进阶：定位 / 变换 / 过渡动画
+- [ ] JavaScript 基础：变量 / 函数 / 数组对象
+
+## 阶段二：JavaScript 深入（第 5-8 周）
+- [ ] 作用域 / 闭包 / 原型链
+- [ ] 异步：Promise / async-await / 事件循环
+  面试必考，写代码真正理解
+- [ ] DOM 操作与事件机制
+- [ ] ES6+ 常用语法：解构 / 模块 / 展开运算符
+- [ ] 用原生 JS 完成一个 TODOMVC 应用
+
+## 阶段三：工程化与 React（第 9-14 周）
+- [ ] Node 基础与 npm / Vite 脚手架
+- [ ] React：组件 / JSX / Props / State
+- [ ] Hooks：useState / useEffect / 自定义 Hook
+- [ ] 路由与状态管理（React Router + Zustand）
+- [ ] 用 React 重写之前的 TODOMVC 并加持久化
+
+## 阶段四：进阶与作品集（第 15-20 周）
+- [ ] TypeScript 基础与 React 结合使用
+- [ ] 网络请求：fetch / axios / 错误处理
+- [ ] 完成两个可展示的完整作品（如仿站、小工具）
+  部署到 Vercel 或 GitHub Pages
+- [ ] 整理作品集页面，准备实习投递
+`,
+  },
+  {
+    id: 'rm_ai',
+    title: 'AI 应用开发路线：从 Python 到大模型应用',
+    summary: '不卷算法也入行 AI：面向应用层开发，覆盖 Python、LLM API、RAG 与 Agent，贴合当前实习需求。',
+    category: 'AI',
+    coverIcon: '🤖',
+    workIds: ['w_agent', 'w_ml', 'w_aitool'],
+    favs: 42,
+    md: `## 阶段一：Python 与数学地基（第 1-5 周）
+- [ ] Python 基础语法与常用数据结构
+- [ ] NumPy / Pandas 数据处理
+- [ ] 线性代数与概率速成（够用即可）
+  向量、矩阵运算、条件概率
+- [ ] Matplotlib 数据可视化
+
+## 阶段二：机器学习基础（第 6-10 周）
+不是为了调参，是为了看懂原理。
+- [ ] 经典算法：线性回归 / 逻辑回归 / 决策树
+- [ ] 模型评估：过拟合 / 交叉验证 / 指标
+- [ ] 用 scikit-learn 完成 Kaggle 入门赛
+  Titanic 生存预测即可
+
+## 阶段三：深度学习与大模型（第 11-16 周）
+- [ ] PyTorch 基础：张量 / 自动求导 / 训练循环
+- [ ] 神经网络与 Transformer 架构原理
+  看懂 Attention 机制即可，不必手推
+- [ ] 大模型 API 使用：对话 / 流式 / Function Calling
+- [ ] Prompt Engineering 实践
+
+## 阶段四：RAG 与 Agent 应用（第 17-24 周）
+当前实习市场最需要的技能。
+- [ ] 文本嵌入与向量数据库（Redis / Milvus）
+- [ ] 搭建一个完整 RAG：文档解析 → 切分 → 检索 → 生成
+- [ ] Agent 框架：工具调用 / 记忆 / 多轮规划
+- [ ] 完成一个可演示的 AI 应用项目
+  如：校园知识库问答助手
+
+## 阶段五：作品与求职（第 25-28 周）
+- [ ] 项目部署（FastAPI / Next.js 任一）
+- [ ] 整理技术博客与 GitHub
+- [ ] 投递 AI 应用开发实习
+  关注「大模型应用 / Agent / RAG」关键词岗位
+`,
+  },
+];
+
 async function main() {
   console.log('🌱 开始种子…');
 
@@ -1288,6 +1437,121 @@ async function main() {
     if (!exists) await prisma.notification.create({ data: { userId: 'u0', ...n } });
   }
 
+  // 6.5 公告（V4）：2 条演示公告（含 1 条 IMPORTANT），登录弹窗演示用
+  for (const a of [
+    {
+      title: '欢迎来到课搭 Campus Market',
+      content:
+        '课搭是大学生成长社区与校园知识内容市场。\n在这里你可以：\n· 浏览和下载免费的学习资料\n· 购买学长学姐整理的精品内容\n· 上传你的作品，沉淀个人品牌\n\n<b>自我提升区</b>新增「学习路线图」模块，跟着路线打卡学习吧！',
+      level: 'NORMAL' as const,
+      hoursAgo: 72,
+    },
+    {
+      title: '开学季活动：新生专区 & 学习路线图上线',
+      content:
+        '新学期开始啦！我们上线了两个新能力：\n\n<b>新生专区</b>：选课、报到、宿舍、社团一站攻略。\n<b>学习路线图</b>：覆盖后端/前端/AI 方向的详细学习路径，支持每日打卡与进度热力图，路线末尾附配套资料。\n\n祝大家新学期顺利！',
+      level: 'IMPORTANT' as const,
+      hoursAgo: 2,
+    },
+  ]) {
+    const exists = await prisma.announcement.findFirst({ where: { title: a.title } });
+    if (!exists) {
+      await prisma.announcement.create({
+        data: {
+          title: a.title,
+          content: a.content,
+          level: a.level,
+          authorId: 'u_admin',
+          publishedAt: new Date(Date.now() - a.hoursAgo * 3600_000),
+        },
+      });
+    }
+  }
+
+  // 6.6 学习路线图（V4）：官方 PUBLISHED + 收藏 + demo 用户跨 20+ 天打卡（热力图演示）
+  for (const r of ROADMAPS) {
+    const parsed = parseRoadmapMd(r.md);
+    if (!parsed.ok) throw new Error(`种子路线图 ${r.id} md 解析失败`);
+    const mdKey = `roadmaps/seed/${r.id}.md`;
+    if (!(await objectExists(mdKey))) {
+      await putObject(mdKey, r.md, 'text/markdown; charset=utf-8');
+    }
+    await prisma.roadmap.upsert({
+      where: { id: r.id },
+      update: { favs: r.favs },
+      create: {
+        id: r.id,
+        title: r.title,
+        summary: r.summary,
+        category: r.category,
+        coverIcon: r.coverIcon,
+        uploaderId: 'u_admin',
+        status: 'PUBLISHED',
+        stepsCount: parsed.stepsCount,
+        content: parsed.content as any,
+        mdSourceKey: mdKey,
+        publishedAt: new Date(Date.now() - 30 * 86400_000),
+        favs: r.favs,
+      },
+    });
+    for (const [i, wid] of r.workIds.entries()) {
+      await prisma.roadmapWorkLink.upsert({
+        where: { roadmapId_workId: { roadmapId: r.id, workId: wid } },
+        update: {},
+        create: { roadmapId: r.id, workId: wid, sortNo: i },
+      });
+    }
+  }
+
+  // u0 与两位创作者收藏前两张路线图
+  for (const uid of ['u0', 'c_lin', 'c_chen']) {
+    for (const rid of ['rm_ai', 'rm_backend']) {
+      await prisma.roadmapFavorite.upsert({
+        where: { userId_roadmapId: { userId: uid, roadmapId: rid } },
+        update: {},
+        create: { userId: uid, roadmapId: rid },
+      });
+    }
+  }
+
+  // u0 对 AI 路线图跨 24 天打卡：近 24 天里有 19 天打卡，每天 1-3 步（连续 6 天 streak 演示）
+  {
+    const rm = await prisma.roadmap.findUnique({ where: { id: 'rm_ai' } });
+    if (rm) {
+      const phases = (rm.content as { phases: { steps: { id: string }[] }[] }).phases;
+      const allSteps = phases.flatMap((p) => p.steps.map((s) => s.id));
+      // 已勾选的步骤：前 21 步（分布到不同日期）
+      const doneStepIds = allSteps.slice(0, 21);
+      const skipDays = new Set([9, 15]); // 中段制造两次断裂
+      for (let i = 0; i < doneStepIds.length; i++) {
+        // 最后 5 步落在今天往前 0-4 天（演示连续打卡 streak），其余铺到 6-23 天前
+        const dayOffset =
+          i >= doneStepIds.length - 5
+            ? i - (doneStepIds.length - 5)
+            : 6 + Math.round(((doneStepIds.length - 6 - i) * 17) / Math.max(doneStepIds.length - 6, 1));
+        if (skipDays.has(dayOffset)) continue;
+        const stepId = doneStepIds[i];
+        const [p, s] = stepId.replace('p', '').split('-s').map(Number);
+        // 定位到 UTC+8 当天凌晨 4 点（避免因当前时刻偏移把「今天」打卡算到相邻日期）
+        const cstNow = Date.now() + 8 * 3600_000;
+        const cstMidnight = Math.floor(cstNow / 86400_000) * 86400_000;
+        const createdAt = new Date(cstMidnight - dayOffset * 86400_000 + 4 * 3600_000 - 8 * 3600_000);
+        await prisma.roadmapCheck.upsert({
+          where: { userId_roadmapId_stepId: { userId: 'u0', roadmapId: 'rm_ai', stepId } },
+          update: {},
+          create: {
+            userId: 'u0',
+            roadmapId: 'rm_ai',
+            stepId,
+            phaseIdx: p,
+            stepIdx: s,
+            createdAt,
+          },
+        });
+      }
+    }
+  }
+
   // 关注动态种子：u0 关注的三位创作者的作品动态（首页关注流演示数据）
   const DYNAMICS: {
     creatorId: string;
@@ -1328,6 +1592,9 @@ async function main() {
     orders: await prisma.order.count(),
     notifications: await prisma.notification.count(),
     dynamics: await prisma.dynamic.count(),
+    announcements: await prisma.announcement.count(),
+    roadmaps: await prisma.roadmap.count(),
+    roadmapChecks: await prisma.roadmapCheck.count(),
   };
   console.log('✅ 种子完成：', counts);
 }

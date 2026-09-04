@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { cacheDel, meKey } from '../lib/cache';
 import { DynamicType, NotificationType } from '@/lib/constants';
 
 // 通知服务：写通知、写动态、广播粉丝。
@@ -10,7 +11,9 @@ export const notifyService = {
     text: string,
     link?: string | null,
   ) {
-    return prisma.notification.create({ data: { userId, type, text, link: link ?? null } });
+    const n = await prisma.notification.create({ data: { userId, type, text, link: link ?? null } });
+    await cacheDel(meKey(userId)); // 未读红点即时生效
+    return n;
   },
 
   async createDynamic(creatorId: string, type: DynamicType, workId?: string) {

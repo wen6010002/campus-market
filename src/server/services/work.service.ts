@@ -3,8 +3,9 @@ import { appError } from '../lib/errors';
 import { redis } from '../lib/redis';
 import { cacheGet, cacheSet, cacheDel, cacheDelByPattern } from '../lib/cache';
 import { enforceRateLimit } from '../lib/ratelimit';
-import { headObject, presignGet, presignGetInline } from '../storage/minio';
+import { headObject, presignGet, presignGetInline, getObjectText } from '../storage/minio';
 import { notifyService } from './notify.service';
+import { EXT } from './upload.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
 import { WorkStatus, Quality } from '@/lib/constants';
 
@@ -339,14 +340,35 @@ export const workService = {
     return toListItem(updated);
   },
 
-  /** 删除（owner/admin，软删） */
-  async remove(id: string, userId: string, isAdmin: boolean) {
+  /** 删除（owner/admin，软删；admin 删除留审计记录） */
+  async remove(id: string, userId: string, isAdmin: boolean, reason?: string) {
     const work = await prisma.work.findFirst({ where: { id, deletedAt: null } });
     if (!work) throw appError('NOT_FOUND', '作品不存在');
     if (!isAdmin && work.authorId !== userId) throw appError('FORBIDDEN', '无权删除');
-    await prisma.work.update({ where: { id }, data: { deletedAt: new Date() } });
+    await prisma.$transaction(async (tx) => {
+      await tx.work.update({ where: { id }, data: { deletedAt: new Date() } });
+      if (isAdmin) {
+        await tx.auditLog.create({
+          data: { workId: id, action: 'DELETE', reviewerId: userId, note: reason ?? null },
+        });
+      }
+    });
     await invalidateWorkCaches(id);
     return { ok: true };
+  },
+
+  /** 按 id 集合取已上架作品（保持传入顺序；路线图关联资料用，V4） */
+  async byIds(ids: string[]) {
+    if (!ids.length) return [];
+    const works = await prisma.work.findMany({
+      where: { id: { in: ids }, status: 'PUBLISHED', deletedAt: null },
+      include: WORK_LIST_INCLUDE,
+    });
+    const byId = new Map(works.map((w) => [w.id, w]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((w) => toListItem(w));
   },
 
   /** 相关推荐（同作者/同标签，公开） */
@@ -372,9 +394,9 @@ export const workService = {
     return related.map((w) => toListItem(w));
   },
 
-  /** 在线预览（V3-4）：签 inline URL + 观看去重计数。
+  /** 在线预览（V3-4，md 扩展）：PDF 签 inline URL 走 iframe；MD 由服务端直接回文本（前端 marked 渲染，避免跨域 fetch MinIO）。
    *  mode：free → full（原文件）；付费未购 → sample（previewKey 试读副本，无副本则 none）；已购/作者/ADMIN → full。
-   *  非 PDF 一律 none。观看口径：同人/同 IP 24h 去重，SETNX 成功才 INCR view:{id}（view-sync 定时回写）。 */
+   *  PDF/MD 之外一律 none。观看口径：同人/同 IP 24h 去重，SETNX 成功才 INCR view:{id}（view-sync 定时回写）。 */
   async getPreview(id: string, viewerId: string | undefined, viewerIp: string) {
     await enforceRateLimit(`rl:preview:${viewerId ?? viewerIp}`, 30, 60_000);
     const work = await prisma.work.findFirst({
@@ -393,8 +415,14 @@ export const workService = {
     if (!work || (work.status !== 'PUBLISHED' && work.authorId !== viewerId)) {
       throw appError('NOT_FOUND', '作品不存在');
     }
-    if (work.fileType !== 'PDF') {
-      return { mode: 'none' as const, url: null, pages: work.pages, hasPreview: false };
+    if (work.fileType !== 'PDF' && work.fileType !== 'MD') {
+      return {
+        mode: 'none' as const,
+        url: null,
+        content: null,
+        pages: work.pages,
+        hasPreview: false,
+      };
     }
 
     let myAccess = work.isFree || work.authorId === viewerId;
@@ -432,8 +460,13 @@ export const workService = {
       if (first === 'OK') await redis.incr(`view:${id}`);
     }
 
+    if (work.fileType === 'MD') {
+      // md：服务端读文本直回（full=原文 / sample=试读副本），前端 marked+DOMPurify 渲染
+      const content = key ? await getObjectText(key) : null;
+      return { mode, url: null, content, pages: work.pages, hasPreview: mode !== 'none' };
+    }
     const url = key ? await presignGetInline(key) : null;
-    return { mode, url, pages: work.pages, hasPreview: mode !== 'none' };
+    return { mode, url, content: null, pages: work.pages, hasPreview: mode !== 'none' };
   },
 
   /** 管理：待审核列表 */
@@ -450,7 +483,7 @@ export const workService = {
   async adminDownload(id: string) {
     const work = await prisma.work.findFirst({ where: { id, deletedAt: null } });
     if (!work) throw appError('NOT_FOUND', '作品不存在');
-    const url = await presignGet(work.fileKey, work.title);
+    const url = await presignGet(work.fileKey, `${work.title}.${EXT[work.fileType]}`);
     return { url, expiresIn: 600 };
   },
 
@@ -489,9 +522,29 @@ export const workService = {
       return w;
     });
 
-    // 上架：写 Dynamic(PUBLISH) + 通知粉丝
+    // 上架：写 Dynamic(PUBLISH) + 通知粉丝；审核结果通知作者（V4：补 AUDIT_RESULT 缺口）
     if (action === 'APPROVE') {
       await notifyService.onWorkPublished(work.authorId, work.id, work.title);
+      await notifyService.createNotification(
+        work.authorId,
+        'AUDIT_RESULT',
+        `你的作品<b>${work.title}</b>已通过审核并上架`,
+        `/work/${work.id}`,
+      );
+    } else if (action === 'REJECT' || action === 'REQUEST_CHANGES') {
+      await notifyService.createNotification(
+        work.authorId,
+        'AUDIT_RESULT',
+        `你的作品<b>${work.title}</b>未通过审核${note ? `：${note}` : ''}`,
+        `/work/${work.id}`,
+      );
+    } else if (action === 'TAKE_DOWN') {
+      await notifyService.createNotification(
+        work.authorId,
+        'AUDIT_RESULT',
+        `你的作品<b>${work.title}</b>已被下架${note ? `：${note}` : ''}`,
+        `/work/${work.id}`,
+      );
     }
 
     await invalidateWorkCaches(id);

@@ -1,11 +1,17 @@
 # 生产部署（docker compose）。TLS 由 Caddy 自动签发。
 # 用法：docker compose -f docker/docker-compose.prod.yml up -d
+# app 横向扩展（V4.1 性能优化）：不设 container_name，replicas 起 3 个进程；
+# Caddy 的 reverse_proxy app:3000 会解析到 Docker DNS 的多条 A 记录自动轮询负载均衡。
 services:
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: cm-app
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
     env_file: ../.env
     environment:
@@ -27,10 +33,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 512M
 
   worker:
     build:

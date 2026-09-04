@@ -1161,3 +1161,42 @@
 **变更**：分类 chips 从两行大卡（63px）改回**单行胶囊（38px）**，显眼手段改用配色——整条暖色带：「全部」实心品牌橙、六大类浅橙底+橙字+描边、hover 实心反白、「更多」虚线白底。位置与 sticky 保持（新生区上方、随专区导航吸顶 top:69）。sticky 容器总高 154px（原大卡版更高）。
 
 **验证**：8 枚单行 38px、「全部」实心、滚动后容器吸顶 69 ✓、375px 无横向滚动 ✓、122/122。截图 /tmp/home-catnav.png。
+
+## V4（v0.2.1）— 公告 + 学习路线图 + 运维详情 + 顶栏，生产部署与首轮压测
+
+**变更**：
+
+- **公告系统**：Announcement/AnnouncementRead 两表；登录弹窗按「未读」触发（sessionStorage 防本会话重弹，关闭即 read-all）；顶栏公告入口带未读红点；公开 /announcements 列表页；管理员发布（IMPORTANT/NORMAL）/撤回，admin 页公告管理 tab。
+- **学习路线图（大模块）**：md 上传 → 服务端从 MinIO 拉原文用共享解析器 `src/lib/roadmap/parse.ts` 转结构化 todolist（`##`=阶段、`- [ ]`=步骤、stepId=p{i}-s{i} 稳定）；打卡=勾选步骤（限流 60/min/用户 + stepId 服务端校验）；进度按 UTC+8 日界聚合（dayCn8）+连续天数；GitHub 风热力图（月份/星期标注）+打卡月历；收藏幂等 set；首页自我提升区「路线规划建议区」渐变横幅（高收藏横滑卡）；/roadmaps 列表与两栏详情页（todolist + 进度/热力图/月历/收藏）；上传页 FileReader 实时预览 + 关联站内资料搜索多选 + 非管理员必填学生证与经历；admin 审核面板区分资料/路线图（预览/学生证图/md 下载/通过驳回），审核结果通知上传者。
+- **运维控制台**：/ops 业务概览五卡可点入 /ops/users|works|orders 详情页；用户封号（永久+可解封+登录提示原因）/改角色、资料删除（AuditLog 留痕）、订单只读；admin 页 `?tab=` 深链。
+- **顶栏**：搜索条占满整行（删 max-width）、头像贴右、公告入口。
+- **顺手补缺**：works 审核结果通知作者（原只通知粉丝）；上传 presign 新增 roadmap（md/2MB）与 credential（图/5MB）两类。
+- **部署**：生产机 154.222.19.224（kedahub.cn，Docker Compose），v4 迁移 + 幂等 seed 上线，28/28 冒烟全过。
+- **严重修复**：集成测试进程会连到开发库并清库——`db.ts` 单例优先 `DATABASE_URL_POOLED` 而 tests/setup 只覆盖 `DATABASE_URL`；修复为显式 `process.env.DATABASE_URL_POOLED = process.env.DATABASE_URL`（不能 delete，@prisma/client import 时会从 .env 回填）。
+
+**验证**：typecheck/lint ✓；122/122 ✓；Playwright 全链路（弹窗已读流转、上传审核通知、打卡幂等、热力图/月历、收藏分组）✓；线上 28/28 冒烟（公开读/登录态/写/管理员/权限反查）✓；首轮压测（scripts/stress.mjs，矩阵 A-F）读 ~125 RPS 封顶·0 错误，瓶颈为单进程，详见 **docs/PERFORMANCE.md**。
+
+## V4.1 — P0+P1 性能优化落地（方案：docs/PERFORMANCE.md §三，复测：§六）
+
+**变更**：
+
+- **P0-1 多副本**：compose app 去 `container_name` + `replicas: 3`（docker-app-1/2/3，各 512M 上限，内存余量充足）；**坑：Caddy `reverse_proxy app:3000` 会在长连接上钉死单副本**（Docker DNS 返回全量 A 记录也没用），必须改 `dynamic a` 动态上游——改后 11/11/8KB 均匀分流。
+- **P0-2 封禁检查缓存**：`requireUser` 的用户状态查询加 30s Redis 缓存（`user:status:{id}`）；admin 封/解封、举报批量封禁处主动失效——线上实测封禁后旧会话**立即** 403。
+- **P1-1**：roadmaps 列表 60s（上架/审核通过失效）+ 详情公共部分 300s（内容不可变，myFav 按访问者叠加）；announcements 公共列表 60s（发布/撤回失效，同时失效全体 `me:*`）。
+- **P1-2**：搜索 10s 短缓存；trgm GIN 索引补 users.username / creator_profiles.direction / tags.name（迁移 `v4_trgm_search_idx`）。
+- **P1-3**：`buildAuthUserCached` 30s 聚合缓存（未采用原稿的写时计数器方案——公告是广播写无法按用户 INCR，改全路径主动失效，无漂移风险）：登录/资料/头像/通知写入/全部已读/公告发布撤回已读/封禁解封改角色/创作者申请。
+- **测试隔离**：`flushDb` 同时清全部业务缓存前缀（新增 `flushCache` 导出，只删缓存不动限流 key）。
+
+**复测（同矩阵）**：读 vu50 125→**415 RPS（3.3×）**、vu100 107→**472（4.4×）**、混合 vu50 93→**215（2.3×）**、并发登录 p50 4390→**1724ms（2.5×）**；读场景 p50 82-157ms；冒烟 28/28 + 缓存专项 10/10；typecheck/lint/122 测试 ✓；瓶颈离开应用进程数（三副本各 ~0.5 核，PG/Redis 仍 <5%）。已知小项：登录专项 3/130 瞬时 502（dynamic a 刷新窗口，自愈，见 PERFORMANCE.md §六）。
+
+## 2026-09-03 作品支持 Markdown 类型 + 在线预览渲染（含企微邮箱放行）
+
+- **企微邮箱**：`EDU_EMAIL_REGEX` 放行深大企微邮箱 `@szdx.wecom.work`（2024 级及以后新生邮箱绑定企业微信，腾讯企微域名 `{短域名}.wecom.work`；仅精确匹配该子域）。本地代码/文档/.env + 生产 `.env`（head/tail 行号法）+ `up -d app worker` 重建均已生效，线上 API 探测通过。
+- **MD 作品全链路**（迁移 `20260903120000_file_type_md`，`ALTER TYPE "FileType" ADD VALUE 'MD'`）：
+  - 上传：`.md/.markdown` → `MD`（存 `text/markdown` + `.md` 扩展名）；作品/试读副本共用 10MB 特判；付费 MD 客户端生成试读副本（`makeMdSample`：前 min(30%,3000) 字行边界截断 + 尾注）走既有 `kind=preview` 通道。
+  - 预览：`getPreview` 放行 MD，**服务端 `getObjectText` 直回 `content` 文本**（不走 presigned URL——前端 fetch MinIO 有跨域问题；PDF 保持 iframe+URL 不动）；响应统一 `{mode,url,content,pages,hasPreview}`（两字段恒存在、可空）。
+  - 前端：PreviewModal 新增 `fileType` prop，MD 分支 marked→DOMPurify→`.md-body` 渲染（dompurify 首次启用；marked 新依赖）；水印层/购买 CTA 复用。WorkDetailClient 三处预览入口条件加 MD。上传页 `isPreviewable`（PDF/MD）替换 `isPdf` 门控提示。
+  - 顺手修：下载文件名全类型补扩展名（`{title}.{EXT}`，order/adminDownload 两处，原所有类型下载均无后缀）。
+- **测试**：136/136（+6：upload 单测 MD 上限/preview kind 白名单、preview 集成 免费/试读/无副本 MD 三例 + 原「非 PDF→none」改 DOCX）；tsc/lint/build ✓。preview 集成测试的 minio mock 补 `getObjectText`。
+- **环境插曲**：macOS TCC 收回 Terminal 桌面访问权（读写不对称、materials 目录幸存），项目经 Finder AppleScript 迁至 `~/campus-market-0.2.0`（桌面本就是 iCloud 同步目录，dev 项目不宜放那）。
+- **部署注意**：本地基线仍为 V5（971d1d7），线上已是 V6（37d3605，epay）——上线本功能前必须先合并 V6，勿直接用本地 reset 服务器。

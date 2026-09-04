@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { sanitize } from '../lib/sanitize';
 import { enforceRateLimit } from '../lib/ratelimit';
+import { cacheDel, userStatusKey, meKey } from '../lib/cache';
 import { notifyService } from './notify.service';
 import type { ReportTargetType, ReportReason, ReportStatus } from '@/lib/constants';
 
@@ -247,6 +248,7 @@ export const reportService = {
     const status: ReportStatus = input.action === 'RESOLVE' ? 'RESOLVED' : 'DISMISSED';
     const measures = input.measures ?? {};
     const measureNotes: string[] = [];
+    const bannedUserIds: string[] = [];
 
     await prisma.$transaction(async (tx) => {
       await tx.report.updateMany({
@@ -293,10 +295,17 @@ export const reportService = {
               bannedReason: measures.banReason ?? input.note ?? '举报核实处置',
             },
           });
+          bannedUserIds.push(snap.targetAuthorId);
           measureNotes.push('用户已封禁');
         }
       }
     });
+
+    // 封禁缓存失效（事务后）：requireUser 拦截与 /auth/me 立即生效
+    for (const uid of bannedUserIds) {
+      await cacheDel(userStatusKey(uid));
+      await cacheDel(meKey(uid));
+    }
 
     // 通知（事务后）：举报人 + 被处置方
     const title = snap?.targetTitle ?? input.targetId;

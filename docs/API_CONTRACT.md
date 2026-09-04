@@ -54,6 +54,7 @@ export const WorkStatus = {
 export const Quality = { NORMAL: 'NORMAL', HIGH: 'HIGH', SELECTED: 'SELECTED' } as const;
 export const FileType = {
   PDF: 'PDF',
+  MD: 'MD',
   DOC: 'DOC',
   DOCX: 'DOCX',
   PPT: 'PPT',
@@ -62,7 +63,7 @@ export const FileType = {
   IMAGE: 'IMAGE',
   OTHER: 'OTHER',
 } as const;
-export const PayMethod = { WECHAT: 'WECHAT', ALIPAY: 'ALIPAY', MOCK: 'MOCK' } as const;
+export const PayMethod = { WECHAT: 'WECHAT', ALIPAY: 'ALIPAY', MOCK: 'MOCK' } as const; // V6：下单仅 ALIPAY/MOCK；WECHAT 保留给提现(Payout)渠道
 export const PayStatus = {
   PENDING: 'PENDING',
   PAID: 'PAID',
@@ -114,12 +115,13 @@ export const QualityBadge = { NORMAL: null, HIGH: '⭐', SELECTED: '🏅' } as c
 | `VALIDATION`           | 400  | 参数校验失败                | Zod 不通过，details 带字段 |
 | `CONFLICT`             | 409  | 冲突                        | 已评价/已购买/重复         |
 | `RATE_LIMITED`         | 429  | 限流                        | headers 含 `Retry-After`   |
-| `NOT_EDU`              | 400  | 非教育邮箱                  | send-code/register         |
-| `CODE_INVALID`         | 400  | 验证码错误                  | register                   |
-| `CODE_EXPIRED`         | 400  | 验证码过期                  | register                   |
+| `NOT_EDU`              | 400  | 非深圳大学教育邮箱          | send-code/forgot-password  |
+| `CODE_INVALID`         | 400  | 验证码错误                  | register/reset-password    |
+| `CODE_EXPIRED`         | 400  | 验证码过期                  | register/reset-password    |
 | `EMAIL_TAKEN`          | 409  | 邮箱已注册                  | register                   |
 | `USERNAME_TAKEN`       | 409  | 用户名占用                  | register                   |
 | `INVALID_CREDENTIAL`   | 401  | 邮箱或密码错误              | login（防枚举，统一文案）  |
+| `WRONG_OLD_PASSWORD`   | 400  | 旧密码错误                  | change-password            |
 | `ALREADY_CREATOR`      | 409  | 已是创作者                  | creator/apply              |
 | `NO_RATING_ACCESS`     | 403  | 未购买/下载，无评分资格     | ratings create             |
 | `ALREADY_RATED`        | 409  | 已评价                      | ratings create             |
@@ -176,7 +178,7 @@ RatingSummary = { rating:string, ratingCount:number, dist:RatingDist }
 
 // 订单 / 支付
 Order = { id, workId, buyerId, amount:string, payStatus:PayStatus, payMethod:PayMethod, paidAt, createdAt }
-PayParams = // 微信 {provider:'wechat', codeUrl|mwebUrl} | 支付宝 {provider:'alipay', redirectUrl} | mock {provider:'mock', paid:true}
+PayParams = // V6：支付宝跳转 {provider:'alipay', redirectUrl} | mock {provider:'mock', paid:true}（微信收款已下线）
 CreateOrderResult = { orderId, pay:PayParams, access?:boolean }  // access=true 表示已有权限无需支付
 
 // 下载
@@ -205,14 +207,17 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 
 ### 4.1 鉴权
 
-| Method | Path                | 鉴权 | 请求                                                        | 响应 data        | 错误                                                 |
-| ------ | ------------------- | ---- | ----------------------------------------------------------- | ---------------- | ---------------------------------------------------- |
-| POST   | `/auth/send-code`   | 公开 | `{email}`                                                   | `{ok:true}`      | NOT_EDU/RATE_LIMITED/VALIDATION                      |
-| POST   | `/auth/register`    | 公开 | `{email,code,username,password,school,college,major,grade}` | `AuthUser`       | CODE_INVALID/CODE_EXPIRED/EMAIL_TAKEN/USERNAME_TAKEN |
-| POST   | `/auth/login`       | 公开 | `{email,password}`                                          | `AuthUser`       | INVALID_CREDENTIAL/RATE_LIMITED                      |
-| POST   | `/auth/logout`      | 登录 | —                                                           | `{ok:true}`      | —                                                    |
-| GET    | `/auth/me`          | 登录 | —                                                           | `AuthUser`       | UNAUTHENTICATED                                      |
-| POST   | `/me/creator/apply` | 登录 | `{bio,direction,honor,studentCardKey?}`                     | `CreatorProfile` | ALREADY_CREATOR                                      |
+| Method | Path                    | 鉴权 | 请求                                                        | 响应 data        | 错误                                                 |
+| ------ | ----------------------- | ---- | ----------------------------------------------------------- | ---------------- | ---------------------------------------------------- |
+| POST   | `/auth/send-code`       | 公开 | `{email}`                                                   | `{ok:true}`      | NOT_EDU/RATE_LIMITED/VALIDATION                      |
+| POST   | `/auth/register`        | 公开 | `{email,code,username,password,school,college,major,grade}` | `AuthUser`       | CODE_INVALID/CODE_EXPIRED/EMAIL_TAKEN/USERNAME_TAKEN |
+| POST   | `/auth/login`           | 公开 | `{email,password}`                                          | `AuthUser`       | INVALID_CREDENTIAL/RATE_LIMITED                      |
+| POST   | `/auth/forgot-password` | 公开 | `{email}`                                                   | `{ok:true}`      | NOT_EDU/RATE_LIMITED/VALIDATION                      |
+| POST   | `/auth/reset-password`  | 公开 | `{email,code,newPassword}`                                  | `{ok:true}`      | CODE_INVALID/CODE_EXPIRED/RATE_LIMITED/VALIDATION    |
+| POST   | `/auth/change-password` | 登录 | `{oldPassword,newPassword}`                                 | `{ok:true}`      | WRONG_OLD_PASSWORD/RATE_LIMITED/UNAUTHENTICATED      |
+| POST   | `/auth/logout`          | 登录 | —                                                           | `{ok:true}`      | —                                                    |
+| GET    | `/auth/me`              | 登录 | —                                                           | `AuthUser`       | UNAUTHENTICATED                                      |
+| POST   | `/me/creator/apply`     | 登录 | `{bio,direction,honor,studentCardKey?}`                     | `CreatorProfile` | ALREADY_CREATOR                                      |
 
 ### 4.2 作品
 
@@ -243,14 +248,14 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 
 ### 4.4 交易/支付/下载
 
-| Method | Path                   | 鉴权           | 请求                    | 响应                | 错误                             |
-| ------ | ---------------------- | -------------- | ----------------------- | ------------------- | -------------------------------- |
-| POST   | `/works/:id/order`     | 登录           | `{payMethod:PayMethod}` | `CreateOrderResult` | PAYMENT_REQUIRED(免费?)/CONFLICT |
-| POST   | `/orders/:id/pay`      | 登录(owner)    | —                       | `{pay:PayParams}`   | ORDER_CLOSED/FORBIDDEN           |
-| GET    | `/orders/:id`          | 登录(owner)    | —                       | `Order`             | FORBIDDEN/NOT_FOUND              |
-| POST   | `/webhooks/pay/wechat` | 验签           | (微信 body)             | `{code:'SUCCESS'}`  | —                                |
-| POST   | `/webhooks/pay/alipay` | 验签           | (支付宝 body)           | `success`(text)     | —                                |
-| POST   | `/works/:id/download`  | 登录+hasAccess | —                       | `DownloadResult`    | PAYMENT_REQUIRED/FORBIDDEN       |
+| Method | Path               | 鉴权        | 请求                    | 响应                | 错误                             |
+| ------ | ------------------ | ----------- | ----------------------- | ------------------- | -------------------------------- |
+| POST   | `/works/:id/order` | 登录        | `{payMethod:PayMethod}` | `CreateOrderResult` | PAYMENT_REQUIRED(免费?)/CONFLICT |
+| POST   | `/orders/:id/pay`  | 登录(owner) | —                       | `{pay:PayParams}`   | ORDER_CLOSED/FORBIDDEN           |
+| GET    | `/orders/:id`      | 登录(owner) | —                       | `Order`             | FORBIDDEN/NOT_FOUND              |
+
+| GET | `/webhooks/pay/epay` | MD5 验签 | (码支付 query) | `success`(text) | — |
+| POST | `/works/:id/download` | 登录+hasAccess | — | `DownloadResult` | PAYMENT_REQUIRED/FORBIDDEN |
 
 ### 4.5 社交
 
@@ -331,7 +336,7 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 | 方法        | 路径                                                 | 权限                                  | 说明                                                                                                                                                     |
 | ----------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET         | `/works/courses?category=`                           | 公开                                  | 大类下热门课程聚合 `[{course,count}]`（缓存 60s）                                                                                                        |
-| POST        | `/works/:id/preview`                                 | **匿名可访问**（middleware 单独放行） | `{mode:'full'                                                                                                                                            | 'sample'                                                                                                              | 'none', url, pages, hasPreview}`；免费/已购/作者→full 原文件；付费未购→sample（previewKey 5 页试读副本）；非 PDF→none。打开即计观看（去重）。限流 30/min |
+| POST        | `/works/:id/preview`                                 | **匿名可访问**（middleware 单独放行） | `{mode:'full'                                                                                                                                            | 'sample'                                                                                                              | 'none', url, content, pages, hasPreview}`；免费/已购/作者→full 原文件；付费未购→sample（previewKey 试读副本：PDF 前 5 页 / MD 前 30%）；非 PDF/MD→none。PDF→`url`（MinIO inline 签名，iframe 用）；MD→`content`（服务端直回文本，前端 marked+DOMPurify 渲染）。打开即计观看（去重）。限流 30/min |
 | GET         | `/works/:id/cover`                                   | 公开                                  | 302 → 封面图内联签名 URL（1h），`Cache-Control: public, max-age=3600`；无 coverKey→404（前端回退 emoji）                                                 |
 | GET         | `/users/:id`                                         | 公开                                  | 用户主页：`{username,avatarColor,hasAvatar,bio,direction,honor,college,major,grade,verified,isCreator,helped,fans,following,works,rate,myFollow,isSelf}` |
 | GET         | `/users/:id/works?filter=`                           | 公开                                  | 同原 `/creators/:id/works`                                                                                                                               |
@@ -360,3 +365,95 @@ Report = { id, targetType:ReportTargetType, targetId, reason:ReportReason, detai
 
 - 新增 `/explore`（分类浏览：cat/tag/course/sort/price 组合）、`/user/[id]`（个人主页，本人 10 tab / 他人 4 tab）。
 - `/me`、`/creator/[id]`、`/creator-center`、`/income` 全部重定向至 `/user/[id]` 对应 tab。
+
+---
+
+## 7. 版本四变更（V4，2026-09-01）：运维控制台 / 公告 / 学习路线图
+
+> 本节为增量记录，与上文冲突处以本节为准。
+
+### 7.1 枚举与常量
+
+- 新增枚举 `AnnounceLevel`：`NORMAL|IMPORTANT`；`RoadmapCategory`：`BACKEND|FRONTEND|AI|ALGORITHM|EXAM|OTHER`。
+- `AuditAction` 新增 `DELETE`（管理员删除资料的审计动作）。
+- `NotificationType.AUDIT_RESULT` 正式启用：作品与路线图审核结果通知作者（此前闲置）。
+- `AuthUser` 响应新增 `unreadAnnouncements: number`（顶栏公告红点）。
+
+### 7.2 新增端点 — 公告
+
+| 方法   | 路径                       | 权限  | 说明                                                                                         |
+| ------ | -------------------------- | ----- | -------------------------------------------------------------------------------------------- |
+| GET    | `/announcements`           | 公开  | `?page&pageSize&unread=true`；未登录带 unread 返回空列表；`{data:Announcement[],pagination}` |
+| POST   | `/announcements/read-all`  | 登录  | 全部标记已读（createMany skipDuplicates）→ `{read:n}`                                        |
+| GET    | `/admin/announcements`     | ADMIN | 管理列表（含已撤回）                                                                         |
+| POST   | `/admin/announcements`     | ADMIN | `{title≤120,content≤5000,level}`；content 入库前 sanitize                                    |
+| DELETE | `/admin/announcements/:id` | ADMIN | 撤回（软删 deletedAt）                                                                       |
+
+### 7.3 新增端点 — 运维控制台配套
+
+| 方法 | 路径               | 权限  | 说明                                                            |
+| ---- | ------------------ | ----- | --------------------------------------------------------------- |
+| GET  | `/admin/users/:id` | ADMIN | 用户详情聚合（student/creator/\_count/钱包余额/封禁信息）       |
+| GET  | `/admin/works`     | ADMIN | 全量资料列表 `?page&pageSize&q&status&authorId`（直查不走缓存） |
+| GET  | `/admin/orders`    | ADMIN | 订单列表 `?page&pageSize&payStatus&q`（只读）                   |
+
+- `GET /admin/users` 响应字段扩展（SAFE_SELECT 增加 avatarKey/bannedAt/bannedReason）。
+- `DELETE /works/:id`：ADMIN 删除时事务内写 AuditLog（action=DELETE, note=reason 可选）；请求体可带 `{reason}`。
+
+### 7.4 新增端点 — 学习路线图
+
+| 方法        | 路径                        | 权限              | 说明                                                                                                                                                                                                      |
+| ----------- | --------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET         | `/roadmaps`                 | 公开              | `?page&pageSize&category&sort=favs\|newest` → `{data:RoadmapListItem[],pagination}`（仅 PUBLISHED）                                                                                                       |
+| GET         | `/roadmaps/:id`             | 公开              | 详情含 `content:{phases}`、关联 `works:WorkListItem[]`、`myFav`；PENDING/REJECTED 仅上传者与 ADMIN                                                                                                        |
+| POST        | `/roadmaps`                 | 登录（限流 5/h）  | `{title,summary,category,coverIcon?,mdSourceKey,workIds≤10,credentialKey?,experience?}`；ADMIN→直接 PUBLISHED，普通用户→PENDING 且学生证+经历必填；服务端从 MinIO 拉取 md 重新解析校验（≥1 阶段且 ≥3 步） |
+| POST/DELETE | `/roadmaps/:id/favorite`    | 登录              | 幂等 set，同 works favorite 模式 → `{favorited,favs}`                                                                                                                                                     |
+| GET         | `/me/roadmap-favorites`     | 登录              | 我收藏的路线图（仅 PUBLISHED）→ `{data:RoadmapListItem[],pagination}`；个人主页收藏 tab 与资料收藏分组展示                                                                                                |
+| POST        | `/roadmaps/:id/check`       | 登录（限流 60/m） | `{stepId,checked}`；服务端校验 stepId 属于该路线图；勾选=打卡                                                                                                                                             |
+| GET         | `/roadmaps/:id/progress`    | 登录              | `{checked:[{stepId,createdAt}],byDay:{'YYYY-MM-DD':n},streakDays,totalChecked,stepsCount}`；**日界 UTC+8**                                                                                                |
+| GET         | `/admin/roadmaps/pending`   | ADMIN             | 待审列表（含 hasCredential）                                                                                                                                                                              |
+| GET         | `/admin/roadmaps/:id`       | ADMIN             | 审核详情：content + credentialUrl（presign 图）+ mdUrl（下载）+ works                                                                                                                                     |
+| POST        | `/admin/roadmaps/:id/audit` | ADMIN             | `{action:APPROVE\|REJECT,note?}`；审核留痕 reviewerId/reviewedAt；通知上传者（AUDIT_RESULT）                                                                                                              |
+
+### 7.5 修改端点
+
+- `POST /uploads/presign` kind 扩展：`roadmap`（roadmaps/ 前缀，OTHER 类型伪装，contentType text/markdown，≤2MB，扩展名 .md）、`credential`（credentials/ 前缀，IMAGE ≤5MB）。
+- `POST /auth/login` / requireUser：封禁文案携带原因 `账号已被封禁：{bannedReason}`。
+- `POST /admin/works/:id/audit`：APPROVE/REJECT/TAKE_DOWN 均新增作者通知（此前只有粉丝通知）。
+
+### 7.6 前端路由与数据模型
+
+- 新增页面：`/announcements`（公告中心，管理员可发布/撤回）、`/ops/users(/:id)`、`/ops/works`、`/ops/orders`、`/roadmaps(/upload)`、`/roadmaps/[id]`（todolist 打卡 + 热力图）。
+- `/ops` 业务概览五卡可点入详情页；`/admin` 支持 `?tab=` 深链，tab 调整为：资料审核 / 路线图审核 / 公告管理 / 举报队列 / 提现审批 / 创作者认证 / 用户管理。
+- 顶栏：搜索框占满剩余宽度；新增「公告」入口（未读红点）。
+- 新表：`announcements` / `announcement_reads` / `roadmaps` / `roadmap_work_links` / `roadmap_favorites` / `roadmap_checks`（详见 prisma/schema.prisma）。
+
+### 7.7 已知修复
+
+- `tests/setup.ts`：显式将 `DATABASE_URL_POOLED` 指向测试库（此前集成测试经 PgBouncer 误连开发库，flushDb 会清空 dev 数据）。
+
+## 8. 版本五变更（V5，2026-09-02）：注册开放 + 邮箱登录补全
+
+### 8.1 新增端点
+
+见 §4.1：`/auth/forgot-password`（发重置码）、`/auth/reset-password`（码+新密码重置）、`/auth/change-password`（登录态改密）。
+
+### 8.2 语义与机制变更
+
+- **验证码 purpose 化**：Redis key `verify:email:{email}` → `verify:{register|reset}:email:{email}`，注册码与重置码隔离（防跨流程混用）。
+- **pwdVersion 会话失效**：`users.pwdVersion`（默认 0）+ JWT `pwdVer` claim；改密/重置后 `pwdVersion` 原子自增，`requireUser` 比对不一致 → 401「登录已过期」，即改密后全端下线。老 JWT 无 claim 视为 0，存量会话不受影响。
+- **注册邮箱收紧**：`EDU_EMAIL_REGEX` 默认值改为 `^[^@]+@([a-zA-Z0-9-]+\.)*szu\.edu\.cn$`（szu.edu.cn 及任意级子域，如 mails.szu.edu.cn）；仅影响发码入口，存量用户登录不受影响。
+- **深大企微邮箱放行**（2026-09-03）：`EDU_EMAIL_REGEX` 默认值改为 `^[^@]+@(([a-zA-Z0-9-]+\.)*szu\.edu\.cn|szdx\.wecom\.work)$`，新增放行 2024 级及以后新生的企业微信邮箱 `@szdx.wecom.work`（精确匹配该子域，不放行 wecom.work 裸域及其他企业子域）。
+- **防枚举**：forgot-password 对未注册邮箱同样返回 `{ok:true}` 但不存码不发信。
+- **防爆破**：reset-password 每邮箱尝试 10 次/小时（`RL_RESET_TRY_PER_HOUR`），错码不删 key 但消耗尝试次数。
+- 新增错误码 `WRONG_OLD_PASSWORD`；`NOT_EDU` 含义改为「非深圳大学教育邮箱」。
+- 删除无引用的 `verification_tokens` 表（Auth.js 备用残留）。
+- **作品支持 Markdown 类型 + 在线预览**（2026-09-03，迁移 `20260903120000_file_type_md`）：`FileType` 枚举新增 `MD`（DB enum `ALTER TYPE ADD VALUE`，对存量数据无影响）。上传：`.md/.markdown` → MD（存 `text/markdown`，扩展名 `.md`），作品与试读副本共用 10MB 上限（其余类型不变）；`kind=preview` 放行 MD。预览：`POST /works/:id/preview` 对 MD 由服务端直回 `content` 文本（`url` 为 null），PDF 仍回 `url`（`content` 为 null）；付费 MD 试读副本为客户端截断文本（前 min(30%,3000) 字 + 尾注）。下载：文件名全类型补扩展名（`{title}.{ext}`，原来所有类型都无后缀）。前端：PreviewModal 对 MD 走 marked+DOMPurify 渲染（`.md-body` 排版），PDF 保持 iframe。
+
+## 10. 版本六变更（V6，2026-09-03）：码支付网关接入（仅支付宝）
+
+- `PAYMENT_MODE` 取值收窄为 `mock | epay`；下单仅接受 `payMethod: ALIPAY | MOCK`（WECHAT → VALIDATION）。微信收款整体下线（`webhooks/pay/wechat`、`/webhooks/pay/alipay` 路由删除，新回调 `GET /webhooks/pay/epay`）。PayMethod 常量保留 WECHAT 供提现链路（Payout）使用。
+- `PayParams` 删除微信形态；支付宝 = 码支付 mapi.php 返回的 `payurl` 跳转。
+- `markPaid` 新增金额校验（回调 `money` 与订单 `amount` 差 ≥0.005 元拒绝）；CLOSED 订单收到**已验签且金额相符**的回调允许重开结算（防超时关单后买家完成付款导致资金悬空）；重复流水的第二笔回调幂等吞掉并告警日志。
+- `GET /orders/:id` 在订单 PENDING 时每 10s 向网关兜底查单一次（notify 丢失自愈）。
+- 退款：码支付无退款 API，`refund` 在 epay 通道直接报错（商户后台人工处理）；mock 通道保留（测试用）。

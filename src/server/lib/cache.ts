@@ -19,8 +19,20 @@ export async function cacheDel(key: string): Promise<void> {
   await redis.del(key);
 }
 
+/** 原子占位（SET NX EX）：抢到才继续——用于并发下只放一个请求穿透（如支付兜底查单节流） */
+export async function cacheSetNx(key: string, ttlSec: number): Promise<boolean> {
+  const ok = await redis.set(key, '1', 'EX', ttlSec, 'NX');
+  return ok === 'OK';
+}
+
 /** 按模式删除（如 works:list:*） */
 export async function cacheDelByPattern(pattern: string): Promise<void> {
   const keys = await redis.keys(pattern);
   if (keys.length) await redis.del(...keys);
 }
+
+// ---------- 约定 key（性能优化 V4.1）----------
+// 用户状态（封禁拦截）：值 { status, bannedReason } | false（用户不存在）；封/解封时主动失效
+export const userStatusKey = (id: string) => `user:status:${id}`;
+// /auth/me 聚合响应：值 = buildAuthUser 结果；资料/通知/公告/封禁变化时主动失效
+export const meKey = (id: string) => `me:${id}`;

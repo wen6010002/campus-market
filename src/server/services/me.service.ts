@@ -1,7 +1,7 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { objectExists } from '../storage/minio';
-import { cacheDelByPattern } from '../lib/cache';
+import { cacheDelByPattern, cacheDel, meKey } from '../lib/cache';
 
 /** 头像/资料变更后失效含作者信息的缓存（作品列表 / 榜单），让新头像即时可见 */
 async function invalidateAuthorCaches() {
@@ -45,6 +45,7 @@ export const meService = {
       await prisma.studentProfile.updateMany({ where: { userId }, data: patch });
     }
     await invalidateAuthorCaches();
+    await cacheDel(meKey(userId));
     return user;
   },
 
@@ -56,6 +57,7 @@ export const meService = {
     }
     await prisma.user.update({ where: { id: userId }, data: { avatarKey } });
     await invalidateAuthorCaches();
+    await cacheDel(meKey(userId)); // avatarVer 来自 user.updatedAt
     return { avatarKey };
   },
 
@@ -154,6 +156,7 @@ export const meService = {
 
   async markAllRead(userId: string) {
     await prisma.notification.updateMany({ where: { userId, read: false }, data: { read: true } });
+    await cacheDel(meKey(userId));
     return { ok: true };
   },
 };

@@ -11,6 +11,7 @@ import { useRank } from '@/hooks/useSearch';
 import { useAuth } from '@/hooks/useAuth';
 import { useFollowingFeed } from '@/hooks/useCreator';
 import { FreshmanBanner, FRESHMAN_ZONE_ENABLED } from '@/components/home/FreshmanBanner';
+import { HomeRoadmapBanner } from '@/components/home/HomeRoadmapBanner';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import { CATEGORIES } from '@/lib/constants';
 
@@ -259,6 +260,9 @@ export default function HomePage() {
               <small>之后可在个人资料库查看</small>
             </div>
           </section>
+
+          {/* 路线规划建议区（V4）：精品专区上方，无数据不渲染 */}
+          <HomeRoadmapBanner />
 
           <section>
             <div className="page-head" style={{ marginBottom: 14 }}>

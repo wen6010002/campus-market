@@ -26,6 +26,8 @@ export default function SettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [pwd, setPwd] = useState({ oldPassword: '', newPassword: '' });
+  const [changingPwd, setChangingPwd] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
@@ -97,6 +99,26 @@ export default function SettingsPage() {
       toast(e instanceof ApiError ? messageFor(e.code, e.message) : '保存失败', 'warn');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changePwd() {
+    if (!pwd.oldPassword || !pwd.newPassword) return toast('请填写旧密码和新密码', 'warn');
+    setChangingPwd(true);
+    try {
+      await apiFetch('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify(pwd),
+      });
+      toast('密码已更新，请重新登录', 'ok');
+      // pwdVersion 已自增，当前会话下一个请求即 401——主动清 cookie 跳登录
+      await apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
+      qc.clear();
+      router.push('/login');
+    } catch (e) {
+      toast(e instanceof ApiError ? messageFor(e.code, e.message) : '修改失败', 'warn');
+    } finally {
+      setChangingPwd(false);
     }
   }
 
@@ -181,6 +203,45 @@ export default function SettingsPage() {
           </Link>
           <button className="btn btn-primary btn-lg" onClick={save} disabled={saving}>
             {saving ? '保存中…' : '保存资料'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 24, marginTop: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>账号安全</h2>
+        <div className="sub" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 18 }}>
+          修改密码后所有设备需重新登录
+        </div>
+        <div className="field">
+          <label>旧密码</label>
+          <input
+            className="input"
+            type="password"
+            value={pwd.oldPassword}
+            onChange={(e) => setPwd((p) => ({ ...p, oldPassword: e.target.value }))}
+            autoComplete="current-password"
+            maxLength={72}
+          />
+        </div>
+        <div className="field">
+          <label>新密码</label>
+          <input
+            className="input"
+            type="password"
+            value={pwd.newPassword}
+            onChange={(e) => setPwd((p) => ({ ...p, newPassword: e.target.value }))}
+            placeholder="至少 8 位，含字母和数字"
+            autoComplete="new-password"
+            maxLength={72}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button
+            className="btn btn-primary"
+            onClick={changePwd}
+            disabled={changingPwd || !pwd.oldPassword || !pwd.newPassword}
+          >
+            {changingPwd ? '提交中…' : '更新密码'}
           </button>
         </div>
       </div>

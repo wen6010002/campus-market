@@ -7,7 +7,7 @@ import { apiFetch, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
 import { useInvalidateMe } from '@/hooks/useAuth';
 
-const SCHOOLS = ['深圳大学', '南方科技大学', '其他'];
+// V5：仅深大邮箱可注册，school 固定提交「深圳大学」（API 兼容），不再显示学校下拉
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -81,12 +81,13 @@ export default function RegisterPage() {
       <div className="card" style={{ width: 440, maxWidth: '100%', padding: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>注册课搭</h1>
         <div className="sub" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 }}>
-          需使用 .edu.cn 教育邮箱，验证通过即可加入校园成长社区
+          需使用深圳大学教育邮箱（@szu.edu.cn 及子域，或新生企微邮箱
+          @szdx.wecom.work），验证通过即可加入
         </div>
         <form onSubmit={submit}>
           <div className="field">
             <label>
-              教育邮箱 <span className="req">*</span>
+              深大教育邮箱 <span className="req">*</span>
             </label>
             <div className="input-group">
               <input
@@ -94,7 +95,7 @@ export default function RegisterPage() {
                 type="email"
                 value={form.email}
                 onChange={set('email')}
-                placeholder="yourname@szu.edu.cn"
+                placeholder="yourname@mails.szu.edu.cn"
                 autoComplete="email"
                 required
               />
@@ -152,18 +153,6 @@ export default function RegisterPage() {
               autoComplete="new-password"
               required
             />
-          </div>
-          <div className="field">
-            <label>
-              学校 <span className="req">*</span>
-            </label>
-            <select className="input" value={form.school} onChange={set('school')}>
-              {SCHOOLS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
           </div>
           <div
             className="field"

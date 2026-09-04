@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
+import { cacheGet, cacheSet } from '../lib/cache';
 
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
 
@@ -65,11 +66,23 @@ function toCreator(c: any) {
 }
 
 export const searchService = {
-  /** 搜索（作品 title/desc/course/tags + 创作者 username/direction） */
+  /** 搜索（作品 title/desc/course/tags + 创作者 username/direction）。
+   *  性能（V4.1）：10s 短缓存——搜索框高频重复词收益大，结果短暂滞后可接受。 */
   async search(q: string) {
     if (!q || !q.trim()) return { works: [], creators: [], total: 0 };
     const kw = q.trim();
 
+    const cacheKey = `search:${kw.toLowerCase().slice(0, 64)}`;
+    const cached = await cacheGet<Awaited<ReturnType<typeof querySearch>>>(cacheKey);
+    if (cached) return cached;
+    const result = await querySearch(kw);
+    await cacheSet(cacheKey, result, 10);
+    return result;
+  },
+};
+
+/** 搜索查询本体（cacheGet 的类型来源） */
+async function querySearch(kw: string) {
     const [works, creators] = await Promise.all([
       prisma.work.findMany({
         where: {
@@ -105,5 +118,4 @@ export const searchService = {
       creators: creatorItems,
       total: workItems.length + creatorItems.length,
     };
-  },
-};
+}

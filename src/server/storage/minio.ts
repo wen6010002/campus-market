@@ -93,6 +93,13 @@ export async function putObject(
   return s3.send(cmd);
 }
 
+/** 读取文本对象（路线图 md 服务端解析用，V4） */
+export async function getObjectText(key: string): Promise<string> {
+  const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const res = await s3.send(cmd);
+  return await res.Body!.transformToString('utf-8');
+}
+
 /** 判断对象是否存在 */
 export async function objectExists(key: string): Promise<boolean> {
   try {

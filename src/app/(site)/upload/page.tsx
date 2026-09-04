@@ -95,8 +95,23 @@ async function makePreviewSample(file: File): Promise<Blob> {
   return new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
 }
 
+/** 付费 md 生成试读副本：截前 min(30%, 3000) 字符（行边界对齐）+ 尾注，配套服务端 10MB 上限 */
+function makeMdSample(file: File): Promise<Blob> {
+  return file.text().then((text) => {
+    const cut = Math.min(Math.floor(text.length * 0.3), 3000);
+    let body = text.slice(0, cut);
+    const nl = body.lastIndexOf('\n');
+    if (nl > 0) body = body.slice(0, nl); // 行边界截断，避免半行残句
+    return new Blob([`${body}\n\n---\n\n> 📖 试读到此处，购买后解锁完整内容\n`], {
+      type: 'text/markdown; charset=utf-8',
+    });
+  });
+}
+
 const TYPE_BY_EXT: Record<string, FileType> = {
   pdf: 'PDF',
+  md: 'MD',
+  markdown: 'MD',
   doc: 'DOC',
   docx: 'DOCX',
   ppt: 'PPT',
@@ -141,7 +156,10 @@ export default function UploadPage() {
   const createWork = useCreateWork();
   const publishWork = usePublishWork();
 
-  const isPdf = file?.name.toLowerCase().endsWith('.pdf') ?? null;
+  const isPdf = file?.name.toLowerCase().endsWith('.pdf') ?? null; // 封面「自动截 PDF 首页」用
+  const isPreviewable = file
+    ? ['pdf', 'md', 'markdown'].some((e) => file.name.toLowerCase().endsWith(`.${e}`))
+    : null;
   const presetTags = useMemo(
     () => (category ? PRESET_TAGS[category as CategoryKey] : []),
     [category],
@@ -210,7 +228,8 @@ export default function UploadPage() {
     if (!category) return toast('请选择用途大类', 'warn');
     if (!form.copyright) return toast('请勾选原创/授权声明', 'warn');
     if (!form.isFree && !form.price) return toast('请填写价格', 'warn');
-    if (isPdf === false && !nonPdfAck) return toast('请先勾选「了解该格式无法在线预览」', 'warn');
+    if (isPreviewable === false && !nonPdfAck)
+      return toast('请先勾选「了解该格式无法在线预览」', 'warn');
 
     setSubmitting(true);
     try {
@@ -244,14 +263,15 @@ export default function UploadPage() {
         coverIcon = iconPicked;
         coverTheme = themePicked;
       }
-      // 付费 PDF 生成 5 页试读副本（V3-4）：预览端点只对未购者签该副本，保护原文件
+      // 付费作品生成试读副本（V3-4）：PDF 截前 5 页 / MD 截前 30%，预览端点只对未购者签该副本
       let previewKey: string | undefined;
-      if (fileType === 'PDF' && !form.isFree) {
+      if ((fileType === 'PDF' || fileType === 'MD') && !form.isFree) {
         try {
-          const sample = await makePreviewSample(file);
+          const sample =
+            fileType === 'PDF' ? await makePreviewSample(file) : await makeMdSample(file);
           const { fileKey: pk, putUrl: pp } = await presign.mutateAsync({
             kind: 'preview',
-            fileType: 'PDF',
+            fileType,
             fileSize: sample.size,
           });
           await uploadFile(pp, sample);
@@ -319,7 +339,7 @@ export default function UploadPage() {
               <div className="hint" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
                 {file.name}（{(file.size / 1024 / 1024).toFixed(1)} MB）
               </div>
-              {isPdf ? (
+              {isPreviewable ? (
                 <div
                   style={{
                     marginTop: 8,
@@ -330,7 +350,9 @@ export default function UploadPage() {
                     color: '#047857',
                   }}
                 >
-                  ✓ PDF 可在线预览，推荐 — 浏览的同学无需下载即可翻阅全文
+                  {isPdf
+                    ? '✓ PDF 可在线预览，推荐 — 浏览的同学无需下载即可翻阅全文'
+                    : '✓ Markdown 可在线预览 — 标题、代码块、表格都会带排版渲染展示'}
                 </div>
               ) : (
                 <div

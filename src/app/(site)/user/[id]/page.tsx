@@ -17,7 +17,8 @@ import { UserAvatar as Avatar } from '@/components/common/UserAvatar';
 import { ReportModal } from '@/components/form/ReportModal';
 import { WithdrawModal } from '@/components/form/WithdrawModal';
 import { formatCny, formatNum, timeAgo } from '@/lib/format';
-import type { WorkListItem, Order, Notification, FollowRow } from '@/lib/types';
+import type { WorkListItem, Order, Notification, FollowRow, RoadmapListItem } from '@/lib/types';
+import { ROADMAP_CATEGORY_LABEL } from '@/lib/constants';
 
 /** 资料库行（/me/library 返回，弱类型） */
 type LibraryItem = {
@@ -412,34 +413,78 @@ function FavsTab() {
     queryKey: ['me', 'favorites'],
     queryFn: () => apiFetch<WorkListItem[]>('/me/favorites'),
   });
-  return favs.data?.length ? (
-    <div className="card" style={{ padding: 8 }}>
-      {favs.data.map((w) => (
-        <div key={w.id} className="fr-row">
-          <Link href={`/work/${w.id}`} className="fr-main">
-            <div
-              className={`mini-cover ${w.coverTheme}`}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 8,
-                display: 'grid',
-                placeItems: 'center',
-                flex: 'none',
-              }}
-            >
-              {w.coverIcon}
+  // V4：收藏的路线图一并展示（分组）
+  const roadmapFavs = useQuery({
+    queryKey: ['me', 'roadmap-favorites'],
+    queryFn: () => apiFetch<RoadmapListItem[]>('/me/roadmap-favorites'),
+  });
+
+  const rmFavs = roadmapFavs.data ?? [];
+  const workFavs = favs.data ?? [];
+  const bothEmpty = !favs.isLoading && !roadmapFavs.isLoading && !rmFavs.length && !workFavs.length;
+
+  if (bothEmpty) return <Empty icon="💝" title="暂无收藏" desc="遇到喜欢的资料或路线图点个收藏吧" />;
+  return (
+    <>
+      {rmFavs.length ? (
+        <div className="card" style={{ padding: 8, marginBottom: 14 }}>
+          <div className="favs-sec-title">🗺 学习路线图</div>
+          {rmFavs.map((r) => (
+            <div key={r.id} className="fr-row">
+              <Link href={`/roadmaps/${r.id}`} className="fr-main">
+                <div
+                  className="mini-cover g-default"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 8,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flex: 'none',
+                  }}
+                >
+                  {r.coverIcon}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <b>{r.title}</b>
+                  <div className="fr-sub">
+                    {ROADMAP_CATEGORY_LABEL[r.category] ?? r.category} · {r.stepsCount} 步 · ♥ {r.favs}
+                  </div>
+                </div>
+              </Link>
             </div>
-            <div style={{ minWidth: 0 }}>
-              <b>{w.title}</b>
-              <div className="fr-sub">{w.course}</div>
-            </div>
-          </Link>
+          ))}
         </div>
-      ))}
-    </div>
-  ) : (
-    <Empty icon="💝" title="暂无收藏" desc="遇到喜欢的资料点个收藏吧" />
+      ) : null}
+      {workFavs.length ? (
+        <div className="card" style={{ padding: 8 }}>
+          {rmFavs.length ? <div className="favs-sec-title">📚 资料</div> : null}
+          {workFavs.map((w) => (
+            <div key={w.id} className="fr-row">
+              <Link href={`/work/${w.id}`} className="fr-main">
+                <div
+                  className={`mini-cover ${w.coverTheme}`}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 8,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flex: 'none',
+                  }}
+                >
+                  {w.coverIcon}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <b>{w.title}</b>
+                  <div className="fr-sub">{w.course}</div>
+                </div>
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }
 

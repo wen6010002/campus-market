@@ -5,8 +5,8 @@ import { registerSchema } from '@/lib/zod/auth';
 
 export const POST = withErrorHandler(async (req: Request) => {
   const input = registerSchema.parse(await readJson(req));
-  const { userId, role, creatorProfileId } = await authService.register(input);
-  const token = await signSession({ userId, role, creatorProfileId });
+  const { userId, role, creatorProfileId, pwdVersion } = await authService.register(input);
+  const token = await signSession({ userId, role, creatorProfileId, pwdVer: pwdVersion });
   const res = ok(await buildAuthUser(userId), { status: 201 });
   res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return res;

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { FileType } from '@/lib/constants';
 
 const presignSchema = z.object({
-  kind: z.enum(['work', 'cover', 'avatar', 'preview']).optional(),
+  kind: z.enum(['work', 'cover', 'avatar', 'preview', 'roadmap', 'credential']).optional(),
   fileType: z.nativeEnum(FileType),
   fileSize: z.number().int().min(0).max(209715200),
   sha: z.string().optional(),

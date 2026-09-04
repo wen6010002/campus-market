@@ -136,17 +136,20 @@ export default function OpsPage() {
           <span>应用已运行 {formatUptime(data?.uptimeSeconds)}</span>
         </div>
         <div className="stat-grid">
-          {[
-            ['用户数', data?.metrics.users],
-            ['课程资料', data?.metrics.works],
-            ['待审核作品', data?.metrics.pendingWorks],
-            ['待处理举报', data?.metrics.openReports],
-            ['订单数', data?.metrics.orders],
-          ].map(([label, value]) => (
-            <div className="stat-card" key={label as string}>
+          {(
+            [
+              ['用户数', data?.metrics.users, '/ops/users'],
+              ['课程资料', data?.metrics.works, '/ops/works'],
+              ['待审核作品', data?.metrics.pendingWorks, '/admin?tab=works'],
+              ['待处理举报', data?.metrics.openReports, '/admin?tab=reports'],
+              ['订单数', data?.metrics.orders, '/ops/orders'],
+            ] as [string, number | undefined, string][]
+          ).map(([label, value, href]) => (
+            <Link className="stat-card stat-card-link" href={href} key={label}>
               <div className="lb">{label}</div>
               <div className="v">{value ?? '-'}</div>
-            </div>
+              <div className="stat-card-go">管理 →</div>
+            </Link>
           ))}
         </div>
       </section>

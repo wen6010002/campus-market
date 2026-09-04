@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
@@ -55,6 +56,25 @@ type AdminUser = {
   status: string;
   createdAt: string;
 };
+type PendingRoadmap = {
+  id: string;
+  title: string;
+  summary: string;
+  coverIcon: string;
+  category: string;
+  stepsCount: number;
+  uploader: { id: string; username: string };
+  experience: string | null;
+  hasCredential: boolean;
+  createdAt: string;
+};
+type ReviewRoadmap = PendingRoadmap & {
+  content: { phases: { title: string; desc: string; steps: { id: string; text: string; note?: string }[] }[] };
+  experience: string | null;
+  credentialUrl: string | null;
+  mdUrl: string;
+  works: { id: string; title: string }[];
+};
 type Stats = {
   users: number;
   works: number;
@@ -65,7 +85,9 @@ type Stats = {
 };
 
 const TABS = [
-  { key: 'works', label: '待审核作品' },
+  { key: 'works', label: '资料审核' },
+  { key: 'roadmaps', label: '路线图审核' },
+  { key: 'announcements', label: '公告管理' },
   { key: 'reports', label: '举报队列' },
   { key: 'payouts', label: '提现审批' },
   { key: 'creators', label: '创作者认证' },
@@ -73,8 +95,25 @@ const TABS = [
 ];
 
 export default function AdminPage() {
+  return (
+    <Suspense fallback={<main className="page">加载中…</main>}>
+      <AdminContent />
+    </Suspense>
+  );
+}
+
+function AdminContent() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState('works');
+  const sp = useSearchParams();
+  const [tab, setTab] = useState(() => {
+    const t = sp.get('tab') ?? 'works';
+    return TABS.some((x) => x.key === t) ? t : 'works';
+  });
+  // URL ?tab= 变化时同步（/ops 概览卡深链跳转）
+  useEffect(() => {
+    const t = sp.get('tab');
+    if (t && TABS.some((x) => x.key === t)) setTab(t);
+  }, [sp]);
   const { user, isLoading: authLoading } = useAuth();
 
   const stats = useQuery({
@@ -117,6 +156,35 @@ export default function AdminPage() {
     queryFn: () => apiFetch<AdminUser[]>('/admin/users'),
     enabled: user?.role === 'ADMIN',
   });
+
+  // ===== 路线图审核（V4） =====
+  const roadmapPending = useQuery({
+    queryKey: ['admin', 'roadmaps', 'pending'],
+    queryFn: () => apiFetch<PendingRoadmap[]>('/admin/roadmaps/pending'),
+    enabled: user?.role === 'ADMIN',
+  });
+  const [reviewing, setReviewing] = useState<ReviewRoadmap | null>(null);
+  const auditRoadmap = useMutation({
+    mutationFn: ({ id, action, note }: { id: string; action: string; note?: string }) =>
+      apiFetch(`/admin/roadmaps/${id}/audit`, {
+        method: 'POST',
+        body: JSON.stringify({ action, note }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin'] });
+      setReviewing(null);
+      toast('已处理，结果已通知上传者', 'ok');
+    },
+  });
+
+  const openRoadmapReview = async (id: string) => {
+    try {
+      const detail = await apiFetch<ReviewRoadmap>(`/admin/roadmaps/${id}`);
+      setReviewing(detail);
+    } catch (e) {
+      toast(e instanceof ApiError ? messageFor(e.code, e.message) : '加载审核详情失败', 'warn');
+    }
+  };
 
   const audit = useMutation({
     mutationFn: ({ id, action }: { id: string; action: string }) =>
@@ -330,6 +398,90 @@ export default function AdminPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === 'roadmaps' && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table className="tbl" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th>路线图</th>
+                <th>上传者</th>
+                <th>步骤</th>
+                <th>审核材料</th>
+                <th>提交时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roadmapPending.isLoading ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                    加载中…
+                  </td>
+                </tr>
+              ) : roadmapPending.data?.length ? (
+                roadmapPending.data.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <b>{r.coverIcon} {r.title}</b>
+                      <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{r.summary}</div>
+                    </td>
+                    <td>{r.uploader.username}</td>
+                    <td>{r.stepsCount} 步</td>
+                    <td>{r.hasCredential ? '🪪 学生证' : '—'}</td>
+                    <td style={{ color: 'var(--ink-soft)', whiteSpace: 'nowrap' }}>
+                      {new Date(r.createdAt).toLocaleString('zh-CN')}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button
+                        className="btn btn-light btn-sm"
+                        style={{ marginRight: 6 }}
+                        onClick={() => openRoadmapReview(r.id)}
+                      >
+                        审核
+                      </button>
+                      <button
+                        className="btn btn-mint btn-sm"
+                        style={{ marginRight: 6 }}
+                        onClick={() => auditRoadmap.mutate({ id: r.id, action: 'APPROVE' })}
+                      >
+                        通过
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          const note = window.prompt('驳回原因（将通知上传者）') ?? undefined;
+                          if (note !== undefined) auditRoadmap.mutate({ id: r.id, action: 'REJECT', note });
+                        }}
+                      >
+                        驳回
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                    暂无待审核路线图
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'announcements' && (
+        <div className="card" style={{ padding: 24 }}>
+          <h3 style={{ marginBottom: 8 }}>公告管理</h3>
+          <p style={{ color: 'var(--ink-2)', fontSize: 14, marginBottom: 16 }}>
+            发布后所有用户下次进入站点时弹窗提醒（每条公告每用户只弹一次），公告列表常年可通过顶栏「公告」按钮查看。
+          </p>
+          <Link className="btn btn-primary" href="/announcements">
+            前往公告中心发布 / 撤回 →
+          </Link>
         </div>
       )}
 
@@ -757,6 +909,84 @@ export default function AdminPage() {
                 }
               >
                 {handleReport.isPending ? '处理中…' : '确认处置'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {reviewing ? (
+        <div className="modal-mask show" onClick={(e) => e.target === e.currentTarget && setReviewing(null)}>
+          <div className="modal modal-md" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div className="modal-head">
+              <b>
+                审核路线图：{reviewing.coverIcon} {reviewing.title}
+              </b>
+              <button className="modal-x" onClick={() => setReviewing(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="rm-review-meta">
+                <span>上传者：{reviewing.uploader.username}</span>
+                <span>{reviewing.stepsCount} 步</span>
+                <a href={reviewing.mdUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--pri-600)' }}>
+                  下载原始 md ↗
+                </a>
+              </div>
+              {reviewing.experience ? (
+                <p className="rm-review-exp">
+                  <b>个人经历：</b>
+                  {reviewing.experience}
+                </p>
+              ) : null}
+              {reviewing.credentialUrl ? (
+                <p style={{ marginBottom: 12 }}>
+                  <b style={{ display: 'block', marginBottom: 6 }}>🪪 学生证（点击查看大图）：</b>
+                  <a href={reviewing.credentialUrl} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={reviewing.credentialUrl}
+                      alt="学生证"
+                      style={{ maxHeight: 160, borderRadius: 8, border: '1px solid var(--line)' }}
+                    />
+                  </a>
+                </p>
+              ) : null}
+              <div className="rm-review-preview">
+                {reviewing.content.phases.map((p, i) => (
+                  <div key={i} className="rm-phase-mini">
+                    <b>
+                      {i + 1}. {p.title}
+                    </b>
+                    {p.desc ? <small>{p.desc}</small> : null}
+                    <ul>
+                      {p.steps.map((s) => (
+                        <li key={s.id}>
+                          {s.text}
+                          {s.note ? <small> —— {s.note}</small> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  const note = window.prompt('驳回原因（将通知上传者）') ?? undefined;
+                  if (note !== undefined) auditRoadmap.mutate({ id: reviewing.id, action: 'REJECT', note });
+                }}
+              >
+                驳回
+              </button>
+              <button
+                className="btn btn-mint"
+                onClick={() => auditRoadmap.mutate({ id: reviewing.id, action: 'APPROVE' })}
+              >
+                通过并上架
               </button>
             </div>
           </div>

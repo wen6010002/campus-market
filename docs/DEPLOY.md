@@ -57,18 +57,18 @@ open http://localhost:8025                     # mailhog 界面查看验证码
 
 必填项标注 `#required`。完整字段见 `.env.example`，关键项：
 
-| 变量                  | 说明                                    | 本地默认                                          |
-| --------------------- | --------------------------------------- | ------------------------------------------------- |
-| `DATABASE_URL`        | PG 连接串（直连，迁移用）               | `postgresql://cm:cm@localhost:5433/campus_market` |
-| `DATABASE_URL_POOLED` | 运行时连接串（走 PgBouncer，可选）      | `postgresql://cm:cm@localhost:6433/campus_market` |
-| `REDIS_URL`           | Redis 连接                              | `redis://localhost:6379`                          |
-| `AUTH_SECRET`         | JWT 签名密钥（required）                | 随机生成                                          |
-| `PASSWORD_PEPPER`     | 密码 pepper（required）                 | 随机生成                                          |
-| `S3_*`                | MinIO 地址/密钥/桶                      | `localhost:9000` / `minioadmin`                   |
-| `PAYMENT_MODE`        | `mock` \| `wechat` \| `alipay` \| `all` | `mock`                                            |
-| `SMTP_HOST/PORT`      | 邮件（本地 mailhog）                    | `localhost:1025`                                  |
-| `PLATFORM_FEE_RATE`   | 平台抽成                                | `0.1`（10%）                                      |
-| `INCOME_SETTLE_DAYS`  | T+N 结算                                | `7`                                               |
+| 变量                  | 说明                               | 本地默认                                          |
+| --------------------- | ---------------------------------- | ------------------------------------------------- |
+| `DATABASE_URL`        | PG 连接串（直连，迁移用）          | `postgresql://cm:cm@localhost:5433/campus_market` |
+| `DATABASE_URL_POOLED` | 运行时连接串（走 PgBouncer，可选） | `postgresql://cm:cm@localhost:6433/campus_market` |
+| `REDIS_URL`           | Redis 连接                         | `redis://localhost:6379`                          |
+| `AUTH_SECRET`         | JWT 签名密钥（required）           | 随机生成                                          |
+| `PASSWORD_PEPPER`     | 密码 pepper（required）            | 随机生成                                          |
+| `S3_*`                | MinIO 地址/密钥/桶                 | `localhost:9000` / `minioadmin`                   |
+| `PAYMENT_MODE`        | `mock` \| `epay`                   | `mock`                                            |
+| `SMTP_HOST/PORT`      | 邮件（本地 mailhog）               | `localhost:1025`                                  |
+| `PLATFORM_FEE_RATE`   | 平台抽成                           | `0.1`（10%）                                      |
+| `INCOME_SETTLE_DAYS`  | T+N 结算                           | `7`                                               |
 
 ---
 
@@ -115,31 +115,19 @@ docker compose -f docker/docker-compose.prod.yml up -d --build app worker
 
 ## 5. 真实支付上线
 
-本地/E2E 用 `PAYMENT_MODE=mock`（下单即成功，走完整收益事务）。生产切真实支付需提供：
-
-**微信支付 v3**（Native）：
+本地/E2E 用 `PAYMENT_MODE=mock`（下单即成功，走完整收益事务）。生产切真实支付（V6 起仅支付宝，走码支付网关/易支付协议）：
 
 ```env
-PAYMENT_MODE=wechat
-WECHAT_APPID=wx...
-WECHAT_MCHID=商户号
-WECHAT_API_V3_KEY=32位APIv3密钥
-WECHAT_SERIAL_NO=商户证书序列号
-WECHAT_PRIVATE_KEY_PATH=./certs/wechat.pem   # 商户私钥
-WECHAT_NOTIFY_URL=https://你的域名/api/v1/webhooks/pay/wechat
+PAYMENT_MODE=epay
+EPAY_GATEWAY=https://pay.fengxiaonb.icu
+EPAY_PID=商户ID
+EPAY_KEY=商户秘钥
+# notify/return 不配则由 APP_BASE_URL 自动派生：
+#   EPAY_NOTIFY_URL = {APP_BASE_URL}/api/v1/webhooks/pay/epay
+#   EPAY_RETURN_URL = {APP_BASE_URL}/pay/result
 ```
 
-证书放到项目 `certs/`（已在 `.gitignore`，不入库）。
-
-**支付宝**（电脑网站支付）：
-
-```env
-PAYMENT_MODE=alipay
-ALIPAY_APP_ID=应用ID
-ALIPAY_PRIVATE_KEY=应用私钥
-ALIPAY_PUBLIC_KEY=支付宝公钥
-ALIPAY_NOTIFY_URL=https://你的域名/api/v1/webhooks/pay/alipay
-```
+> 回调是 **GET** + MD5 验签，应答纯文本 `success`；验签失败不 ack（500），平台自动重试。回调金额与订单比对（不符拒绝）。订单查询页轮询时每 10s 兜底向网关查单自愈。**该通道无退款 API**：退款在码支付商户后台人工转账后处理。
 
 > 真实下单代码已就绪（`src/server/payment/{wechat,alipay}.ts`，RSA 签名/验签/AES-GCM 解密用 `node:crypto` 自封），只需注入密钥。回调验签失败时路由不 ack，支付方会自动重试。
 

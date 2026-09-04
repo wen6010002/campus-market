@@ -1,10 +1,22 @@
 {$DOMAIN} {
 	encode gzip
-	reverse_proxy app:3000
+	# 多副本负载均衡（V4.1）：app 服务 replicas>1，Docker DNS 返回多条 A 记录。
+	# 静态写 reverse_proxy app:3000 会在长连接上钉死单容器；dynamic a 维护动态地址池自动轮询。
+	reverse_proxy {
+		dynamic a {
+			name app
+			port 3000
+		}
+	}
 }
 
 # 临时 IP 入口：DNS 生效前可通过 http://服务器IP 验收应用。
 http://154.222.19.224 {
 	encode gzip
-	reverse_proxy app:3000
+	reverse_proxy {
+		dynamic a {
+			name app
+			port 3000
+		}
+	}
 }

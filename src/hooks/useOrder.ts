@@ -22,6 +22,7 @@ export function useOrder(orderId: string | null) {
     queryFn: () => apiFetch<Order>(`/orders/${orderId}`),
     enabled: !!orderId,
     refetchInterval: (q) => {
+      if (q.state.error) return false; // 查询失败（未登录/订单不存在）不再轮询
       const o = q.state.data;
       return o && (o.payStatus === 'PAID' || o.payStatus === 'CLOSED') ? false : 2000;
     },

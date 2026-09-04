@@ -4,14 +4,16 @@ export const sendCodeSchema = z.object({
   email: z.string().trim().email(),
 });
 
+const passwordSchema = z
+  .string()
+  .min(8, '密码至少 8 位')
+  .regex(/^(?=.*[a-zA-Z])(?=.*\d)/, '密码需同时包含字母和数字');
+
 export const registerSchema = z.object({
   email: z.string().trim().email(),
   code: z.string().length(6, '验证码为 6 位数字'),
   username: z.string().trim().min(2).max(30),
-  password: z
-    .string()
-    .min(8, '密码至少 8 位')
-    .regex(/^(?=.*[a-zA-Z])(?=.*\d)/, '密码需同时包含字母和数字'),
+  password: passwordSchema,
   school: z.string().trim().min(1),
   college: z.string().trim().min(1),
   major: z.string().trim().min(1),
@@ -21,6 +23,21 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().trim().email(),
+  code: z.string().length(6, '验证码为 6 位数字'),
+  newPassword: passwordSchema,
+});
+
+export const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1),
+  newPassword: passwordSchema,
 });
 
 export const creatorApplySchema = z.object({
@@ -61,4 +78,6 @@ export const authUserSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SendCodeInput = z.infer<typeof sendCodeSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CreatorApplyInput = z.infer<typeof creatorApplySchema>;

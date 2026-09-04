@@ -227,8 +227,8 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
             </div>
           </div>
 
-          {/* 在线预览入口（V3-4）：PDF 可预览；免费全量 / 付费试读前 5 页 */}
-          {work.fileType === 'PDF' ? (
+          {/* 在线预览入口（V3-4，md 扩展）：PDF/MD 可预览；免费全量 / 付费试读 */}
+          {work.fileType === 'PDF' || work.fileType === 'MD' ? (
             <div
               className="preview-entry"
               role="button"
@@ -241,10 +241,14 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
                 <b>在线预览</b>
                 <small>
                   {work.isFree || work.myAccess
-                    ? '无需下载，直接翻阅完整内容'
+                    ? work.fileType === 'MD'
+                      ? '无需下载，直接阅读全文'
+                      : '无需下载，直接翻阅完整内容'
                     : work.hasSample
-                      ? '免费试读前 5 页，购买解锁完整版'
-                      : '在线翻阅内容'}
+                      ? work.fileType === 'MD'
+                        ? '免费试读部分内容，购买解锁完整版'
+                        : '免费试读前 5 页，购买解锁完整版'
+                      : '在线查看内容'}
                 </small>
               </div>
               <span className="pe-arrow">→</span>
@@ -401,7 +405,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
                   <button className="btn btn-primary btn-block btn-lg" onClick={doDownload}>
                     下载作品
                   </button>
-                  {work.fileType === 'PDF' ? (
+                  {work.fileType === 'PDF' || work.fileType === 'MD' ? (
                     <button
                       className="btn btn-light btn-block btn-lg"
                       onClick={() => setPreviewOpen(true)}
@@ -418,12 +422,12 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
                   >
                     ¥{work.price} 立即购买
                   </button>
-                  {work.fileType === 'PDF' ? (
+                  {work.fileType === 'PDF' || work.fileType === 'MD' ? (
                     <button
                       className="btn btn-light btn-block btn-lg"
                       onClick={() => setPreviewOpen(true)}
                     >
-                      ▶ 试读前 5 页
+                      ▶ {work.fileType === 'MD' ? '免费试读' : '试读前 5 页'}
                     </button>
                   ) : null}
                 </>
@@ -518,6 +522,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
       <PreviewModal
         open={previewOpen}
         workId={work.id}
+        fileType={work.fileType}
         title={work.title}
         price={work.price}
         watermark={user?.username ?? '访客'}

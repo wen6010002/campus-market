@@ -89,9 +89,30 @@ describe('交易服务（阶段 4）', () => {
     expect(result.access).toBe(true);
   });
 
+  it('V6 金额校验：回调金额与订单不符 → 拒绝', async () => {
+    const order = await prisma.order.create({
+      data: {
+        workId: 'paid_work',
+        buyerId: BUYER,
+        amount: 9.9,
+        platformFee: 0.99,
+        creatorAmount: 8.91,
+        payMethod: 'ALIPAY',
+        payStatus: 'PENDING',
+        expiresAt: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+    await expect(
+      orderService.markPaid(order.id, 'tx-cheat', 'idem-cheat', { paidAmount: '0.01' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).payStatus).toBe(
+      'PENDING',
+    );
+  });
+
   it('回调幂等：重复 markPaid 只生效一次', async () => {
     const order = await prisma.order.findFirstOrThrow({
-      where: { workId: 'paid_work', buyerId: BUYER },
+      where: { workId: 'paid_work', buyerId: BUYER, payStatus: 'PAID' },
     });
     const incomeCount = await prisma.creatorIncome.count();
     const r1 = await orderService.markPaid(order.id, 'tx-dup', 'idem-dup');
