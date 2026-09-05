@@ -125,6 +125,7 @@ export const socialService = {
     return {
       id: user.id,
       username: user.username,
+      role: user.role,
       avatarColor: user.avatarColor,
       hasAvatar: !!user.avatarKey,
       avatarVer: user.updatedAt.getTime(),

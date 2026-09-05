@@ -122,6 +122,7 @@ export interface CreatorSummary {
 export interface UserProfile {
   id: string;
   username: string;
+  role?: string;
   avatarColor: string;
   hasAvatar: boolean;
   avatarVer?: number;

@@ -5180,6 +5180,17 @@ body {
   align-items: center;
   gap: 7px;
 }
+/* 平台管理员徽章（ADMIN 身份展示，非创作者认证） */
+.up-admin-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pri-700);
+  background: var(--pri-50);
+  border: 1px solid var(--pri-100);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
 .up-hero .up-sub {
   font-size: 13px;
   color: var(--ink-soft);

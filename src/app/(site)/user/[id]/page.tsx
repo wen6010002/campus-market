@@ -116,6 +116,7 @@ function UserContent() {
           <h1 className="up-name">
             {profile.username}
             {profile.verified ? <span className="dh-check">✓</span> : null}
+            {profile.role === 'ADMIN' ? <span className="up-admin-badge">🛡 平台管理员</span> : null}
           </h1>
           <div className="up-sub">
             {profile.college || '校园用户'}
