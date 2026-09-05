@@ -9,6 +9,7 @@ import { messageFor } from '@/lib/api/errors';
 import { toast } from '@/stores/ui';
 import { useAuth } from '@/hooks/useAuth';
 import { Empty } from '@/components/common/Empty';
+import { WorksManage } from '@/components/admin/WorksManage';
 
 type PendingWork = { id: string; title: string; course: string; author: { username: string } };
 type ReportGroup = {
@@ -69,7 +70,9 @@ type PendingRoadmap = {
   createdAt: string;
 };
 type ReviewRoadmap = PendingRoadmap & {
-  content: { phases: { title: string; desc: string; steps: { id: string; text: string; note?: string }[] }[] };
+  content: {
+    phases: { title: string; desc: string; steps: { id: string; text: string; note?: string }[] }[];
+  };
   experience: string | null;
   credentialUrl: string | null;
   mdUrl: string;
@@ -85,6 +88,7 @@ type Stats = {
 };
 
 const TABS = [
+  { key: 'manage', label: '资料管理' },
   { key: 'works', label: '资料审核' },
   { key: 'roadmaps', label: '路线图审核' },
   { key: 'announcements', label: '公告管理' },
@@ -341,6 +345,7 @@ function AdminContent() {
         ))}
       </div>
 
+      {tab === 'manage' && <WorksManage />}
       {tab === 'works' && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table className="tbl" style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -417,7 +422,10 @@ function AdminContent() {
             <tbody>
               {roadmapPending.isLoading ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                  <td
+                    colSpan={6}
+                    style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
+                  >
                     加载中…
                   </td>
                 </tr>
@@ -425,7 +433,9 @@ function AdminContent() {
                 roadmapPending.data.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <b>{r.coverIcon} {r.title}</b>
+                      <b>
+                        {r.coverIcon} {r.title}
+                      </b>
                       <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{r.summary}</div>
                     </td>
                     <td>{r.uploader.username}</td>
@@ -453,7 +463,8 @@ function AdminContent() {
                         className="btn btn-ghost btn-sm"
                         onClick={() => {
                           const note = window.prompt('驳回原因（将通知上传者）') ?? undefined;
-                          if (note !== undefined) auditRoadmap.mutate({ id: r.id, action: 'REJECT', note });
+                          if (note !== undefined)
+                            auditRoadmap.mutate({ id: r.id, action: 'REJECT', note });
                         }}
                       >
                         驳回
@@ -463,7 +474,10 @@ function AdminContent() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                  <td
+                    colSpan={6}
+                    style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
+                  >
                     暂无待审核路线图
                   </td>
                 </tr>
@@ -916,8 +930,15 @@ function AdminContent() {
       ) : null}
 
       {reviewing ? (
-        <div className="modal-mask show" onClick={(e) => e.target === e.currentTarget && setReviewing(null)}>
-          <div className="modal modal-md" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+        <div
+          className="modal-mask show"
+          onClick={(e) => e.target === e.currentTarget && setReviewing(null)}
+        >
+          <div
+            className="modal modal-md"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 640 }}
+          >
             <div className="modal-head">
               <b>
                 审核路线图：{reviewing.coverIcon} {reviewing.title}
@@ -930,7 +951,12 @@ function AdminContent() {
               <div className="rm-review-meta">
                 <span>上传者：{reviewing.uploader.username}</span>
                 <span>{reviewing.stepsCount} 步</span>
-                <a href={reviewing.mdUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--pri-600)' }}>
+                <a
+                  href={reviewing.mdUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--pri-600)' }}
+                >
                   下载原始 md ↗
                 </a>
               </div>
@@ -977,7 +1003,8 @@ function AdminContent() {
                 className="btn btn-ghost"
                 onClick={() => {
                   const note = window.prompt('驳回原因（将通知上传者）') ?? undefined;
-                  if (note !== undefined) auditRoadmap.mutate({ id: reviewing.id, action: 'REJECT', note });
+                  if (note !== undefined)
+                    auditRoadmap.mutate({ id: reviewing.id, action: 'REJECT', note });
                 }}
               >
                 驳回

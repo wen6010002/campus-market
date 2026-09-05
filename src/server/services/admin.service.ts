@@ -1,8 +1,9 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
-import { cacheDel, userStatusKey, meKey } from '../lib/cache';
+import { cacheDel, userStatusKey, meKey, cacheDelByPattern } from '../lib/cache';
 import type { Role } from '@/lib/constants';
 import { hashPassword } from '../auth/password';
+import { workService } from './work.service';
 
 /** 用户状态/聚合缓存失效：封禁拦截（requireUser）与 /auth/me 都要立即看到变化 */
 async function invalidateUserCaches(userId: string) {
@@ -251,11 +252,15 @@ export const adminService = {
     q?: string;
     status?: string;
     authorId?: string;
+    category?: string;
+    fine?: 'true' | 'false';
   }) {
     const where: any = { deletedAt: null };
     if (opts.q) where.title = { contains: opts.q, mode: 'insensitive' };
     if (opts.status) where.status = opts.status;
     if (opts.authorId) where.authorId = opts.authorId;
+    if (opts.category) where.category = opts.category;
+    if (opts.fine) where.isFree = opts.fine !== 'true';
 
     const [total, works] = await Promise.all([
       prisma.work.count({ where }),
@@ -350,5 +355,87 @@ export const adminService = {
         totalPages: Math.ceil(total / opts.pageSize),
       },
     };
+  },
+
+  /** 资料管理（P0）：单条调整——分区（精品/普通=自我提升区/校园专区）、分类、上下架 */
+  async updateWork(
+    adminId: string,
+    id: string,
+    input: { isFree?: boolean; category?: string; status?: 'PUBLISHED' | 'TAKEN_DOWN' },
+  ) {
+    const work = await prisma.work.findFirst({ where: { id, deletedAt: null } });
+    if (!work) throw appError('NOT_FOUND', '资料不存在');
+    const data: Record<string, unknown> = {};
+    if (input.isFree !== undefined) {
+      // V7 免费模式：isFree 仅决定展示分区（false=自我提升区精品位），价格仅作数据保留
+      data.isFree = input.isFree;
+      data.price = input.isFree ? work.price || 9.9 : 0;
+    }
+    if (input.category) data.category = input.category;
+    if (input.status) {
+      data.status = input.status;
+      if (input.status === 'PUBLISHED' && !work.publishedAt) data.publishedAt = new Date();
+    }
+    const updated = await prisma.work.update({ where: { id }, data });
+    await prisma.auditLog.create({
+      data: {
+        workId: id,
+        action:
+          input.status === 'PUBLISHED'
+            ? 'APPROVE'
+            : input.status === 'TAKEN_DOWN'
+              ? 'TAKE_DOWN'
+              : 'REQUEST_CHANGES',
+        reviewerId: adminId,
+        note: `资料管理调整：${[
+          input.isFree !== undefined ? `分区→${input.isFree ? '普通' : '精品'}` : null,
+          input.category ? `分类→${input.category}` : null,
+          input.status ? `状态→${input.status}` : null,
+        ]
+          .filter(Boolean)
+          .join('，')}`,
+      },
+    });
+    await cacheDelByPattern('works:list:*');
+    // 上架时补全发布副作用（通知/动态/成就）走既有审核通道，避免旁路
+    if (input.status === 'PUBLISHED' && work.status !== 'PUBLISHED') {
+      await workService.adminAudit(id, 'APPROVE', undefined, adminId);
+    }
+    return {
+      id: updated.id,
+      isFree: updated.isFree,
+      category: updated.category,
+      status: updated.status,
+    };
+  },
+
+  /** 资料管理（P0）：批量操作——上线（可选分区）/下架/调分区/删除 */
+  async batchWorks(
+    adminId: string,
+    ids: string[],
+    action: 'publish' | 'takeDown' | 'setFine' | 'setFree' | 'delete',
+  ) {
+    let done = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+      try {
+        if (action === 'delete') {
+          await workService.remove(id, adminId, true);
+        } else if (action === 'publish') {
+          await this.updateWork(adminId, id, { status: 'PUBLISHED' });
+        } else if (action === 'takeDown') {
+          await this.updateWork(adminId, id, { status: 'TAKEN_DOWN' });
+        } else if (action === 'setFine') {
+          await this.updateWork(adminId, id, { isFree: false });
+        } else {
+          await this.updateWork(adminId, id, { isFree: true });
+        }
+        done++;
+      } catch (e) {
+        errors.push(`${id}: ${e instanceof Error ? e.message : '失败'}`);
+      }
+    }
+    await cacheDelByPattern('works:list:*');
+    return { done, total: ids.length, errors: errors.slice(0, 5) };
   },
 };

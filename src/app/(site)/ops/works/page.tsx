@@ -9,6 +9,7 @@ import { Modal, ModalHead, ModalBody, ModalFoot } from '@/components/common/Moda
 import { apiFetch, apiFetchPage, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
 import { toast } from '@/stores/ui';
+import { FREE_MODE } from '@/lib/constants';
 
 type AdminWorkRow = {
   id: string;
@@ -83,7 +84,9 @@ function OpsWorksContent() {
       <main className="page">
         <div className="page-head">
           <div>
-            <h1>资料管理{authorId ? `（作者 ${list.data?.data[0]?.author.username ?? ''}）` : ''}</h1>
+            <h1>
+              资料管理{authorId ? `（作者 ${list.data?.data[0]?.author.username ?? ''}）` : ''}
+            </h1>
             <div className="sub">全量资料查看 · 删除违规资料（软删除，保留审计记录）</div>
           </div>
           <Link className="btn btn-light" href="/ops">
@@ -105,7 +108,14 @@ function OpsWorksContent() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select className="input" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+          <select
+            className="input"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+          >
             <option value="">全部状态</option>
             <option value="PUBLISHED">已上架</option>
             <option value="PENDING">审核中</option>
@@ -134,7 +144,10 @@ function OpsWorksContent() {
             <tbody>
               {list.isLoading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                  <td
+                    colSpan={7}
+                    style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
+                  >
                     加载中…
                   </td>
                 </tr>
@@ -164,6 +177,11 @@ function OpsWorksContent() {
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {w.isFree ? (
                         <span style={{ color: 'var(--mint)', fontWeight: 600 }}>免费</span>
+                      ) : FREE_MODE ? (
+                        // V7 全站免费：价格仅数据保留，展示分区语义避免误导
+                        <span style={{ color: 'var(--fine)', fontWeight: 600 }}>
+                          💎 精品（免费下）
+                        </span>
                       ) : (
                         <span style={{ color: 'var(--fine)', fontWeight: 600 }}>¥{w.price}</span>
                       )}
@@ -181,7 +199,9 @@ function OpsWorksContent() {
                         className="btn btn-ghost btn-sm"
                         onClick={() => setDeleting(w)}
                         disabled={w.status === 'PENDING'}
-                        title={w.status === 'PENDING' ? '待审核资料请在管理后台审核处理' : undefined}
+                        title={
+                          w.status === 'PENDING' ? '待审核资料请在管理后台审核处理' : undefined
+                        }
                       >
                         删除
                       </button>
@@ -190,7 +210,10 @@ function OpsWorksContent() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                  <td
+                    colSpan={7}
+                    style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
+                  >
                     没有匹配的资料
                   </td>
                 </tr>
@@ -229,7 +252,9 @@ function OpsWorksContent() {
             </button>
             <button
               className="btn btn-primary"
-              onClick={() => deleting && remove.mutate({ id: deleting.id, reason: delReason || undefined })}
+              onClick={() =>
+                deleting && remove.mutate({ id: deleting.id, reason: delReason || undefined })
+              }
               disabled={remove.isPending}
             >
               {remove.isPending ? '删除中…' : '确认删除'}
