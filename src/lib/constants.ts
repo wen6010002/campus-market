@@ -33,6 +33,7 @@ export type FileType = (typeof FileType)[keyof typeof FileType];
 export const Category = {
   COURSE: 'COURSE',
   EXAM: 'EXAM',
+  ABROAD: 'ABROAD',
   CAREER: 'CAREER',
   TUTOR: 'TUTOR',
   LIFE: 'LIFE',
@@ -41,21 +42,17 @@ export const Category = {
 export type CategoryKey = (typeof Category)[keyof typeof Category];
 
 export const CATEGORIES = [
-  { key: 'COURSE', label: '课程学习', icon: '🎓', desc: '期末复习 · 题库 · 课件 · 笔记' },
-  { key: 'EXAM', label: '升学备考', icon: '🧗', desc: '四六级 · 考研 · 保研 · 留学考试' },
-  { key: 'CAREER', label: '求职实习', icon: '💼', desc: '实习经历 · 简历 · 面试 · 校招' },
-  { key: 'TUTOR', label: '家教教案', icon: '📖', desc: '各科教案 · 辅导材料 · 家教经验' },
-  { key: 'LIFE', label: '生活成长', icon: '🌱', desc: '健身 · 技能 · 理财 · 时间管理' },
   { key: 'CAMPUS', label: '新生引路', icon: '🏫', desc: '选课 · 报到 · 宿舍 · 社团 · 校园生活' },
+  { key: 'COURSE', label: '课程学习', icon: '🎓', desc: '期末复习 · 题库 · 课件 · 笔记' },
+  { key: 'EXAM', label: '升学备考', icon: '🧗', desc: '四六级 · 考研 · 保研' },
+  { key: 'ABROAD', label: '留学申请', icon: '✈️', desc: '美英港新 · 澳加 · 申请全流程资料' },
+  { key: 'CAREER', label: '求职实习', icon: '💼', desc: '实习经历 · 简历 · 面试 · 校招' },
+  { key: 'LIFE', label: '成长视野', icon: '🌱', desc: '方向选择 · 技能 · 世界地图' },
+  { key: 'TUTOR', label: '家教教案', icon: '📖', desc: '各科教案 · 辅导材料 · 家教经验' },
 ] as const;
 
 /** 预设标签池：按大类分组。上传表单按所选大类展示该组 chips（多选 ≤5），另允许自填 1 个自定义标签。 */
 export const PRESET_TAGS: Record<CategoryKey, string[]> = {
-  COURSE: ['期末复习', '题库真题', '课堂笔记', '课件PPT', '实验报告', '课程设计', '习题答案'],
-  EXAM: ['四级', '六级', '考研', '保研', '雅思', '托福', '专升本'],
-  CAREER: ['实习经历', '简历模板', '面试经验', '校招攻略', '求职复盘'],
-  TUTOR: ['数学教案', '英语教案', '理科教案', '文科教案', '全科辅导', '家教经验'],
-  LIFE: ['健身总结', '技能学习', '理财入门', '时间管理', '读书笔记', '减肥打卡'],
   CAMPUS: [
     '选课攻略',
     '报到流程',
@@ -70,6 +67,23 @@ export const PRESET_TAGS: Record<CategoryKey, string[]> = {
     '校园卡',
     '生活费攻略',
   ],
+  COURSE: ['期末复习', '题库真题', '课堂笔记', '课件PPT', '实验报告', '课程设计', '习题答案'],
+  EXAM: ['四级', '六级', '考研', '保研', '雅思', '托福', '专升本'],
+  ABROAD: [
+    '美国',
+    '英国',
+    '香港',
+    '新加坡',
+    '澳洲',
+    '加拿大',
+    '澳门',
+    '文书',
+    '选校定位',
+    '签证行前',
+  ],
+  CAREER: ['实习经历', '简历模板', '面试经验', '校招攻略', '求职复盘'],
+  LIFE: ['方向选择', '技能学习', '时间管理', '读书笔记', '成长认知'],
+  TUTOR: ['数学教案', '英语教案', '理科教案', '文科教案', '全科辅导', '家教经验'],
 };
 
 export const CATEGORY_LABEL: Record<CategoryKey, string> = Object.fromEntries(

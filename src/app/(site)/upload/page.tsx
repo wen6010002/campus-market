@@ -54,6 +54,7 @@ const COVER_THEMES = [
 const CAT_DEFAULT_ICON: Record<CategoryKey, string> = {
   COURSE: '📖',
   EXAM: '🧗',
+  ABROAD: '✈️',
   CAREER: '💼',
   TUTOR: '📐',
   LIFE: '🌱',

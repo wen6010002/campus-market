@@ -60,6 +60,7 @@ enum FileType {
 enum Category {
   COURSE
   EXAM
+  ABROAD
   CAREER
   TUTOR
   LIFE
