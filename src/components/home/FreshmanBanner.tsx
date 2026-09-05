@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useWorks } from '@/hooks/useWorks';
+import { apiFetch } from '@/lib/api/client';
 import { PRESET_TAGS } from '@/lib/constants';
+import { useQuery } from '@tanstack/react-query';
 import { formatNum } from '@/lib/format';
 
 const FLAG = process.env.NEXT_PUBLIC_FRESHMAN_ZONE !== 'off';
@@ -14,7 +16,20 @@ export const FRESHMAN_ZONE_ENABLED = FLAG;
 
 export function FreshmanBanner() {
   const hot = useWorks({ category: 'CAMPUS', sort: 'complex', pageSize: 3, isFree: true });
-  const chips = PRESET_TAGS.CAMPUS.slice(0, 8);
+  // 2026-09：chips 只列新生引路下真有作品的标签（自动隐藏空档），顺序沿用预设池
+  const availQuery = useQuery({
+    queryKey: ['works', 'tags', 'CAMPUS'],
+    queryFn: async () => {
+      const r = await apiFetch<{ data: { name: string; count: number }[] }>(
+        '/works/tags?category=CAMPUS',
+      );
+      return new Set(r.data.filter((t) => t.count > 0).map((t) => t.name));
+    },
+    staleTime: 60_000,
+  });
+  const chips = availQuery.data
+    ? PRESET_TAGS.CAMPUS.filter((t) => availQuery.data!.has(t)).slice(0, 8)
+    : PRESET_TAGS.CAMPUS.slice(0, 8);
 
   return (
     <section className="freshman-banner" aria-label="新生专区">

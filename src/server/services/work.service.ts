@@ -10,6 +10,7 @@ import { achievementService } from './achievement.service';
 import { EXT } from './upload.service';
 import type { WorkInput, WorkQuery } from '@/lib/zod/work';
 import { WorkStatus, Quality } from '@/lib/constants';
+import type { CategoryKey } from '@/lib/constants';
 
 // Decimal → 字符串（金额 2 位 / 评分 1 位，契约 §0.2）
 const money = (d: { toFixed(n: number): string } | null): string | null =>
@@ -119,6 +120,26 @@ export const workService = {
       pagination: { page: q.page, pageSize: q.pageSize, total, totalPages },
     };
     await cacheSet(cacheKey, result, 30);
+    return result;
+  },
+
+  /** 分类下「有内容的标签」计数（PUBLISHED 作品），chips 自动隐藏空标签用（2026-09） */
+  async availableTags(category?: CategoryKey) {
+    const cacheKey = `works:tags:${category ?? 'all'}`;
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) return cached;
+    const works = await prisma.work.findMany({
+      where: { status: 'PUBLISHED', deletedAt: null, ...(category ? { category } : {}) },
+      select: { tags: { select: { tag: { select: { name: true } } } } },
+    });
+    const counts = new Map<string, number>();
+    for (const w of works) {
+      for (const { tag } of w.tags) counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1);
+    }
+    const result = [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    await cacheSet(cacheKey, result, 60);
     return result;
   },
 

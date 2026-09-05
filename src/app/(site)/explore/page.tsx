@@ -95,9 +95,23 @@ function ExploreContent() {
   });
 
   // 预设标签跟随大类：未选大类时聚合展示全部大类的前几个
-  const presetTags = cat
+  // 2026-09：结合 availableTags 只显示该分类下有真实作品的标签（自动隐藏空标签）
+  const presetBase = cat
     ? PRESET_TAGS[cat as CategoryKey]
     : (Object.values(PRESET_TAGS) as string[][]).flat().slice(0, 14);
+  const availQuery = useQuery({
+    queryKey: ['works', 'tags', cat],
+    queryFn: async () => {
+      const r = await apiFetch<{ data: { name: string; count: number }[] }>(
+        `/works/tags${cat ? `?category=${cat}` : ''}`,
+      );
+      return new Map(r.data.map((t) => [t.name, t.count]));
+    },
+    staleTime: 60_000,
+  });
+  const presetTags = availQuery.data
+    ? presetBase.filter((t) => (availQuery.data!.get(t) ?? 0) > 0)
+    : presetBase;
 
   useEffect(() => {
     document.title = '分类浏览 · 课搭';
