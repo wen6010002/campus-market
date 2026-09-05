@@ -102,10 +102,10 @@ function ExploreContent() {
   const availQuery = useQuery({
     queryKey: ['works', 'tags', cat],
     queryFn: async () => {
-      const r = await apiFetch<{ data: { name: string; count: number }[] }>(
+      const rows = await apiFetch<{ name: string; count: number }[]>(
         `/works/tags${cat ? `?category=${cat}` : ''}`,
       );
-      return new Map(r.data.map((t) => [t.name, t.count]));
+      return new Map(rows.map((t) => [t.name, t.count]));
     },
     staleTime: 60_000,
   });

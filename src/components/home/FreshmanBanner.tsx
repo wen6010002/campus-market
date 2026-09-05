@@ -20,10 +20,8 @@ export function FreshmanBanner() {
   const availQuery = useQuery({
     queryKey: ['works', 'tags', 'CAMPUS'],
     queryFn: async () => {
-      const r = await apiFetch<{ data: { name: string; count: number }[] }>(
-        '/works/tags?category=CAMPUS',
-      );
-      return new Set(r.data.filter((t) => t.count > 0).map((t) => t.name));
+      const rows = await apiFetch<{ name: string; count: number }[]>('/works/tags?category=CAMPUS');
+      return new Set(rows.filter((t) => t.count > 0).map((t) => t.name));
     },
     staleTime: 60_000,
   });
