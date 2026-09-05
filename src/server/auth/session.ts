@@ -50,7 +50,8 @@ export async function getSession(): Promise<Session | null> {
   return verifySession(token);
 }
 
-type UserStatus = { status: string; bannedReason: string | null; pwdVer: number } | false;
+type UserStatus =
+  { status: string; bannedReason: string | null; pwdVer: number; role: Role } | false;
 
 export async function requireUser(): Promise<Session> {
   const s = await getSession();
@@ -58,15 +59,21 @@ export async function requireUser(): Promise<Session> {
   // 封号拦截 + 密码版本踢线：JWT 无状态，需核对用户状态。每个登录态请求都走这里——
   // 加 30s Redis 缓存（P0-2），封号/解封/改密在处置时主动失效，做到准实时。
   let status = await cacheGet<UserStatus>(userStatusKey(s.userId));
-  // 滚动发布防御：旧副本可能写入无 pwdVer 的旧结构缓存，视为 miss 回库重读
-  if (status !== false && status !== null && typeof status.pwdVer !== 'number') status = null;
+  // 滚动发布防御：旧副本可能写入无 pwdVer/role 的旧结构缓存，视为 miss 回库重读
+  if (status !== false && status !== null && (typeof status.pwdVer !== 'number' || !status.role))
+    status = null;
   if (status === null) {
     const user = await prisma.user.findUnique({
       where: { id: s.userId },
-      select: { status: true, bannedReason: true, pwdVersion: true },
+      select: { status: true, bannedReason: true, pwdVersion: true, role: true },
     });
     status = user
-      ? { status: user.status, bannedReason: user.bannedReason, pwdVer: user.pwdVersion }
+      ? {
+          status: user.status,
+          bannedReason: user.bannedReason,
+          pwdVer: user.pwdVersion,
+          role: user.role,
+        }
       : false;
     await cacheSet(userStatusKey(s.userId), status, 30);
   }
@@ -79,7 +86,8 @@ export async function requireUser(): Promise<Session> {
   if (s.pwdVer !== status.pwdVer) {
     throw appError('UNAUTHENTICATED', '登录已过期，请重新登录');
   }
-  return s;
+  // 角色以库为准（JWT 内角色是签发时快照）：提权/降权 ≤30s 生效且无需重新登录
+  return { ...s, role: status.role };
 }
 
 export async function requireAdmin(): Promise<Session> {
