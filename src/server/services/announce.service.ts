@@ -54,6 +54,32 @@ export const announceService = {
     return { ok: true };
   },
 
+  /** 编辑（展示中/已撤回均可改；republish=true 时撤回的清 deletedAt 重新上架） */
+  async update(id: string, input: AnnounceInput, republish = false) {
+    const ann = await prisma.announcement.findFirst({ where: { id } });
+    if (!ann) throw appError('NOT_FOUND', '公告不存在');
+    const updated = await prisma.announcement.update({
+      where: { id },
+      data: {
+        title: input.title,
+        content: sanitize(input.content),
+        level: input.level,
+        ...(republish && ann.deletedAt ? { deletedAt: null } : {}),
+      },
+      include: { author: { select: { id: true, username: true } } },
+    });
+    await invalidateAnnounceCaches();
+    return {
+      id: updated.id,
+      title: updated.title,
+      content: updated.content,
+      level: updated.level,
+      author: updated.author,
+      publishedAt: updated.publishedAt.toISOString(),
+      deletedAt: updated.deletedAt?.toISOString() ?? null,
+    };
+  },
+
   /** 管理列表（含已撤回） */
   async adminList(page: number, pageSize: number) {
     const [total, items] = await Promise.all([
@@ -69,6 +95,7 @@ export const announceService = {
       data: items.map((a) => ({
         id: a.id,
         title: a.title,
+        content: a.content,
         level: a.level,
         author: a.author,
         publishedAt: a.publishedAt.toISOString(),

@@ -13,6 +13,7 @@ import type { Announcement } from '@/lib/types';
 type AdminAnnouncement = {
   id: string;
   title: string;
+  content: string;
   level: string;
   author: { id: string; username: string };
   publishedAt: string;
@@ -25,6 +26,8 @@ export default function AnnouncementsPage() {
   const [page, setPage] = useState(1);
   const [publishing, setPublishing] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', level: 'NORMAL' });
+  // 编辑态：null=发布新公告；否则为正在编辑的管理条目（wasDeleted=撤回中，保存即重新上架）
+  const [editing, setEditing] = useState<{ id: string; wasDeleted: boolean } | null>(null);
 
   const isAdmin = user?.role === 'ADMIN';
 
@@ -45,6 +48,30 @@ export default function AnnouncementsPage() {
     onError: (e) =>
       toast(e instanceof ApiError ? messageFor(e.code, e.message) : '发布失败', 'warn'),
   });
+
+  // 编辑（展示中的改内容；撤回中的保存后重新上架）
+  const edit = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/admin/announcements/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ...form, republish: editing?.wasDeleted }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['announcements'] });
+      toast(editing?.wasDeleted ? '已保存并重新发布' : '公告已更新', 'ok');
+      setEditing(null);
+      setPublishing(false);
+      setForm({ title: '', content: '', level: 'NORMAL' });
+    },
+    onError: (e) =>
+      toast(e instanceof ApiError ? messageFor(e.code, e.message) : '保存失败', 'warn'),
+  });
+
+  const openEdit = (a: AdminAnnouncement) => {
+    setEditing({ id: a.id, wasDeleted: !!a.deletedAt });
+    setForm({ title: a.title, content: a.content ?? '', level: a.level });
+    setPublishing(true);
+  };
 
   const unpublish = useMutation({
     mutationFn: (id: string) => apiFetch(`/admin/announcements/${id}`, { method: 'DELETE' }),
@@ -79,7 +106,10 @@ export default function AnnouncementsPage() {
         <div className="card">加载中…</div>
       ) : list.data?.data.length ? (
         list.data.data.map((a) => (
-          <article key={a.id} className={`card ann-card ${a.level === 'IMPORTANT' ? 'important' : ''}`}>
+          <article
+            key={a.id}
+            className={`card ann-card ${a.level === 'IMPORTANT' ? 'important' : ''}`}
+          >
             <div className="ann-card-head">
               {a.level === 'IMPORTANT' ? <span className="ann-level-badge">重要</span> : null}
               <h2>{a.title}</h2>
@@ -141,6 +171,9 @@ export default function AnnouncementsPage() {
                     </td>
                     <td>{a.deletedAt ? '已撤回' : '展示中'}</td>
                     <td>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(a)}>
+                        {a.deletedAt ? '编辑并重新发布' : '编辑'}
+                      </button>{' '}
                       {!a.deletedAt ? (
                         <button
                           className="btn btn-ghost btn-sm"
@@ -158,8 +191,24 @@ export default function AnnouncementsPage() {
         </section>
       ) : null}
 
-      <Modal open={publishing} onClose={() => setPublishing(false)}>
-        <ModalHead title="发布公告" onClose={() => setPublishing(false)} />
+      <Modal
+        open={publishing}
+        onClose={() => {
+          setPublishing(false);
+          setEditing(null);
+          setForm({ title: '', content: '', level: 'NORMAL' });
+        }}
+      >
+        <ModalHead
+          title={
+            editing ? (editing.wasDeleted ? '编辑公告（保存后重新发布）' : '编辑公告') : '发布公告'
+          }
+          onClose={() => {
+            setPublishing(false);
+            setEditing(null);
+            setForm({ title: '', content: '', level: 'NORMAL' });
+          }}
+        />
         <ModalBody>
           <input
             className="input"
@@ -192,15 +241,32 @@ export default function AnnouncementsPage() {
           />
         </ModalBody>
         <ModalFoot>
-          <button className="btn btn-light" onClick={() => setPublishing(false)}>
+          <button
+            className="btn btn-light"
+            onClick={() => {
+              setPublishing(false);
+              setEditing(null);
+              setForm({ title: '', content: '', level: 'NORMAL' });
+            }}
+          >
             取消
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => publish.mutate()}
-            disabled={publish.isPending || !form.title.trim() || !form.content.trim()}
+            onClick={() => (editing ? edit.mutate(editing.id) : publish.mutate())}
+            disabled={
+              (editing ? edit.isPending : publish.isPending) ||
+              !form.title.trim() ||
+              !form.content.trim()
+            }
           >
-            {publish.isPending ? '发布中…' : '发布'}
+            {(editing ? edit.isPending : publish.isPending)
+              ? '保存中…'
+              : editing
+                ? editing.wasDeleted
+                  ? '保存并重新发布'
+                  : '保存修改'
+                : '发布'}
           </button>
         </ModalFoot>
       </Modal>
