@@ -55,9 +55,9 @@ export default function HomePage() {
 
   const free = useWorks({
     page: 1,
-    pageSize: 8,
+    pageSize: 10, // 启动期：全部 🏅精选一屏展示，普通流从第 2 页起
     sort: 'complex',
-    isFree: true,
+    // V7 免费化后 isFree 仅剩分区标记；默认首页不再按它分流，让全部 🏅精选都上首页
     excludeCat: 'ABROAD',
   });
   const fine = useWorks({
