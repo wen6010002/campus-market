@@ -45,6 +45,7 @@ export const workQuerySchema = z.object({
   course: z.string().optional(),
   tag: z.string().optional(),
   category: z.nativeEnum(Category).optional(),
+  excludeCat: z.nativeEnum(Category).optional(),
   sort: z.enum(['complex', 'hot', 'rate', 'new', 'price']).default('complex'),
 });
 

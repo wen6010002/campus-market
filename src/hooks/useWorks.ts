@@ -15,6 +15,8 @@ export interface WorkListParams {
   course?: string;
   tag?: string;
   category?: string;
+  /** 首页排除大类（如启动期留学不进推荐流） */
+  excludeCat?: string;
   creatorId?: string;
 }
 

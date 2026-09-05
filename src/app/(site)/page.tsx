@@ -53,8 +53,20 @@ export default function HomePage() {
     if (z === 'campus' || z === 'growth') setZone(z);
   }, []);
 
-  const free = useWorks({ page: 1, pageSize: 8, sort: 'hot', isFree: true });
-  const fine = useWorks({ page: 1, pageSize: 12, sort: 'complex', isFree: false });
+  const free = useWorks({
+    page: 1,
+    pageSize: 8,
+    sort: 'complex',
+    isFree: true,
+    excludeCat: 'ABROAD',
+  });
+  const fine = useWorks({
+    page: 1,
+    pageSize: 12,
+    sort: 'complex',
+    isFree: false,
+    excludeCat: 'ABROAD',
+  });
   const rank = useRank(rankTab);
   const feed = useFollowingFeed(!!user);
   const feedItems = feed.data?.slice(0, 5) ?? [];

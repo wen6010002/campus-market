@@ -13,7 +13,7 @@ const FLAG = process.env.NEXT_PUBLIC_FRESHMAN_ZONE !== 'off';
 export const FRESHMAN_ZONE_ENABLED = FLAG;
 
 export function FreshmanBanner() {
-  const hot = useWorks({ category: 'CAMPUS', sort: 'hot', pageSize: 2, isFree: true });
+  const hot = useWorks({ category: 'CAMPUS', sort: 'complex', pageSize: 3, isFree: true });
   const chips = PRESET_TAGS.CAMPUS.slice(0, 8);
 
   return (

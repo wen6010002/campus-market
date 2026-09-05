@@ -94,7 +94,11 @@ export const workService = {
     if (q.course) where.course = { contains: q.course };
     if (q.updatedSince) where.updatedAt = { gte: new Date(q.updatedSince) };
     if (q.tag) where.tags = { some: { tag: { name: q.tag } } };
-    if (q.category) where.category = q.category;
+    if (q.category || q.excludeCat) {
+      where.category = {};
+      if (q.category) where.category.equals = q.category;
+      if (q.excludeCat) where.category.not = q.excludeCat;
+    }
 
     const [total, works] = await Promise.all([
       prisma.work.count({ where }),
