@@ -84,6 +84,7 @@ function UserContent() {
     );
 
   const isSelf = profile.isSelf;
+  // FREE_MODE（付费封存）：收益 tab 一并隐藏——付费暂停期无收益入口，恢复付费自动回归
   const TABS = isSelf
     ? [
         { key: 'works', label: '作品' },
@@ -94,7 +95,7 @@ function UserContent() {
         { key: 'favs', label: '收藏' },
         { key: 'library', label: '资料库' },
         { key: 'orders', label: '订单' },
-        { key: 'income', label: '收益' },
+        ...(FREE_MODE ? [] : [{ key: 'income', label: '收益' }]),
         { key: 'notif', label: '通知' },
         { key: 'reports', label: '我的举报' },
       ]
@@ -274,7 +275,7 @@ function WorksTab({ id, isSelf }: { id: string; isSelf: boolean }) {
                 <th>下载</th>
                 <th>收藏</th>
                 <th>评分</th>
-                <th>收益</th>
+                {!FREE_MODE ? <th>收益</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -300,13 +301,13 @@ function WorksTab({ id, isSelf }: { id: string; isSelf: boolean }) {
                     <td>{w.downloads}</td>
                     <td>{w.favs}</td>
                     <td>{w.rating}</td>
-                    <td>{formatCny(w.earnings)}</td>
+                    {!FREE_MODE ? <td>{formatCny(w.earnings)}</td> : null}
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={FREE_MODE ? 6 : 7}
                     style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
                   >
                     暂无数据

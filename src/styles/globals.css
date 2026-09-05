@@ -5219,6 +5219,23 @@ body {
 .up-tabs::-webkit-scrollbar {
   display: none;
 }
+/* 手机端与电脑一致：tabs 全部平铺可见（电脑宽屏一行放得下；手机换行而不是藏进横滑） */
+@media (max-width: 700px) {
+  .up-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 0;
+    border-bottom: none;
+  }
+  .up-tabs .tab-btn {
+    padding: 8px 10px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .up-tabs .tab-btn.active {
+    border-bottom-color: var(--pri);
+  }
+}
 .up-toolbar {
   display: flex;
   align-items: center;
