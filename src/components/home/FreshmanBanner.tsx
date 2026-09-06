@@ -16,17 +16,18 @@ export const FRESHMAN_ZONE_ENABLED = FLAG;
 
 export function FreshmanBanner() {
   const hot = useWorks({ category: 'CAMPUS', sort: 'complex', pageSize: 3, isFree: true });
-  // 2026-09：chips 只列新生引路下真有作品的标签（自动隐藏空档），顺序沿用预设池
+  // 2026-09：chips 只列新生引路下真有作品的标签（自动隐藏空档），顺序沿用预设池。
+  // 注意：queryKey/返回结构必须与 explore 页的 ['works','tags',cat] 完全一致（原始数组）——
+  // 此前此处返回 Set 而 explore 期望 Map，同 key 缓存投毒导致 explore 渲染崩溃（点击新生卡片报错）。
   const availQuery = useQuery({
     queryKey: ['works', 'tags', 'CAMPUS'],
-    queryFn: async () => {
-      const rows = await apiFetch<{ name: string; count: number }[]>('/works/tags?category=CAMPUS');
-      return new Set(rows.filter((t) => t.count > 0).map((t) => t.name));
-    },
+    queryFn: () => apiFetch<{ name: string; count: number }[]>('/works/tags?category=CAMPUS'),
     staleTime: 60_000,
   });
   const chips = availQuery.data
-    ? PRESET_TAGS.CAMPUS.filter((t) => availQuery.data!.has(t)).slice(0, 8)
+    ? PRESET_TAGS.CAMPUS.filter(
+        (t) => (availQuery.data!.find((r) => r.name === t)?.count ?? 0) > 0,
+      ).slice(0, 8)
     : PRESET_TAGS.CAMPUS.slice(0, 8);
 
   return (
