@@ -305,6 +305,86 @@ export const adminService = {
     };
   },
 
+  /** 管理员批量转移资料归属。历史订单和 CreatorIncome 不变；未来成交按新作者入账。 */
+  async transferWorks(
+    reviewerId: string,
+    input: { workIds: string[]; targetEmail: string; reason: string },
+  ) {
+    const targetEmail = input.targetEmail.trim().toLowerCase();
+    const uniqueWorkIds = [...new Set(input.workIds)];
+    if (!uniqueWorkIds.length) throw appError('VALIDATION', '请至少选择一份资料');
+
+    const result = await prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({
+        where: { email: targetEmail },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          status: true,
+          creator: { select: { id: true, verified: true } },
+        },
+      });
+      if (!target) throw appError('NOT_FOUND', '接收账号不存在');
+      if (target.status !== 'ACTIVE') throw appError('CONFLICT', '接收账号当前不可用');
+      if (!target.creator) throw appError('CONFLICT', '接收账号尚未开通创作者档案，不能接收资料');
+
+      const works = await tx.work.findMany({
+        where: { id: { in: uniqueWorkIds }, deletedAt: null },
+        select: {
+          id: true,
+          title: true,
+          authorId: true,
+          author: { select: { email: true, username: true } },
+        },
+      });
+      if (works.length !== uniqueWorkIds.length) {
+        throw appError('NOT_FOUND', '部分资料不存在或已删除，请刷新后重试');
+      }
+      if (works.some((work) => work.authorId === target.id)) {
+        throw appError('CONFLICT', '所选资料中包含已经属于接收账号的资料');
+      }
+
+      const transferredAt = new Date();
+      for (const work of works) {
+        await tx.work.update({ where: { id: work.id }, data: { authorId: target.id } });
+        await tx.dynamic.updateMany({ where: { workId: work.id }, data: { creatorId: target.id } });
+        await tx.auditLog.create({
+          data: {
+            workId: work.id,
+            reviewerId,
+            action: 'TRANSFER',
+            note: JSON.stringify({
+              fromUserId: work.authorId,
+              fromEmail: work.author.email,
+              toUserId: target.id,
+              toEmail: target.email,
+              reason: input.reason.trim(),
+              transferredAt: transferredAt.toISOString(),
+              historicalIncomeTransferred: false,
+            }),
+          },
+        });
+      }
+
+      return {
+        count: works.length,
+        workIds: works.map((work) => work.id),
+        target: { id: target.id, email: target.email, username: target.username },
+        sourceUsers: [...new Set(works.map((work) => work.author.email))],
+        historicalIncomeTransferred: false,
+      };
+    });
+
+    await Promise.all([
+      cacheDelByPattern('works:list:*'),
+      cacheDelByPattern('works:courses:*'),
+      cacheDelByPattern('rank:*'),
+      ...result.workIds.map((id) => cacheDel(`work:detail:${id}`)),
+    ]);
+    return result;
+  },
+
   /** 订单管理列表（/ops/orders，V4） */
   async listOrders(opts: { page: number; pageSize: number; payStatus?: string; q?: string }) {
     const where: any = {};
