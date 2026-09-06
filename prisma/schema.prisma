@@ -130,6 +130,7 @@ enum AuditAction {
   TAKE_DOWN
   REQUEST_CHANGES
   DELETE
+  TRANSFER
 }
 
 enum AnnounceLevel {

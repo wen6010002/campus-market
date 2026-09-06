@@ -164,6 +164,7 @@ export const AuditAction = {
   TAKE_DOWN: 'TAKE_DOWN',
   REQUEST_CHANGES: 'REQUEST_CHANGES',
   DELETE: 'DELETE',
+  TRANSFER: 'TRANSFER',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
