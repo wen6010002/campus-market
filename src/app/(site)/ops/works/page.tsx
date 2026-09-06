@@ -53,6 +53,10 @@ function OpsWorksContent() {
   const [page, setPage] = useState(1);
   const [deleting, setDeleting] = useState<AdminWorkRow | null>(null);
   const [delReason, setDelReason] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [targetEmail, setTargetEmail] = useState('');
+  const [transferReason, setTransferReason] = useState('经原作者授权转移资料归属');
   const authorId = sp.get('authorId') ?? undefined;
 
   const list = useQuery({
@@ -79,6 +83,30 @@ function OpsWorksContent() {
       toast(e instanceof ApiError ? messageFor(e.code, e.message) : '删除失败', 'warn'),
   });
 
+  const transfer = useMutation({
+    mutationFn: () =>
+      apiFetch<{ count: number; target: { username: string; email: string } }>(
+        '/admin/works/transfer',
+        {
+          method: 'POST',
+          body: JSON.stringify({ workIds: selectedIds, targetEmail, reason: transferReason }),
+        },
+      ),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['ops', 'works'] });
+      qc.invalidateQueries({ queryKey: ['admin'] });
+      toast(`已将 ${data.count} 份资料转移给 ${data.target.username}`, 'ok');
+      setSelectedIds([]);
+      setTransferOpen(false);
+      setTargetEmail('');
+    },
+    onError: (e) =>
+      toast(e instanceof ApiError ? messageFor(e.code, e.message) : '转移失败', 'warn'),
+  });
+
+  const pageIds = list.data?.data.map((work) => work.id) ?? [];
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
   return (
     <OpsGuard backHref="/ops">
       <main className="page">
@@ -87,11 +115,20 @@ function OpsWorksContent() {
             <h1>
               资料管理{authorId ? `（作者 ${list.data?.data[0]?.author.username ?? ''}）` : ''}
             </h1>
-            <div className="sub">全量资料查看 · 删除违规资料（软删除，保留审计记录）</div>
+            <div className="sub">全量资料查看 · 选择资料转移归属 · 删除违规资料</div>
           </div>
-          <Link className="btn btn-light" href="/ops">
-            ← 返回控制台
-          </Link>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-primary"
+              disabled={!selectedIds.length}
+              onClick={() => setTransferOpen(true)}
+            >
+              转移所选资料{selectedIds.length ? `（${selectedIds.length}）` : ''}
+            </button>
+            <Link className="btn btn-light" href="/ops">
+              ← 返回控制台
+            </Link>
+          </div>
         </div>
 
         <form
@@ -132,6 +169,20 @@ function OpsWorksContent() {
           <table className="tbl" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ width: 42 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="选择本页全部资料"
+                    checked={allPageSelected}
+                    onChange={(e) => {
+                      setSelectedIds((current) =>
+                        e.target.checked
+                          ? [...new Set([...current, ...pageIds])]
+                          : current.filter((id) => !pageIds.includes(id)),
+                      );
+                    }}
+                  />
+                </th>
                 <th>资料</th>
                 <th>作者</th>
                 <th>状态</th>
@@ -145,7 +196,7 @@ function OpsWorksContent() {
               {list.isLoading ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
                   >
                     加载中…
@@ -154,6 +205,20 @@ function OpsWorksContent() {
               ) : list.data?.data.length ? (
                 list.data.data.map((w) => (
                   <tr key={w.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`选择资料 ${w.title}`}
+                        checked={selectedIds.includes(w.id)}
+                        onChange={(e) =>
+                          setSelectedIds((current) =>
+                            e.target.checked
+                              ? [...current, w.id]
+                              : current.filter((id) => id !== w.id),
+                          )
+                        }
+                      />
+                    </td>
                     <td>
                       <Link
                         href={`/work/${w.id}`}
@@ -211,7 +276,7 @@ function OpsWorksContent() {
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}
                   >
                     没有匹配的资料
@@ -258,6 +323,59 @@ function OpsWorksContent() {
               disabled={remove.isPending}
             >
               {remove.isPending ? '删除中…' : '确认删除'}
+            </button>
+          </ModalFoot>
+        </Modal>
+
+        <Modal open={transferOpen} onClose={() => !transfer.isPending && setTransferOpen(false)}>
+          <ModalHead
+            title={`转移 ${selectedIds.length} 份资料`}
+            onClose={() => setTransferOpen(false)}
+          />
+          <ModalBody>
+            <p style={{ color: 'var(--ink-2)', fontSize: 14, margin: '0 0 14px' }}>
+              资料、评论、评分和下载记录会保留。历史订单及已产生收入仍归原作者，转移后的新收入归接收账号。
+            </p>
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <span style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>接收账号邮箱</span>
+              <input
+                className="input"
+                type="email"
+                autoComplete="off"
+                placeholder="请输入已开通创作者身份的账号邮箱"
+                value={targetEmail}
+                onChange={(e) => setTargetEmail(e.target.value)}
+              />
+            </label>
+            <label style={{ display: 'block' }}>
+              <span style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+                转移原因 / 授权说明
+              </span>
+              <textarea
+                className="input"
+                rows={3}
+                maxLength={300}
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+              />
+            </label>
+          </ModalBody>
+          <ModalFoot>
+            <button
+              className="btn btn-light"
+              onClick={() => setTransferOpen(false)}
+              disabled={transfer.isPending}
+            >
+              取消
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => transfer.mutate()}
+              disabled={
+                transfer.isPending || !targetEmail.trim() || transferReason.trim().length < 2
+              }
+            >
+              {transfer.isPending ? '转移中…' : '确认转移'}
             </button>
           </ModalFoot>
         </Modal>
