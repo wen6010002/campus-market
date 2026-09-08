@@ -32,7 +32,7 @@ async function audit(url, viewport) {
 // ---- 桌面 主页 ----
 {
   const { page, consoleErrs, failedReqs } = await audit(BASE, { width: 1440, height: 1000 });
-  check('刊头标题', (await page.textContent('.blog-mast h1'))?.includes('学长整理'));
+  check('刊头标题', (await page.textContent('.blog-mast h1'))?.includes('找资料'));
   const chips = await page.locator('.bc-chip').count();
   check('分类行 chips = 1全部+7类', chips === 8, `got ${chips}`);
   check('总收录数渲染', /共收录资料 \d+ 份/.test(await page.textContent('.blog-mast-side') ?? ''));
