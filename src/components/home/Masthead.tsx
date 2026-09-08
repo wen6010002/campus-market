@@ -24,7 +24,7 @@ export function Masthead() {
         <div className="blog-mast-main">
           <div className="bm-kicker">Campus Materials Blog · 校园资料博客</div>
           <h1>
-            学长整理，直接<em>拿走</em>
+            找资料，先来<em>课搭</em>
           </h1>
           <p className="bm-tagline">
             课程真题、留学文书、求职模板、成长路线——每一份都来自学长学姐的真实整理，署名可溯。
