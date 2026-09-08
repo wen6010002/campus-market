@@ -142,7 +142,9 @@ test('7. 搜索 → 详情', async ({ page }) => {
 test('8. 分类浏览（V3-2）：explore 大类/标签过滤', async ({ page }) => {
   await page.goto('/explore?cat=CAMPUS&tag=' + encodeURIComponent('选课攻略'));
   await expect(page.getByRole('heading', { name: '分类浏览' })).toBeVisible();
-  await expect(page.locator('.card-grid .work-card, .card-grid .fine-card').first()).toBeVisible();
+  await expect(
+    page.locator('.card-grid .work-card, .card-grid .fine-card, .feed-row').first(),
+  ).toBeVisible();
 });
 
 test('9. 在线预览（V3-4）：免费作品匿名可看 + 观看计数', async ({ page, request }) => {

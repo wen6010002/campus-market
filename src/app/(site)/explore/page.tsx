@@ -4,8 +4,7 @@ import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiFetchPage } from '@/lib/api/client';
-import { WorkCard } from '@/components/work/WorkCard';
-import { FineCard } from '@/components/work/FineCard';
+import { FeedRow } from '@/components/work/FeedRow';
 import { Empty } from '@/components/common/Empty';
 import { CATEGORIES, PRESET_TAGS, FREE_MODE } from '@/lib/constants';
 import type { CategoryKey } from '@/lib/constants';
@@ -96,7 +95,7 @@ function ExploreContent() {
 
   // 预设标签跟随大类：未选大类时聚合展示全部大类的前几个
   // 2026-09：结合 availableTags 只显示该分类下有真实作品的标签（自动隐藏空标签）。
-  // 返回保持原始数组（与首页 FreshmanBanner 同 key 共享缓存，结构必须一致，勿改为 Map/Set）
+  // 返回保持原始数组（与首页 FreshmanZone 同 key 共享缓存，结构必须一致，勿改为 Map/Set）
   const presetBase = cat
     ? PRESET_TAGS[cat as CategoryKey]
     : (Object.values(PRESET_TAGS) as string[][]).flat().slice(0, 14);
@@ -211,11 +210,8 @@ function ExploreContent() {
             加载中…
           </div>
         ) : total ? (
-          <div className="card-grid">
-            {(works.data?.data ?? []).map((w) =>
-              w.isFree ? <WorkCard key={w.id} work={w} /> : <FineCard key={w.id} work={w} />,
-            )}
-          </div>
+          // V10 博客式目录列表（原 card-grid 卡片网格；详情页内嵌小卡不受影响）
+          (works.data?.data ?? []).map((w) => <FeedRow key={w.id} work={w} variant="feed" />)
         ) : (
           <Empty icon="🗂️" title="该分类下还没有资料" desc="换个分类或标签看看" />
         )}
