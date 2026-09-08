@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 线上冒烟测试：V4 全部新接口 + 关键老接口 + 登录/写链路
+# BASE 必须走 https 域名：生产会话 cookie 带 Secure 标记，http 直连 IP 时 curl 不回传 cookie，登录后必 401（2026-09-08 踩坑）
 set -u
-BASE="${1:-http://154.222.19.224}"
+BASE="${1:-https://kedahub.cn}"
 PASS=0; FAIL=0
 ck() { # name expected_status actual_status [extra]
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "✔ $1 → $3 ${4:-}"; else FAIL=$((FAIL+1)); echo "✘ $1 → $3（期望 $2）${4:-}"; fi
