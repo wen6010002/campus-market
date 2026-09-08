@@ -10,6 +10,7 @@ import { Empty } from '@/components/common/Empty';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
 import { parseRoadmapMd, validateRoadmap } from '@/lib/roadmap/parse';
+import { StepRichText } from '@/components/roadmap/StepRichText';
 import { ROADMAP_CATEGORIES } from '@/lib/constants';
 import { toast } from '@/stores/ui';
 import type { WorkListItem } from '@/lib/types';
@@ -213,7 +214,8 @@ export default function RoadmapUploadPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginBottom: 8 }}>路线图 md 文件 *</h3>
         <p className="rm-format-hint">
-          格式约定：<code>## 标题</code> = 阶段；阶段下段落 = 阶段说明；<code>- [ ] 文本</code> = 步骤；步骤下一行缩进 = 步骤备注。至少 1 个阶段、3 个步骤。
+          格式约定：<code>## 标题</code> = 阶段；阶段下段落 = 阶段说明；<code>- [ ] 文本</code> =
+          步骤；步骤下一行缩进 = 步骤备注。至少 1 个阶段、3 个步骤。
         </p>
         <pre className="rm-format-demo">{FORMAT_DOC}</pre>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -234,7 +236,9 @@ export default function RoadmapUploadPage() {
             }}
           />
           {mdFileName ? <span style={{ fontSize: 14 }}>📄 {mdFileName}</span> : null}
-          {uploadText.isPending ? <span style={{ color: 'var(--ink-soft)' }}>解析并上传中…</span> : null}
+          {uploadText.isPending ? (
+            <span style={{ color: 'var(--ink-soft)' }}>解析并上传中…</span>
+          ) : null}
         </div>
 
         {parsed ? (
@@ -242,7 +246,8 @@ export default function RoadmapUploadPage() {
             <div className="rm-parse-error">✗ {parseError}</div>
           ) : parsedPreview ? (
             <div className="rm-parse-ok">
-              ✓ 解析成功：{parsedPreview.content.phases.length} 个阶段 · {parsedPreview.stepsCount} 个步骤
+              ✓ 解析成功：{parsedPreview.content.phases.length} 个阶段 · {parsedPreview.stepsCount}{' '}
+              个步骤
               <div className="rm-parse-preview">
                 {parsedPreview.content.phases.slice(0, 3).map((p, i) => (
                   <div key={i} className="rm-phase-mini">
@@ -251,7 +256,9 @@ export default function RoadmapUploadPage() {
                     </b>
                     <ul>
                       {p.steps.slice(0, 3).map((s) => (
-                        <li key={s.id}>{s.text}</li>
+                        <li key={s.id}>
+                          <StepRichText text={s.text} />
+                        </li>
                       ))}
                       {p.steps.length > 3 ? <li>… 共 {p.steps.length} 步</li> : null}
                     </ul>
@@ -294,7 +301,11 @@ export default function RoadmapUploadPage() {
                   key={w.id}
                   className="rm-work-row"
                   onClick={() =>
-                    picked.length < 10 && setPicked([...picked, { id: w.id, title: w.title, coverIcon: w.coverIcon, isFree: w.isFree }])
+                    picked.length < 10 &&
+                    setPicked([
+                      ...picked,
+                      { id: w.id, title: w.title, coverIcon: w.coverIcon, isFree: w.isFree },
+                    ])
                   }
                 >
                   <span>
