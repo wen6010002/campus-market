@@ -46,8 +46,17 @@ async function audit(url, viewport) {
   check('hero 链接有效', (await page.getAttribute('.hero-post a', 'href'))?.startsWith('/work/'));
   const rec = await page.locator('.rec-row').count();
   check('编辑推荐行 ≥1', rec >= 1, `got ${rec}`);
-  const rm = await page.locator('.rm-row').count();
-  check('路线图行 ≥1', rm >= 1, `got ${rm}`);
+  // V10.1 双区 tab:切到学习路线图区(路线图已独立成区,校园区不再嵌路线图行)
+  const ztabs = await page.locator('.zt-btn').count();
+  check('双区 tab = 2', ztabs === 2, `got ${ztabs}`);
+  await page.locator('.zt-btn').nth(1).click();
+  await page.waitForSelector('.rz-row', { timeout: 8000 });
+  const rz = await page.locator('.rz-row').count();
+  check('路线图区大行 ≥1', rz >= 1, `got ${rz}`);
+  check('路线图区无资料流', (await page.locator('.feed-row').count()) === 0);
+  await page.locator('.zt-btn').nth(0).click();
+  await page.waitForSelector('.feed-row', { timeout: 8000 });
+  check('切回校园区资料流恢复', (await page.locator('.feed-row').count()) >= 1);
   const boxes = await page.locator('.blog-side .side-box').count();
   check('侧栏 3 盒(排行/公告/分类)', boxes === 3, `got ${boxes}`);
   check('排行榜 4 tab', (await page.locator('.side-tab').count()) === 4);
@@ -92,10 +101,11 @@ for (const path of ['/', '/explore']) {
   await page.close();
 }
 
-// ---- 旧外链 ?zone=growth 不报错 ----
+// ---- 旧外链 ?zone=growth 直达学习路线图区(V10.1) ----
 {
   const { page, failedReqs } = await audit(`${BASE}/?zone=growth`, { width: 1440, height: 900 });
-  check('?zone=growth 兼容渲染', (await page.locator('.blog-mast').count()) === 1 && failedReqs.length === 0);
+  await page.waitForSelector('.rz-row', { timeout: 8000 });
+  check('?zone=growth 直达路线图区', (await page.locator('.rz-row').count()) >= 1 && failedReqs.length === 0);
   await page.close();
 }
 

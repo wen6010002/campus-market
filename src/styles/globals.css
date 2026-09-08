@@ -7753,3 +7753,155 @@ body {
     display: none;
   }
 }
+
+/* ---------- V10.1 双区 tab + 路线图大行 ---------- */
+.zt-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 26px;
+  flex-wrap: wrap;
+}
+.zt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  transition: 0.14s;
+}
+.zt-btn small {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  letter-spacing: 0;
+}
+.zt-btn:hover {
+  border-color: var(--pri);
+  color: var(--pri-600);
+  background: var(--pri-50);
+}
+.zt-btn.on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.zt-btn.on small {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* 路线图大目录行(学习路线图区) */
+.rz-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 0 16px;
+  padding: 18px 14px 18px 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s;
+  align-items: center;
+}
+.rz-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #8b5cf6;
+  transform: scaleY(0);
+  transition: transform 0.18s;
+}
+.rz-row:hover {
+  background: var(--bg-soft);
+}
+.rz-row:hover::before {
+  transform: scaleY(1);
+}
+.rz-ico {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  transition: 0.16s;
+}
+.rz-row:hover .rz-ico {
+  background: var(--pri-50);
+  border-color: #ffd9cd;
+}
+.rz-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b5cf6;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.rz-title {
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -0.25px;
+  line-height: 1.35;
+}
+.rz-row:hover .rz-title {
+  color: var(--pri-600);
+}
+.rz-desc {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rz-meta {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+.rz-meta b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.rz-go {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  transition: 0.15s;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.rz-row:hover .rz-go {
+  color: var(--pri-600);
+  border-color: var(--pri);
+  background: #fff;
+}
+@media (max-width: 640px) {
+  .rz-go {
+    display: none;
+  }
+  .rz-row {
+    grid-template-columns: 44px 1fr;
+  }
+  .rz-ico {
+    width: 44px;
+    height: 44px;
+    font-size: 21px;
+  }
+}
