@@ -2714,6 +2714,31 @@ footer {
   color: var(--ink-soft);
   margin-top: 2px;
 }
+/* 步骤/备注里的资料链接：[文字](/work/xx) 或裸链接 → 高亮可点 chip */
+.rm-link {
+  display: inline-block;
+  color: var(--pri-700);
+  background: var(--pri-50);
+  border: 1px solid #ffd3c4;
+  border-radius: 999px;
+  padding: 0 9px;
+  margin: 1px 2px 1px 0;
+  font-weight: 600;
+  line-height: 1.55;
+  text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+a.rm-link:hover {
+  background: var(--pri);
+  border-color: var(--pri);
+  color: #fff;
+}
+.rm-step.done .rm-link {
+  opacity: 0.55;
+}
 .rm-works {
   margin-top: 24px;
 }

@@ -3,9 +3,15 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { useRoadmap, useRoadmapCheck, useRoadmapFavorite, useRoadmapProgress } from '@/hooks/useRoadmaps';
+import {
+  useRoadmap,
+  useRoadmapCheck,
+  useRoadmapFavorite,
+  useRoadmapProgress,
+} from '@/hooks/useRoadmaps';
 import { Heatmap } from '@/components/roadmap/Heatmap';
 import { CheckinCalendar } from '@/components/roadmap/CheckinCalendar';
+import { StepRichText } from '@/components/roadmap/StepRichText';
 import { WorkCard } from '@/components/work/WorkCard';
 import { FineCard } from '@/components/work/FineCard';
 import { ROADMAP_CATEGORY_LABEL } from '@/lib/constants';
@@ -50,7 +56,11 @@ export default function RoadmapDetailPage() {
         <div>
           <h1>
             {r.coverIcon} {r.title}
-            {r.uploader.role === 'ADMIN' ? <span className="rm-official" style={{ marginLeft: 10 }}>官方</span> : null}
+            {r.uploader.role === 'ADMIN' ? (
+              <span className="rm-official" style={{ marginLeft: 10 }}>
+                官方
+              </span>
+            ) : null}
           </h1>
           <div className="sub">
             {ROADMAP_CATEGORY_LABEL[r.category]} · {totalSteps} 步 · ♥ {r.favs} · 由{' '}
@@ -115,8 +125,12 @@ export default function RoadmapDetailPage() {
                             onChange={(e) => onToggle(step.id, e.target.checked)}
                           />
                           <span className="rm-step-text">
-                            {step.text}
-                            {step.note ? <small>{step.note}</small> : null}
+                            <StepRichText text={step.text} />
+                            {step.note ? (
+                              <small>
+                                <StepRichText text={step.note} />
+                              </small>
+                            ) : null}
                           </span>
                         </label>
                       </li>
@@ -131,7 +145,9 @@ export default function RoadmapDetailPage() {
             <section className="rm-works">
               <h2 style={{ fontSize: 17, marginBottom: 12 }}>📚 相关资料推荐</h2>
               <div className="card-grid">
-                {r.works.map((w) => (w.isFree ? <WorkCard key={w.id} work={w} /> : <FineCard key={w.id} work={w} />))}
+                {r.works.map((w) =>
+                  w.isFree ? <WorkCard key={w.id} work={w} /> : <FineCard key={w.id} work={w} />,
+                )}
               </div>
             </section>
           ) : null}
