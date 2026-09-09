@@ -29,18 +29,18 @@ c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/announcements");              
 c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/");                                   ck "页面 首页" 200 "$c"
 
 # ---- 登录 demo ----
-c=$(curl -s -c /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/login" -H 'content-type: application/json' -d '{"email":"smoke@szu.edu.cn","password":"Kedahub2026"}')
+c=$(curl -s -c /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/login" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"email":"smoke@szu.edu.cn","password":"Kedahub2026"}')
 ck "POST login(smoke)" 200 "$c" "未读公告$(J "d['data']['user']['unreadAnnouncements']" </tmp/sm.json)"
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/auth/me");         ck "GET me" 200 "$c"
-c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/announcements/read-all"); ck "POST read-all" 200 "$c"
+c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/announcements/read-all" -H "Origin: $BASE"); ck "POST read-all" 200 "$c"
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/auth/me");         ck "GET auth/me(已读后)" 200 "$c" "未读$(J "d['data']['unreadAnnouncements']" </tmp/sm.json)"
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/me/roadmap-favorites"); ck "GET 我的路线图收藏" 200 "$c" "共$(J "len(d['data'])" </tmp/sm.json)条"
-c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/roadmaps/$RM_ID/check" -H 'content-type: application/json' -d '{"stepId":"p0-s0","checked":true}'); ck "POST 打卡" 200 "$c"
+c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/roadmaps/$RM_ID/check" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"stepId":"p0-s0","checked":true}'); ck "POST 打卡" 200 "$c"
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/roadmaps/$RM_ID/progress"); ck "GET progress" 200 "$c" "连续$(J "d['data']['streakDays']" </tmp/sm.json)天/已勾$(J "d['data']['totalChecked']" </tmp/sm.json)"
-c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/v1/works/$WK_ID/favorite"); ck "DELETE 取消收藏(幂等)" 200 "$c"
+c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/v1/works/$WK_ID/favorite" -H "Origin: $BASE"); ck "DELETE 取消收藏(幂等)" 200 "$c"
 
 # ---- 登录 admin ----
-c=$(curl -s -c /tmp/sm2.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/login" -H 'content-type: application/json' -d '{"email":"admin@szu.edu.cn","password":"Kedahub2026"}'); ck "POST login(admin)" 200 "$c"
+c=$(curl -s -c /tmp/sm2.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/login" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"email":"admin@szu.edu.cn","password":"Kedahub2026"}'); ck "POST login(admin)" 200 "$c"
 c=$(curl -s -b /tmp/sm2.jar -o /dev/null -w '%{http_code}' "$BASE/api/v1/admin/stats");        ck "GET admin/stats" 200 "$c"
 c=$(curl -s -b /tmp/sm2.jar -o /dev/null -w '%{http_code}' "$BASE/api/v1/admin/roadmaps/pending"); ck "GET 待审路线图" 200 "$c"
 c=$(curl -s -b /tmp/sm2.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/admin/users?page=1&pageSize=5"); ck "GET admin/users(ops详情)" 200 "$c" "共$(J "d['pagination']['total']" </tmp/sm.json)人"
@@ -53,10 +53,14 @@ c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' "$BASE/api/v1/admin/st
 c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/auth/me");                          ck "未登录访问me被拒" 401 "$c"
 
 # ---- V5 邮箱认证（只测负路径，不真实发信） ----
-c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/send-code" -H 'content-type: application/json' -d '{"email":"a@gmail.com"}'); ck "send-code 非深大邮箱被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
-c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/forgot-password" -H 'content-type: application/json' -d '{"email":"a@pku.edu.cn"}'); ck "forgot-password 外校edu被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
-c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/reset-password" -H 'content-type: application/json' -d '{"email":"nobody@mails.szu.edu.cn","code":"000000","newPassword":"newpass123"}'); ck "reset-password 无码被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
-c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/change-password" -H 'content-type: application/json' -d '{"oldPassword":"x1234567","newPassword":"y1234567"}'); ck "change-password 未登录被拒" 401 "$c"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/send-code" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"email":"a@gmail.com"}'); ck "send-code 非深大邮箱被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/forgot-password" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"email":"a@pku.edu.cn"}'); ck "forgot-password 外校edu被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/auth/reset-password" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"email":"nobody@mails.szu.edu.cn","code":"000000","newPassword":"newpass123"}'); ck "reset-password 无码被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/change-password" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"oldPassword":"x1234567","newPassword":"y1234567"}'); ck "change-password 未登录被拒" 401 "$c"
+
+# CSRF 负路径：strict 敏感路由无 Origin / 跨源 Origin 均被拒
+c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/change-password" -H 'content-type: application/json' -d '{"oldPassword":"x1234567","newPassword":"y1234567"}'); ck "change-password 无Origin被拒" 403 "$c"
+c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/change-password" -H 'content-type: application/json' -H "Origin: https://evil.example" -d '{"oldPassword":"x1234567","newPassword":"y1234567"}'); ck "change-password 跨源Origin被拒" 403 "$c"
 c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/forgot-password");                     ck "页面 /forgot-password" 200 "$c"
 
 echo; echo "===== 冒烟结果：$PASS 通过 / $FAIL 失败 ====="

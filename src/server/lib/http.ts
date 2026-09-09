@@ -37,13 +37,18 @@ export async function readJson(req: Request): Promise<unknown> {
 
 /** CSRF：非 GET/HEAD 的写操作校验 Origin/Referer 与请求自身 Host 同源（webhook 走验签，不经此函数）。
  *  与请求 Host（含端口）比对而非固定 APP_BASE_URL——本地 localhost/127.0.0.1/局域网 IP/生产域名一律正确判定；
- *  Host 由浏览器按目标服务器设定，跨站攻击者无法令受害浏览器伪造（Django 同款做法）。 */
-export function assertSameOrigin(req: Request): void {
+ *  Host 由浏览器按目标服务器设定，跨站攻击者无法令受害浏览器伪造（Django 同款做法）。
+ *  strict（敏感路由）：Origin/Referer 均缺失直接拒绝——无头请求只能来自非浏览器客户端，
+ *  浏览器对非 GET 请求至少携带其一；改密/提现/资管/封号等端点不允许 curl 裸调。 */
+export function assertSameOrigin(req: Request, opts?: { strict?: boolean }): void {
   if (req.method === 'GET' || req.method === 'HEAD') return;
   const origin = req.headers.get('origin');
   const referer = req.headers.get('referer');
-  // 无 Origin 也无 Referer（curl/服务端调用）放行；浏览器请求必须带且同源
-  if (!origin && !referer) return;
+  // 无 Origin 也无 Referer：默认放行（curl/服务端调用兼容）；strict 模式拒绝
+  if (!origin && !referer) {
+    if (opts?.strict) throw new AppError('FORBIDDEN', httpStatusByCode.FORBIDDEN, '跨源请求被拒绝');
+    return;
+  }
   const source = origin ?? referer ?? '';
   let src: URL;
   try {
@@ -69,16 +74,18 @@ function safeUrlHost(url: string): string | null {
   }
 }
 
-/** 路由薄层统一错误处理：AppError / ZodError / 兜底 500；写操作先过 CSRF 校验 + 访问日志 */
+/** 路由薄层统一错误处理：AppError / ZodError / 兜底 500；写操作先过 CSRF 校验 + 访问日志
+ *  opts.strictOrigin：敏感写路由（改密/提现/资管/封号等）传 true，无 Origin/Referer 的请求直接拒绝 */
 export function withErrorHandler<C = unknown>(
   handler: (req: Request, ctx: C) => Promise<NextResponse>,
+  opts?: { strictOrigin?: boolean },
 ) {
   return async (req: Request, ctx: C): Promise<NextResponse> => {
     const start = Date.now();
     const requestId = req.headers.get('x-request-id') ?? randomUUID();
     const path = new URL(req.url).pathname;
     try {
-      assertSameOrigin(req);
+      assertSameOrigin(req, { strict: opts?.strictOrigin });
       const res = await handler(req, ctx);
       logger.info(
         { requestId, method: req.method, path, status: res.status, duration: Date.now() - start },

@@ -11,12 +11,15 @@ const auditSchema = z.object({
   rejectionReason: z.string().optional(),
 });
 
-export const POST = withErrorHandler(async (req: Request, ctx: Ctx) => {
-  await requireAdmin();
-  const { action, channelTxId, rejectionReason } = auditSchema.parse(await readJson(req));
-  const payout = await adminService.auditPayout(ctx.params.id, action, {
-    channelTxId,
-    rejectionReason,
-  });
-  return ok({ id: payout.id, status: payout.status, amount: payout.amount.toFixed(2) });
-});
+export const POST = withErrorHandler(
+  async (req: Request, ctx: Ctx) => {
+    await requireAdmin();
+    const { action, channelTxId, rejectionReason } = auditSchema.parse(await readJson(req));
+    const payout = await adminService.auditPayout(ctx.params.id, action, {
+      channelTxId,
+      rejectionReason,
+    });
+    return ok({ id: payout.id, status: payout.status, amount: payout.amount.toFixed(2) });
+  },
+  { strictOrigin: true },
+);

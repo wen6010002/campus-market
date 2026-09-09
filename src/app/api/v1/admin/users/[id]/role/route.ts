@@ -7,9 +7,12 @@ type Ctx = { params: { id: string } };
 
 const roleSchema = z.object({ role: z.enum(['STUDENT', 'CREATOR', 'ADMIN']) });
 
-export const POST = withErrorHandler(async (req: Request, ctx: Ctx) => {
-  await requireAdmin();
-  const { role } = roleSchema.parse(await readJson(req));
-  const user = await adminService.setRole(ctx.params.id, role);
-  return ok({ id: user.id, role: user.role });
-});
+export const POST = withErrorHandler(
+  async (req: Request, ctx: Ctx) => {
+    await requireAdmin();
+    const { role } = roleSchema.parse(await readJson(req));
+    const user = await adminService.setRole(ctx.params.id, role);
+    return ok({ id: user.id, role: user.role });
+  },
+  { strictOrigin: true },
+);

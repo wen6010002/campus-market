@@ -8,8 +8,11 @@ const auditSchema = z.object({
   note: z.string().max(600).optional(),
 });
 
-export const POST = withErrorHandler(async (req: Request, ctx: { params: { id: string } }) => {
-  const s = await requireAdmin();
-  const { action, note } = auditSchema.parse(await readJson(req));
-  return ok(await roadmapService.adminAudit(ctx.params.id, action, note, s.userId));
-});
+export const POST = withErrorHandler(
+  async (req: Request, ctx: { params: { id: string } }) => {
+    const s = await requireAdmin();
+    const { action, note } = auditSchema.parse(await readJson(req));
+    return ok(await roadmapService.adminAudit(ctx.params.id, action, note, s.userId));
+  },
+  { strictOrigin: true },
+);

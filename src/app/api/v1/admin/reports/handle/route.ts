@@ -20,8 +20,11 @@ const handleSchema = z.object({
 });
 
 /** 处置（V3-6）：按 target 批量关单 + 措施联动（下架/删评/封号）+ 双向通知 */
-export const POST = withErrorHandler(async (req: Request) => {
-  const admin = await requireAdmin();
-  const input = handleSchema.parse(await readJson(req));
-  return ok(await reportService.adminHandle(input, admin.userId));
-});
+export const POST = withErrorHandler(
+  async (req: Request) => {
+    const admin = await requireAdmin();
+    const input = handleSchema.parse(await readJson(req));
+    return ok(await reportService.adminHandle(input, admin.userId));
+  },
+  { strictOrigin: true },
+);

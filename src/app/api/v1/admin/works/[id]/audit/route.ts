@@ -10,9 +10,12 @@ const auditSchema = z.object({
   note: z.string().max(600).optional(),
 });
 
-export const POST = withErrorHandler(async (req: Request, ctx: Ctx) => {
-  const admin = await requireAdmin();
-  const { action, note } = auditSchema.parse(await readJson(req));
-  const work = await workService.adminAudit(ctx.params.id, action, note, admin.userId);
-  return ok(work);
-});
+export const POST = withErrorHandler(
+  async (req: Request, ctx: Ctx) => {
+    const admin = await requireAdmin();
+    const { action, note } = auditSchema.parse(await readJson(req));
+    const work = await workService.adminAudit(ctx.params.id, action, note, admin.userId);
+    return ok(work);
+  },
+  { strictOrigin: true },
+);

@@ -7,9 +7,12 @@ type Ctx = { params: { id: string } };
 
 const banSchema = z.object({ reason: z.string().max(200).optional() });
 
-export const POST = withErrorHandler(async (req: Request, ctx: Ctx) => {
-  await requireAdmin();
-  const { reason } = banSchema.parse(await readJson(req));
-  const user = await adminService.banUser(ctx.params.id, reason);
-  return ok({ id: user.id, status: user.status });
-});
+export const POST = withErrorHandler(
+  async (req: Request, ctx: Ctx) => {
+    await requireAdmin();
+    const { reason } = banSchema.parse(await readJson(req));
+    const user = await adminService.banUser(ctx.params.id, reason);
+    return ok({ id: user.id, status: user.status });
+  },
+  { strictOrigin: true },
+);

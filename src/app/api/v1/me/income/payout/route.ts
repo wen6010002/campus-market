@@ -9,18 +9,21 @@ const payoutSchema = z.object({
   method: z.nativeEnum(PayMethod),
 });
 
-export const POST = withErrorHandler(async (req: Request) => {
-  const s = await ensurePublisher();
-  const { amount, method } = payoutSchema.parse(await readJson(req));
-  const payout = await incomeService.payout(s.userId, amount, method);
-  return ok(
-    {
-      id: payout.id,
-      amount: payout.amount.toFixed(2),
-      method: payout.method,
-      status: payout.status,
-      requestedAt: payout.requestedAt.toISOString(),
-    },
-    { status: 201 },
-  );
-});
+export const POST = withErrorHandler(
+  async (req: Request) => {
+    const s = await ensurePublisher();
+    const { amount, method } = payoutSchema.parse(await readJson(req));
+    const payout = await incomeService.payout(s.userId, amount, method);
+    return ok(
+      {
+        id: payout.id,
+        amount: payout.amount.toFixed(2),
+        method: payout.method,
+        status: payout.status,
+        requestedAt: payout.requestedAt.toISOString(),
+      },
+      { status: 201 },
+    );
+  },
+  { strictOrigin: true },
+);
