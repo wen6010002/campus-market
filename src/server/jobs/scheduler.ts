@@ -9,6 +9,10 @@ import { incomeService } from '../services/income.service';
 import { qualityService } from '../services/quality.service';
 import { achievementService } from '../services/achievement.service';
 import { logger } from '../lib/logger';
+import { assertProdEnv } from '../lib/env';
+
+// worker 容器用 tsx 直启、不经 Next instrumentation，生产 env 自检在此触发
+assertProdEnv();
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
