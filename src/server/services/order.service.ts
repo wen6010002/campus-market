@@ -3,6 +3,7 @@ import { appError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { cacheSetNx } from '../lib/cache';
 import { paymentsEnabled } from '../lib/payments';
+import { sanitize } from '../lib/sanitize';
 import { presignGet } from '../storage/minio';
 import { getProvider } from '../payment';
 import type { PayParams } from '../payment';
@@ -251,9 +252,9 @@ export const orderService = {
         data: {
           userId: order.buyerId,
           type: 'ARRIVED',
-          text: work
-            ? `你购买的《${work.title}》已到账，可在"我的资料"中查看。`
-            : '你的作品已到账。',
+          text: sanitize(
+            work ? `你购买的《${work.title}》已到账，可在"我的资料"中查看。` : '你的作品已到账。',
+          ),
           link: `/work/${order.workId}`,
         },
       });
@@ -359,7 +360,7 @@ export const orderService = {
         data: {
           userId: order.buyerId,
           type: 'SYSTEM',
-          text: `你的订单《${order.work.title}》已退款。`,
+          text: sanitize(`你的订单《${order.work.title}》已退款。`),
           link: `/work/${order.workId}`,
         },
       });

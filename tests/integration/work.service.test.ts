@@ -89,6 +89,22 @@ describe('作品服务（阶段 3）', () => {
     expect(rejected.status).toBe('REJECTED');
   });
 
+  it('通知 XSS：标题夹带危险标签 → 通知文本被 sanitize 清洗', async () => {
+    const evilTitle = 'x<img src=x onerror=alert(1)><script>alert(2)</script>y';
+    const w = await workService.create(CREATOR_ID, { ...validInput, title: evilTitle });
+    await workService.publish(w.id, CREATOR_ID);
+    await workService.adminAudit(w.id, 'APPROVE', undefined, CREATOR_ID);
+    const n = await prisma.notification.findFirstOrThrow({
+      where: { userId: CREATOR_ID, type: 'AUDIT_RESULT' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(n.text).toContain('<b>'); // 白名单加粗保留
+    expect(n.text).not.toContain('<img');
+    expect(n.text).not.toContain('<script');
+    expect(n.text).not.toContain('onerror');
+    expect(n.text).not.toContain('alert(2)'); // script 标签连同内容一并剥离
+  });
+
   it('列表：仅返回 PUBLISHED', async () => {
     const result = await workService.list({ page: 1, pageSize: 20, sort: 'new' } as any);
     expect(result.data.every((w: any) => w.status === 'PUBLISHED')).toBe(true);

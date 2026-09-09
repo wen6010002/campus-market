@@ -1,9 +1,12 @@
 import { prisma } from '../db';
 import { appError } from '../lib/errors';
 import { cacheDel, meKey } from '../lib/cache';
+import { sanitize } from '../lib/sanitize';
 import { DynamicType, NotificationType } from '@/lib/constants';
 
 // 通知服务：写通知、写动态、广播粉丝。
+// text 落库前统一 sanitize（前端 dangerouslySetInnerHTML 渲染）：
+// 保留 b/strong/i/em/br 白名单标签，剥离调用方插值（作品标题/用户名）里混入的危险标签与属性。
 export const notifyService = {
   async createNotification(
     userId: string,
@@ -11,7 +14,9 @@ export const notifyService = {
     text: string,
     link?: string | null,
   ) {
-    const n = await prisma.notification.create({ data: { userId, type, text, link: link ?? null } });
+    const n = await prisma.notification.create({
+      data: { userId, type, text: sanitize(text), link: link ?? null },
+    });
     await cacheDel(meKey(userId)); // 未读红点即时生效
     return n;
   },
@@ -32,11 +37,14 @@ export const notifyService = {
       select: { followerId: true },
     });
     if (followers.length) {
+      const text = sanitize(
+        `你关注的 <b>${creator?.username ?? '创作者'}</b> 发布了新作品《${workTitle}》。`,
+      );
       await prisma.notification.createMany({
         data: followers.map((f) => ({
           userId: f.followerId,
           type: 'FOLLOW_NEW_WORK' as const,
-          text: `你关注的 <b>${creator?.username ?? '创作者'}</b> 发布了新作品《${workTitle}》。`,
+          text,
           link: `/work/${workId}`,
         })),
       });
