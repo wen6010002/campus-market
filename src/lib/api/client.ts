@@ -15,12 +15,12 @@ export class ApiError extends Error {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/v1${path}`, {
+    ...init,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers || {}),
     },
-    ...init,
   });
 
   const text = await res.text();
@@ -54,9 +54,9 @@ export async function apiFetchPage<T>(
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }> {
   const res = await fetch(`/api/v1${path}`, {
+    ...init,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-    ...init,
   });
   const json = safeParse(await res.text());
   if (!res.ok) {
