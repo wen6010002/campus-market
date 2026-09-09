@@ -86,6 +86,22 @@ describe('收益服务（阶段 7）', () => {
     expect(after.withdrawn.toFixed(2)).toBe((before.withdrawn.toNumber() + 5).toFixed(2));
   });
 
+  it('并发提现：两笔同时全额请求恰有一笔成功，余额不透支', async () => {
+    const cpId = await creatorProfileId();
+    // 显式置 100：两笔各提 100，均通过前置校验（100 不大于 100），全靠事务内条件更新裁决
+    await prisma.wallet.update({ where: { creatorId: cpId }, data: { balance: 100 } });
+    const results = await Promise.allSettled([
+      incomeService.payout(CREATOR, 100, 'WECHAT'),
+      incomeService.payout(CREATOR, 100, 'WECHAT'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: 'INSUFFICIENT_BALANCE' });
+    const wallet = await prisma.wallet.findUniqueOrThrow({ where: { creatorId: cpId } });
+    expect(Number(wallet.balance)).toBe(0);
+    expect(await prisma.payout.count({ where: { creatorId: cpId, amount: 100 } })).toBe(1);
+  });
+
   it('非创作者 → FORBIDDEN', async () => {
     await expect(incomeService.summary('stu_test')).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });

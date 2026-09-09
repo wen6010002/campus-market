@@ -64,13 +64,16 @@ export const incomeService = {
     const cp = await getCreatorProfile(userId);
     const wallet = await prisma.wallet.findUnique({ where: { creatorId: cp.id } });
     if (!wallet) throw appError('NOT_FOUND', '钱包不存在');
+    // 前置校验仅是 UX 快路径；真正的裁决在事务内条件更新（防两笔并发同时通过校验后超提）
     if (amount > Number(wallet.balance)) throw appError('INSUFFICIENT_BALANCE', '可提现余额不足');
 
     return prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { creatorId: cp.id },
+      // 原子条件更新：balance >= amount 才扣减，PG 行锁串行化并发请求，余额永不透支
+      const res = await tx.wallet.updateMany({
+        where: { creatorId: cp.id, balance: { gte: amount } },
         data: { balance: { decrement: amount }, withdrawn: { increment: amount } },
       });
+      if (res.count === 0) throw appError('INSUFFICIENT_BALANCE', '可提现余额不足');
       return tx.payout.create({ data: { creatorId: cp.id, amount, method, status: 'REQUESTED' } });
     });
   },
