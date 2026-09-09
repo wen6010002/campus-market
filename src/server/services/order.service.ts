@@ -169,6 +169,7 @@ export const orderService = {
     opts?: { paidAmount?: string },
   ) {
     let creatorUserId: string | undefined;
+    let creatorProfileId: string | undefined; // 成就判定用 profileId（事务外触发时捕获）
     const result = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw appError('NOT_FOUND', '订单不存在');
@@ -219,6 +220,7 @@ export const orderService = {
         ? await tx.creatorProfile.findUnique({ where: { userId: work.authorId } })
         : null;
       if (creator) {
+        creatorProfileId = creator.id;
         await tx.creatorIncome.create({
           data: {
             creatorId: creator.id,
@@ -243,10 +245,6 @@ export const orderService = {
 
       // 作品下载数 +1（购买计下载）
       await tx.work.update({ where: { id: order.workId }, data: { downloads: { increment: 1 } } });
-      // V8 帮助轴成就判定（事务提交后异步，不阻塞结算）
-      if (creator) {
-        queueMicrotask(() => achievementService.checkHelp(creator.id).catch(() => {}));
-      }
 
       // 通知买家
       await tx.notification.create({
@@ -262,9 +260,13 @@ export const orderService = {
 
       return { ok: true, already: false };
     });
-    // 成就：首次收益（事务后触发）
+    // 成就：首次收益 + 帮助轴判定（事务提交后触发——fire-and-forget 不应挂在
+    // 可能回滚的事务回调内，否则可能读到未提交数据；幂等路径 already 时不触发）
     if (!result.already && creatorUserId) {
       await achievementService.grant(creatorUserId, 'FIRST_INCOME');
+      if (creatorProfileId) {
+        queueMicrotask(() => achievementService.checkHelp(creatorProfileId!).catch(() => {}));
+      }
     }
     return result;
   },
