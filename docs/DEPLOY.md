@@ -57,18 +57,18 @@ open http://localhost:8025                     # mailhog 界面查看验证码
 
 必填项标注 `#required`。完整字段见 `.env.example`，关键项：
 
-| 变量                  | 说明                               | 本地默认                                          |
-| --------------------- | ---------------------------------- | ------------------------------------------------- |
-| `DATABASE_URL`        | PG 连接串（直连，迁移用）          | `postgresql://cm:cm@localhost:5433/campus_market` |
-| `DATABASE_URL_POOLED` | 运行时连接串（走 PgBouncer，可选） | `postgresql://cm:cm@localhost:6433/campus_market` |
-| `REDIS_URL`           | Redis 连接                         | `redis://localhost:6379`                          |
-| `AUTH_SECRET`         | JWT 签名密钥（required）           | 随机生成                                          |
-| `PASSWORD_PEPPER`     | 密码 pepper（required）            | 随机生成                                          |
-| `S3_*`                | MinIO 地址/密钥/桶                 | `localhost:9000` / `minioadmin`                   |
-| `PAYMENT_MODE`        | `mock` \| `epay`                   | `mock`                                            |
-| `SMTP_HOST/PORT`      | 邮件（本地 mailhog）               | `localhost:1025`                                  |
-| `PLATFORM_FEE_RATE`   | 平台抽成                           | `0.1`（10%）                                      |
-| `INCOME_SETTLE_DAYS`  | T+N 结算                           | `7`                                               |
+| 变量                  | 说明                                      | 本地默认                                          |
+| --------------------- | ----------------------------------------- | ------------------------------------------------- |
+| `DATABASE_URL`        | PG 连接串（直连，迁移用）                 | `postgresql://cm:cm@localhost:5433/campus_market` |
+| `DATABASE_URL_POOLED` | 运行时连接串（走 PgBouncer，可选）        | `postgresql://cm:cm@localhost:6433/campus_market` |
+| `REDIS_URL`           | Redis 连接                                | `redis://localhost:6379`                          |
+| `AUTH_SECRET`         | JWT 签名密钥（required）                  | 随机生成                                          |
+| `PASSWORD_PEPPER`     | 密码 pepper（required）                   | 随机生成                                          |
+| `S3_*`                | MinIO 地址/密钥/桶                        | `localhost:9000` / `minioadmin`                   |
+| `PAYMENT_MODE`        | `off` \| `epay`（生产）/ `mock`（仅本地） | `mock`                                            |
+| `SMTP_HOST/PORT`      | 邮件（本地 mailhog）                      | `localhost:1025`                                  |
+| `PLATFORM_FEE_RATE`   | 平台抽成                                  | `0.1`（10%）                                      |
+| `INCOME_SETTLE_DAYS`  | T+N 结算                                  | `7`                                               |
 
 ---
 
@@ -81,6 +81,16 @@ open http://localhost:8025                     # mailhog 界面查看验证码
 git pull
 cp .env.example .env          # 填生产值：DOMAIN、支付密钥、AUTH_SECRET 等
 ```
+
+**生产部署前检查清单**（app 启动自检 `src/server/lib/env.ts` 强制拦截，不合格容器起不来）：
+
+| 检查项            | 要求                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`     | `openssl rand -base64 32` 生成的强值，≥32 字符，不得用 `.env.example` 占位值                               |
+| `PASSWORD_PEPPER` | 强随机值，不得用占位值                                                                                     |
+| `S3_SECRET_KEY`   | 强随机值（`S3_ACCESS_KEY` 保持 `minioadmin` 用户名可以）                                                   |
+| `PAYMENT_MODE`    | 必须显式 `off`（全站免费）或 `epay`；严禁 `mock`/漏配——代码默认 mock 会免费打款                            |
+| 启动确认          | `docker logs` 应出现「生产环境配置校验通过」；若 crash 退出，按日志点名的变量改 `.env` 后 `up -d` 重读即可 |
 
 ### 4.2 一键部署（docker compose prod）
 

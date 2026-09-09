@@ -1197,3 +1197,11 @@ async create({workId,userId,stars,text,tags}) {
 ## 文档完 — 执行守则再提醒
 
 按阶段推进、测试全绿、写 PROGRESS、不省细节、schema 即契约。完成全部阶段后，本后端即满足「生产级、可对接前端原型」的要求。
+
+## 附：已知限制（审计记录，非 bug）
+
+- **batchWorks 批量上架的粉丝广播放大**：`admin.service.ts` 的 `updateWork` 上架路径复用
+  `workService.adminAudit → notifyService.onWorkPublished`，每次全量查粉丝表并 createMany 通知。
+  批量上架 N 篇 = N 次全量粉丝查询循环。当前量级（个位数批量）无感；批量操作规模上百时
+  需改为聚合通知（合并为一条「你关注的作者上架了 N 件新作」）。见 admin.service.ts 注释。
+- worker 容器（scheduler.ts）的生产 env 自检随下次 worker 镜像重建生效，与 app 镜像独立。

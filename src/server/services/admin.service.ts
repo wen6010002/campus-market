@@ -477,7 +477,10 @@ export const adminService = {
       },
     });
     await cacheDelByPattern('works:list:*');
-    // 上架时补全发布副作用（通知/动态/成就）走既有审核通道，避免旁路
+    // 上架时补全发布副作用（通知/动态/成就）走既有审核通道，避免旁路。
+    // 已知限制：adminAudit APPROVE 会全量查粉丝表并 createMany 广播通知，
+    // batchWorks 逐条复用此路径，批量上架 N 篇 = N 次全量粉丝查询（见 BACKEND.md 已知限制）。
+    // 当前批量规模个位数无感；量级上百时应改为聚合通知。
     if (input.status === 'PUBLISHED' && work.status !== 'PUBLISHED') {
       await workService.adminAudit(id, 'APPROVE', undefined, adminId);
     }
