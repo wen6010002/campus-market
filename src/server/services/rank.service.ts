@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { cacheGet, cacheSet } from '../lib/cache';
 import { achievementService } from './achievement.service';
+import { dayCn8 } from '@/lib/day';
 
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
 
@@ -40,14 +41,58 @@ function toCreator(c: any) {
 }
 
 export const rankService = {
-  /** 排行榜（type=help|rate|fav|creator），返回 top6 */
+  /** 排行榜（type=help|rate|fav|creator 返回 top6；checkin 返回连续打卡 top30，V12） */
   async ranks(type: string) {
     const cacheKey = `rank:${type}`;
     const cached = await cacheGet<any>(cacheKey);
     if (cached) return cached;
 
     let result;
-    if (type === 'fav') {
+    if (type === 'checkin') {
+      // V12 连续打卡榜：与创作者榜刻意区隔——DB 级取行（不加载全量用户），
+      // 活跃 streak = 今日行（今天打过）或昨日行（今天还没打，streak 仍有效）；
+      // 同用户两天都有行时取 streak 大的（即今日行，含昨日累计）。
+      // 副标题展示宿舍楼（dorm），未填回退学院——「X栋的xxx」巧思。
+      const today = dayCn8(new Date());
+      const yesterday = dayCn8(new Date(Date.now() - 86400_000));
+      const rows = await prisma.dailyCheckin.findMany({
+        where: { day: { in: [today, yesterday] } },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              avatarColor: true,
+              avatarKey: true,
+              updatedAt: true,
+              dorm: true,
+              student: { select: { college: true } },
+            },
+          },
+        },
+      });
+      const best = new Map<string, (typeof rows)[number]>();
+      for (const r of rows) {
+        const prev = best.get(r.userId);
+        if (!prev || r.streakDays > prev.streakDays) best.set(r.userId, r);
+      }
+      const list = [...best.values()].sort(
+        (a, b) => b.streakDays - a.streakDays || a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+      result = list.slice(0, 30).map((r, i) => ({
+        rank: i + 1,
+        user: {
+          id: r.user.id,
+          username: r.user.username,
+          avatarColor: r.user.avatarColor,
+          hasAvatar: !!r.user.avatarKey,
+          avatarVer: r.user.updatedAt.getTime(),
+          dorm: r.user.dorm,
+          college: r.user.student?.college ?? '',
+        },
+        metric: r.streakDays,
+      }));
+    } else if (type === 'fav') {
       const works = await prisma.work.findMany({
         where: { status: 'PUBLISHED', deletedAt: null },
         include: { author: { include: { creator: true } }, tags: { include: { tag: true } } },

@@ -10,6 +10,7 @@ import { messageFor } from '@/lib/api/errors';
 import { toast } from '@/stores/ui';
 import { useAuth } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/common/UserAvatar';
+import { DORM_OPTIONS } from '@/lib/constants';
 
 /** 资料编辑独立页（V3 调整：由个人主页弹窗改为整页，/settings） */
 export default function SettingsPage() {
@@ -23,6 +24,7 @@ export default function SettingsPage() {
     college: '',
     grade: '',
     major: '',
+    dorm: '',
   });
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -41,6 +43,7 @@ export default function SettingsPage() {
         college: user.student?.college ?? '',
         grade: user.student?.grade ?? '',
         major: user.student?.major ?? '',
+        dorm: user.dorm ?? '',
       });
     }
   }, [user]);
@@ -90,6 +93,7 @@ export default function SettingsPage() {
           college: form.college.trim(),
           grade: form.grade.trim(),
           major: form.major.trim(),
+          dorm: form.dorm,
         }),
       });
       toast('资料已保存', 'ok');
@@ -196,6 +200,28 @@ export default function SettingsPage() {
         <div className="field">
           <label>专业</label>
           <input className="input" value={form.major} onChange={set('major')} maxLength={60} />
+        </div>
+        <div className="field">
+          <label>宿舍楼（可选）</label>
+          <select
+            className="input"
+            value={form.dorm}
+            onChange={(e) => setForm((f) => ({ ...f, dorm: e.target.value }))}
+          >
+            <option value="">不展示</option>
+            {DORM_OPTIONS.map((g) => (
+              <optgroup key={g.group} label={g.group}>
+                {g.options.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <div className="hint" style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
+            填了会在打卡排行榜显示「{form.dorm || '紫薇斋'}的同学」——只到楼栋，不含房间号
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <Link className="btn btn-ghost" href={`/user/${user.id}`}>

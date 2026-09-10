@@ -9,6 +9,8 @@ const profileSchema = z.object({
   college: z.string().trim().max(60).optional(),
   grade: z.string().trim().max(30).optional(),
   major: z.string().trim().max(60).optional(),
+  /** 宿舍楼（V12 打卡榜副标题用）；空串=清除 */
+  dorm: z.string().trim().max(30).nullable().optional(),
 });
 
 /** 编辑资料（V3-5） */

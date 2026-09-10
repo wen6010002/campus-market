@@ -8812,3 +8812,226 @@ body {
     padding: 12px 0;
   }
 }
+
+/* ===================== V12 连续打卡榜 ===================== */
+
+/* 列表页入口卡 */
+.ck-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1.5px solid var(--pri-50);
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.ck-entry:hover {
+  border-color: var(--pri);
+  transform: translateY(-1px);
+}
+.ck-entry-flame {
+  font-size: 22px;
+}
+.ck-entry-avatars {
+  display: flex;
+}
+.ck-entry-av {
+  display: inline-flex;
+  border-radius: 9px;
+  border: 2px solid var(--card, #fff);
+  margin-left: -8px;
+  background: #fff;
+}
+.ck-entry-av:first-child {
+  margin-left: 0;
+}
+.ck-entry-txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-entry-txt b {
+  font-size: 14.5px;
+}
+.ck-entry-txt small {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ck-entry-go {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pri-600);
+  white-space: nowrap;
+}
+
+/* 榜页：我的卡 */
+.ck-mine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.ck-mine-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ck-mine-rank {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.ck-mine-rank.on {
+  color: var(--pri-600);
+}
+.ck-mine-streak {
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.ck-mine-streak b {
+  font-size: 17px;
+  color: var(--pri-600);
+}
+.ck-mine-gap {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* 前三名领奖台 */
+.ck-podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ck-pd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 10px 14px;
+  border-radius: 14px;
+  background: var(--bg-soft);
+  text-decoration: none;
+  color: var(--ink);
+  position: relative;
+  border: 1px solid var(--line-2);
+}
+.ck-pd-1 {
+  background: linear-gradient(180deg, var(--pri-50) 0%, var(--bg-soft) 70%);
+  border-color: rgba(255, 107, 74, 0.25);
+}
+.ck-pd .rank-no {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+.ck-pd b {
+  font-size: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ck-pd small {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ck-pd em {
+  font-style: normal;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--pri-600);
+  font-variant-numeric: tabular-nums;
+}
+.ck-pd em span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-left: 2px;
+}
+
+/* 4..30 名行 */
+.ck-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-2);
+  text-decoration: none;
+  color: var(--ink);
+}
+.ck-row:last-child {
+  border-bottom: 0;
+}
+.ck-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.ck-name small {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.ck-days {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.ck-days b {
+  font-size: 16px;
+  color: var(--pri-600);
+  font-variant-numeric: tabular-nums;
+}
+.ck-days small {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+/* 侧栏「查看完整榜」链接 */
+.side-more {
+  display: block;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pri-600);
+  text-decoration: none;
+  padding: 8px 0 2px;
+}
+
+/* 手机：领奖台三列收窄、行内省略 */
+@media (max-width: 680px) {
+  .ck-podium {
+    gap: 8px;
+  }
+  .ck-pd {
+    padding: 14px 6px 10px;
+  }
+  .ck-pd em {
+    font-size: 17px;
+  }
+  .ck-entry-txt small {
+    white-space: normal;
+  }
+}

@@ -49,6 +49,7 @@ export async function buildAuthUser(userId: string) {
     hasAvatar: !!user.avatarKey,
     avatarVer: user.updatedAt.getTime(),
     bio: user.bio ?? user.creator?.bio ?? '',
+    dorm: user.dorm ?? '', // V12 宿舍楼（打卡榜副标题/设置页回显）
     unreadCount,
     unreadAnnouncements,
     student: user.student

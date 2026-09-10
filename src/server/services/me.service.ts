@@ -10,7 +10,8 @@ async function invalidateAuthorCaches() {
 }
 
 export const meService = {
-  /** 编辑资料（V3-5）：用户名查重 / bio / 学籍展示字段 */
+  /** 编辑资料（V3-5）：用户名查重 / bio / 学籍展示字段；dorm（V12，User 层——
+   *  StudentProfile 仅认证学生有行，宿舍楼任何用户都可填） */
   async updateProfile(
     userId: string,
     input: {
@@ -19,6 +20,7 @@ export const meService = {
       college?: string;
       grade?: string;
       major?: string;
+      dorm?: string | null;
     },
   ) {
     if (input.username !== undefined) {
@@ -33,6 +35,7 @@ export const meService = {
       data: {
         ...(input.username !== undefined ? { username: input.username } : {}),
         ...(input.bio !== undefined ? { bio: input.bio } : {}),
+        ...(input.dorm !== undefined ? { dorm: input.dorm || null } : {}),
       },
       select: { id: true, username: true, bio: true },
     });

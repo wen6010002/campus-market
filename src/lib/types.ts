@@ -44,6 +44,8 @@ export interface AuthUser {
   hasAvatar?: boolean;
   avatarVer?: number;
   bio?: string;
+  /** V12 宿舍楼（设置页回显；空=未填） */
+  dorm?: string;
   student?: StudentProfile;
   creator?: CreatorProfile | null;
   unreadCount: number;
@@ -132,6 +134,7 @@ export interface UserProfile {
   college: string;
   major: string;
   grade: string;
+  dorm: string;
   verified: boolean;
   isCreator: boolean;
   helped: number;

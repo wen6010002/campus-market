@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { useRoadmaps } from '@/hooks/useRoadmaps';
 import { RoadmapCard } from '@/components/roadmap/RoadmapCard';
 import { Empty } from '@/components/common/Empty';
+import { UserAvatar } from '@/components/common/UserAvatar';
+import { useRank } from '@/hooks/useSearch';
 import { useAuth } from '@/hooks/useAuth';
 import { ROADMAP_CATEGORIES } from '@/lib/constants';
 
@@ -13,6 +15,7 @@ export default function RoadmapsPage() {
   const [category, setCategory] = useState('');
   const [sort, setSort] = useState<'favs' | 'newest'>('favs');
   const [page, setPage] = useState(1);
+  const rankTop = useRank('checkin');
 
   const list = useRoadmaps({
     page,
@@ -35,6 +38,27 @@ export default function RoadmapsPage() {
           <span style={{ marginRight: 4 }}>＋</span>上传路线图
         </Link>
       </div>
+
+      {/* V12 连续打卡榜入口卡（前三头像叠放预览） */}
+      {!rankTop.isLoading && rankTop.data?.length ? (
+        <Link href="/roadmaps/rank" className="ck-entry card">
+          <span className="ck-entry-flame">🔥</span>
+          <span className="ck-entry-avatars">
+            {(rankTop.data as Array<any>).slice(0, 3).map((r: any, i: number) => (
+              <span key={r.user.id} className="ck-entry-av" style={{ zIndex: 3 - i }}>
+                <UserAvatar id={r.user.id} user={r.user} size={30} radius={8} />
+              </span>
+            ))}
+          </span>
+          <span className="ck-entry-txt">
+            <b>连续打卡榜</b>
+            <small>
+              第一名已连续 {(rankTop.data as Array<any>)[0].metric} 天 · 学任意路线都算 · 前 30 名
+            </small>
+          </span>
+          <span className="ck-entry-go">查看 →</span>
+        </Link>
+      ) : null}
 
       <div className="rm-toolbar">
         <nav className="cat-quick" aria-label="方向筛选" style={{ flex: 1, boxShadow: 'none' }}>
@@ -108,7 +132,11 @@ export default function RoadmapsPage() {
       {list.data && list.data.pagination.totalPages > 1 ? (
         <div className="ops-pager">
           <span className="ops-pager-total">共 {list.data.pagination.total} 张路线图</span>
-          <button className="btn btn-light btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <button
+            className="btn btn-light btn-sm"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
             上一页
           </button>
           <span className="ops-pager-now">

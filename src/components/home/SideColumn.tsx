@@ -16,6 +16,7 @@ const RANK_TABS = [
   { key: 'rate', label: '好评榜' },
   { key: 'fav', label: '收藏榜' },
   { key: 'creator', label: '创作者' },
+  { key: 'checkin', label: '打卡' },
 ] as const;
 
 const METRIC_LABEL: Record<string, string> = {
@@ -23,6 +24,7 @@ const METRIC_LABEL: Record<string, string> = {
   rate: '好评',
   fav: '次收藏',
   creator: '位粉丝',
+  checkin: '天连续',
 };
 
 /** 侧栏：排行榜（4 tab） + 公告 + 分类目录。sticky 跟随滚动。 */
@@ -64,8 +66,8 @@ function SideRank() {
         </div>
       ) : items.length ? (
         items.map((r: any, i: number) => {
-          const e = r.creator ?? r.work;
-          const av = r.creator ?? r.work?.author ?? e;
+          const e = r.creator ?? r.work ?? r.user; // checkin 榜行是 user（V12）
+          const av = r.creator ?? r.work?.author ?? r.user ?? e;
           return (
             <Link key={i} href={`/user/${av.id}`} className="sr-row">
               <span className={`rank-no ${i < 3 ? `t${i + 1}` : ''}`}>{i + 1}</span>
@@ -73,7 +75,11 @@ function SideRank() {
               <span className="sr-name">
                 {e.username ?? e.title}
                 <BadgeInline badge={av.badge ?? r.work?.author?.badge} size={18} />
-                <small>{e.direction || e.course || ''}</small>
+                <small>
+                  {tab === 'checkin'
+                    ? r.user.dorm || r.user.college || ''
+                    : e.direction || e.course || ''}
+                </small>
               </span>
               <span className="sr-metric">
                 <b>{r.metric}</b>
@@ -89,6 +95,11 @@ function SideRank() {
           暂无数据
         </div>
       )}
+      {tab === 'checkin' ? (
+        <Link href="/roadmaps/rank" className="side-more">
+          查看完整打卡榜 →
+        </Link>
+      ) : null}
     </div>
   );
 }

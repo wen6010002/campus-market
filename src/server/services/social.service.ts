@@ -135,6 +135,7 @@ export const socialService = {
       college: user.student?.college ?? '',
       major: user.student?.major ?? '',
       grade: user.student?.grade ?? '',
+      dorm: user.dorm ?? '', // V12 宿舍楼（主页 meta 展示，只到楼不到房间）
       verified: user.creator?.verified ?? false,
       isCreator: !!user.creator,
       helped: helped._sum.downloads ?? 0,

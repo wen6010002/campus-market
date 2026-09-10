@@ -122,6 +122,7 @@ function UserContent() {
             {profile.college || '校园用户'}
             {profile.grade ? ` · ${profile.grade}` : ''}
             {profile.major ? ` · ${profile.major}` : ''}
+            {profile.dorm ? ` · 🏠 ${profile.dorm}` : ''}
           </div>
           {profile.direction ? <div className="up-direction">{profile.direction}</div> : null}
           {profile.honor ? <div className="up-honor">🏅 {profile.honor}</div> : null}

@@ -223,6 +223,60 @@ export const ROADMAP_CATEGORY_LABEL: Record<RoadmapCategory, string> = Object.fr
   ROADMAP_CATEGORIES.map((c) => [c.key, c.label]),
 ) as Record<RoadmapCategory, string>;
 
+/** 宿舍楼下拉（V12 打卡榜副标题「X栋的xxx」用；只到楼不到房间）。
+ *  楼名口径：2023 年社区制改革后命名（时光社区/文山湖社区/沧海社区/丽湖校区），
+ *  来源维基百科「深圳大学」宿舍列表；丽湖校区楼栋名待补——改这个数组即可。 */
+export const DORM_OPTIONS: Array<{ group: string; options: string[] }> = [
+  {
+    group: '时光社区（斋区）',
+    options: [
+      '紫薇斋',
+      '红豆斋',
+      '桃李斋',
+      '聚翰斋',
+      '凌霄斋',
+      '红榴斋',
+      '山茶斋',
+      '海桐斋',
+      '米兰斋',
+      '银桦斋',
+      '风槐斋',
+      '雨鹃斋',
+      '蓬莱客舍',
+    ],
+  },
+  {
+    group: '文山湖社区（西南）',
+    options: [
+      '云鹏楼',
+      '云鹤楼',
+      '紫藤轩',
+      '云杉轩',
+      '芸香阁',
+      '丁香阁',
+      '文杏阁',
+      '海棠阁',
+      '疏影阁',
+      '杜衡阁',
+      '辛夷阁',
+      '韵竹阁',
+      '紫檀轩',
+      '苏铁轩',
+      '丹枫轩',
+      '木犀轩',
+      '石楠轩',
+      '乔木阁',
+      '乔林阁',
+      '乔森阁',
+      '乔相阁',
+      '乔梧阁',
+    ],
+  },
+  { group: '沧海社区（南区）', options: ['春笛', '夏筝', '秋瑟', '冬筑'] },
+  { group: '丽湖校区', options: ['丽湖校区·一期', '丽湖校区·二期'] },
+  { group: '其他', options: ['校外住宿'] },
+];
+
 export const EduVerifyStatus = {
   UNVERIFIED: 'UNVERIFIED',
   PENDING: 'PENDING',
