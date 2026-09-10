@@ -63,11 +63,13 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const [likeBurst, setLikeBurst] = useState(false);
   const [favBurst, setFavBurst] = useState(false);
 
-  // 手机端：本页用底部操作条替代全站 tabbar，避免双层底栏
+  // 手机端：本页用底部操作条替代全站 tabbar，避免双层底栏；
+  // 作品不存在时不隐藏（Empty 页没有操作条可替代，否则手机端失去底部导航）
   useEffect(() => {
+    if (!work) return;
     document.body.classList.add('work-detail-page');
     return () => document.body.classList.remove('work-detail-page');
-  }, []);
+  }, [work]);
 
   const audit = useMutation({
     mutationFn: (action: 'APPROVE' | 'REJECT') =>
