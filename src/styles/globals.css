@@ -7230,6 +7230,44 @@ body {
   border-color: var(--pri);
   color: #fff;
 }
+.fchip.on {
+  background: var(--pri);
+  border-color: var(--pri);
+  color: #fff;
+}
+.fresh-loading,
+.fresh-empty {
+  padding: 26px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: #fff;
+  border-radius: 10px;
+}
+@keyframes fRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fresh-rows .f-row {
+  animation: fRowIn 0.18s ease-out both;
+}
+.fresh-rows .f-row:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.fresh-rows .f-row:nth-child(3) {
+  animation-delay: 0.08s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fresh-rows .f-row {
+    animation: none;
+  }
+}
 .fresh-rows {
   display: flex;
   flex-direction: column;
