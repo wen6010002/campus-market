@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V11 详情页设计稿 · 电脑版 — 课搭</title>
+<style>
+  /* ===== 项目真实令牌（globals.css） ===== */
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f6f7f8;
+    --bg-deep: #edeef1;
+    --ink: #1a1d23;
+    --ink-2: #575c65;
+    --ink-soft: #81858d;
+    --ink-faint: #b3b7be;
+    --pri: #ff6b4a;
+    --pri-600: #ed4e2d;
+    --pri-50: #fff1ec;
+    --mint: #10b981;
+    --mint-50: #e6f8f1;
+    --line: #ebedf0;
+    --line-2: #f3f4f6;
+    --shadow: 0 1px 3px rgba(0,0,0,.06);
+    --shadow-h: 0 2px 8px rgba(0,0,0,.1);
+    --r: 6px; --r-lg: 8px; --r-xl: 10px;
+    --font: 'Plus Jakarta Sans', 'Noto Sans SC', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; font-size: inherit; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--pri); outline-offset: 2px; border-radius: 4px; }
+  svg { flex-shrink: 0; }
+
+  .demo-chip {
+    position: fixed; right: 16px; bottom: 16px; z-index: 500;
+    background: var(--ink); color: #fff; font-size: 12px; line-height: 1.5;
+    padding: 8px 12px; border-radius: var(--r-lg); box-shadow: var(--shadow-h);
+    max-width: 260px;
+  }
+  .demo-chip b { color: #ffb3a0; }
+
+  /* ===== 顶栏（含 V11 新增「首页」入口） ===== */
+  .nav { position: sticky; top: 0; z-index: 100; background: #fff; border-bottom: 1px solid var(--line); }
+  .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 28px; height: 60px; display: flex; align-items: center; gap: 20px; }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 34px; height: 34px; border-radius: 6px; background: var(--pri); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 17px; }
+  .logo-text b { font-size: 16px; letter-spacing: -.2px; display: block; line-height: 1.2; }
+  .logo-text span { font-size: 10.5px; color: var(--ink-soft); }
+  .search-box { flex: 1; max-width: 420px; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 18px; color: var(--ink-faint); font-size: 13px; }
+  .nav-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .nav-link { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: var(--r); font-size: 13.5px; font-weight: 600; color: var(--ink-2); position: relative; }
+  .nav-link:hover { background: var(--bg-soft); color: var(--ink); }
+  .nav-link.active { color: var(--pri-600); background: var(--pri-50); }
+  .nav-link .new-tag { font-size: 10px; font-weight: 700; color: #fff; background: var(--pri); border-radius: 4px; padding: 1px 5px; line-height: 1.4; }
+  .btn-upload { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border-radius: 18px; background: var(--ink); color: #fff; font-size: 13.5px; font-weight: 600; margin-left: 8px; }
+  .avatar-sq { width: 34px; height: 34px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700; margin-left: 6px; }
+
+  /* ===== 页面容器 ===== */
+  .page { max-width: 1080px; margin: 0 auto; padding: 20px 28px 80px; }
+  .page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .back { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; background: #fff; border: 1px solid var(--line); border-radius: var(--r); font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .back:hover { border-color: var(--ink-faint); color: var(--ink); }
+  .crumb { font-size: 13px; color: var(--ink-soft); }
+  .crumb a:hover { color: var(--pri-600); }
+  .crumb .sep { margin: 0 7px; color: var(--ink-faint); }
+  .crumb .cur { color: var(--ink-2); }
+
+  /* ===== 标题块（横贯） ===== */
+  .title-block { margin-bottom: 26px; }
+  .title-block h1 { font-size: 27px; font-weight: 800; letter-spacing: -.5px; line-height: 1.3; text-wrap: balance; margin-bottom: 12px; }
+  .byline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .byline .au { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700; }
+  .byline .au:hover { color: var(--pri-600); }
+  .byline .au .dot { color: var(--ink-faint); font-weight: 400; }
+  .byline .muted { font-size: 13px; color: var(--ink-2); }
+  .stars { color: #f59e0b; font-size: 13px; letter-spacing: 1px; }
+  .subline { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+  .badge-free { font-size: 12px; font-weight: 700; color: var(--mint); background: var(--mint-50); border-radius: 5px; padding: 2.5px 9px; }
+  .stat-lite { font-size: 12.5px; color: var(--ink-soft); display: flex; gap: 12px; }
+  .stat-lite b { color: var(--ink-2); font-weight: 600; }
+  .tags { display: flex; gap: 6px; }
+  .tag { font-size: 12px; color: var(--ink-2); background: var(--bg-soft); border-radius: 5px; padding: 2.5px 9px; }
+  .tag:hover { background: var(--bg-deep); }
+
+  /* ===== 双栏：左主右辅 ===== */
+  .wd-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+  .wd-main { min-width: 0; }
+  .wd-side { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 16px; }
+
+  .sec-label { font-size: 13px; font-weight: 700; color: var(--ink-soft); letter-spacing: 2px; margin-bottom: 10px; }
+
+  /* 简介卡 */
+  .abstract { padding: 4px 0 18px; border-bottom: 1px solid var(--line-2); margin-bottom: 22px; }
+  .abstract p { font-size: 15.5px; line-height: 1.85; color: var(--ink-2); max-width: 68ch; }
+  .abstract .meta { margin-top: 12px; font-size: 13px; color: var(--ink-soft); display: flex; gap: 18px; flex-wrap: wrap; }
+  .abstract .meta b { color: var(--ink-2); font-weight: 600; }
+
+  /* 预览区 */
+  .preview-sec { margin-bottom: 30px; }
+  .pv-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .pv-head .row { display: flex; align-items: center; gap: 10px; }
+  .ghost-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; background: #fff; border: 1px solid var(--line); border-radius: var(--r); font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+  .ghost-btn:hover { border-color: var(--ink-faint); color: var(--ink); }
+
+  .pv-panel { border: 1px solid var(--line); border-radius: var(--r-xl); overflow: hidden; background: #fff; }
+  .pv-idle { padding: 44px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; background: linear-gradient(180deg, #fbfbfc, #fff); }
+  .pv-idle .file-ico { width: 52px; height: 52px; border-radius: var(--r-lg); background: var(--pri-50); color: var(--pri-600); display: grid; place-items: center; }
+  .pv-idle .fi-line { font-size: 13px; color: var(--ink-soft); }
+  .pv-idle .fi-line b { color: var(--ink-2); font-weight: 600; }
+  .start-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 26px; border-radius: 21px; background: var(--pri-600); color: #fff; font-size: 14.5px; font-weight: 700; box-shadow: 0 6px 16px rgba(237,78,45,.28); transition: transform .15s ease, background .15s ease; }
+  .start-btn:hover { background: #d8431f; transform: translateY(-1px); }
+  .pv-idle .hint { font-size: 12px; color: var(--ink-faint); }
+
+  /* 内嵌阅读区（MD 渲染后的排版） */
+  .wd-reader { padding: 34px 40px 30px; max-width: none; }
+  .reading-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-soft); border-bottom: 1px solid var(--line-2); font-size: 12px; color: var(--ink-soft); }
+  .reading-bar b { color: var(--ink-2); }
+  .md-body { max-width: 72ch; font-size: 16px; line-height: 1.85; color: var(--ink); }
+  .md-body h2 { font-size: 21px; font-weight: 800; letter-spacing: -.3px; margin: 30px 0 12px; }
+  .md-body h3 { font-size: 17px; font-weight: 700; margin: 22px 0 8px; }
+  .md-body p { margin: 10px 0; color: var(--ink-2); }
+  .md-body h2 + p, .md-body h3 + p { margin-top: 4px; }
+  .md-body pre { background: #fafbfc; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; overflow-x: auto; margin: 12px 0 18px; }
+  .md-body code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; color: var(--ink); }
+  .md-body table { border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 14px; }
+  .md-body th { text-align: left; font-weight: 700; font-size: 13px; color: var(--ink-soft); border-bottom: 2px solid var(--line); padding: 8px 10px; }
+  .md-body td { border-bottom: 1px solid var(--line-2); padding: 8px 10px; color: var(--ink-2); }
+  .md-body .kw { color: #c678dd; } .md-body .fn { color: #61afef; } .md-body .str { color: #98c379; } .md-body .num { color: #d19a66; }
+  .reader-fade { position: relative; }
+  .reader-fade::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(180deg, rgba(255,255,255,0), #fff 78%); pointer-events: none; }
+  .reader-more { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 24px 30px; border-top: 1px solid var(--line-2); }
+  .reader-more .note { font-size: 12.5px; color: var(--ink-soft); }
+
+  /* ===== 右栏：文件卡 / 作者卡 ===== */
+  .file-card { border: 1px solid var(--line); border-radius: var(--r-xl); padding: 18px; box-shadow: var(--shadow); }
+  .fc-type { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line-2); }
+  .fc-type .fi { width: 40px; height: 40px; border-radius: var(--r-lg); background: var(--pri-50); color: var(--pri-600); display: grid; place-items: center; }
+  .fc-type b { font-size: 15px; display: block; line-height: 1.3; }
+  .fc-type span { font-size: 12px; color: var(--ink-soft); }
+  .fc-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); padding: 12px 0 14px; }
+  .dl-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; border-radius: var(--r-lg); background: var(--pri-600); color: #fff; font-size: 15px; font-weight: 700; box-shadow: 0 6px 16px rgba(237,78,45,.28); transition: transform .15s ease, background .15s ease; }
+  .dl-btn:hover { background: #d8431f; transform: translateY(-1px); }
+  .fc-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .soft-btn { display: flex; align-items: center; justify-content: center; gap: 6px; height: 38px; border-radius: var(--r-lg); background: var(--bg-soft); font-size: 13.5px; font-weight: 600; color: var(--ink-2); transition: background .15s ease, color .15s ease; }
+  .soft-btn:hover { background: var(--bg-deep); }
+  .soft-btn.on { background: var(--pri-50); color: var(--pri-600); }
+  .fc-minor { display: flex; justify-content: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--ink-faint); }
+  .fc-minor a:hover { color: var(--ink-soft); text-decoration: underline; }
+  .fc-trust { display: flex; align-items: center; gap: 6px; justify-content: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-2); font-size: 11.5px; color: var(--ink-faint); }
+
+  .author-card { border: 1px solid var(--line); border-radius: var(--r-xl); padding: 18px; }
+  .ac-top { display: flex; align-items: center; gap: 12px; }
+  .ac-av { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, #ff6b4a, #f59e0b); color: #fff; display: grid; place-items: center; font-size: 17px; font-weight: 700; }
+  .ac-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .ac-check { width: 15px; height: 15px; border-radius: 50%; background: var(--mint); color: #fff; display: grid; place-items: center; font-size: 9px; }
+  .ac-desc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .ac-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; text-align: center; }
+  .ac-stats b { font-size: 15px; font-weight: 800; display: block; }
+  .ac-stats span { font-size: 11px; color: var(--ink-soft); }
+  .ac-btn { margin-top: 14px; width: 100%; height: 36px; border: 1px solid var(--line); border-radius: var(--r-lg); font-size: 13px; font-weight: 600; color: var(--ink-2); background: #fff; }
+  .ac-btn:hover { border-color: var(--ink-faint); color: var(--ink); }
+
+  /* ===== 评价区 ===== */
+  .reviews { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--line-2); }
+  .rv-summary { display: flex; align-items: center; gap: 26px; padding: 6px 0 18px; }
+  .rv-big { text-align: center; }
+  .rv-big .v { font-size: 40px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1; }
+  .rv-big .n { font-size: 12px; color: var(--ink-soft); }
+  .rv-bars { flex: 1; max-width: 380px; display: flex; flex-direction: column; gap: 5px; }
+  .rv-bar { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-soft); }
+  .rv-bar .track { flex: 1; height: 6px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
+  .rv-bar .fill { height: 100%; border-radius: 3px; background: #f59e0b; }
+  .rv-item { display: flex; gap: 12px; padding: 16px 0; border-top: 1px solid var(--line-2); }
+  .rv-av { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .rv-body { flex: 1; min-width: 0; }
+  .rv-top { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .rv-top b { font-weight: 700; }
+  .rv-top time { font-size: 12px; color: var(--ink-faint); }
+  .rv-txt { font-size: 14px; color: var(--ink-2); margin-top: 4px; line-height: 1.7; }
+  .rv-useful { margin-top: 6px; font-size: 12px; color: var(--ink-faint); }
+  .rv-useful:hover { color: var(--pri-600); }
+
+  /* ===== 相关推荐 ===== */
+  .related { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--line-2); }
+  .rel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .rel-card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; display: flex; gap: 10px; transition: border-color .15s ease, box-shadow .15s ease; }
+  .rel-card:hover { border-color: var(--ink-faint); box-shadow: var(--shadow-h); }
+  .rel-glyph { width: 38px; height: 38px; border-radius: var(--r); background: var(--bg-soft); display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+  .rel-t { font-size: 13.5px; font-weight: 700; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rel-m { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ===== 全屏弹窗（保留的选项） ===== */
+  .fs-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(15,17,21,.72); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .fs-modal { background: #fff; border-radius: var(--r-xl); width: min(880px, 100%); height: min(82vh, 900px); display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-h); }
+  .fs-bar { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .fs-bar b { font-size: 14.5px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fs-bar span { font-size: 12px; color: var(--ink-soft); }
+  .fs-body { flex: 1; overflow-y: auto; }
+
+  .toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 300; background: var(--ink); color: #fff; font-size: 13.5px; padding: 10px 18px; border-radius: 20px; box-shadow: var(--shadow-h); }
+  [hidden] { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-chip">🖼 <b>V11 设计稿 · 电脑版</b><br />进页面即显示前 30%；点「展开全文」看剩余（可收起）</div>
+
+<!-- ============ 顶栏 ============ -->
+<header class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="#">
+      <div class="logo-mark">课</div>
+      <div class="logo-text"><b>课搭</b><span>大学生成长社区</span></div>
+    </a>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      搜索课程、创作者、免费攻略…
+    </div>
+    <div class="nav-actions">
+      <!-- V11 新增：首页入口 -->
+      <a class="nav-link active" href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="m3.5 10 8.5-7 8.5 7v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 21v-6h6v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>首页<span class="new-tag">V11 新增</span></a>
+      <a class="nav-link" href="#">🔔 动态</a>
+      <a class="nav-link" href="#">公告</a>
+      <a class="nav-link" href="#">学习清单</a>
+      <button class="btn-upload"><svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 16V4m0 0 4 4m-4-4L8 8M5 20h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>发布作品</button>
+      <div class="avatar-sq">温</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- 返回 + 面包屑（新标签页打开时「返回」自动回首页） -->
+  <div class="page-head">
+    <button class="back" onclick="toast('无历史记录时自动回到首页（V11 兜底）')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M14 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button>
+    <nav class="crumb"><a href="#">首页</a><span class="sep">/</span><a href="#">C语言程序设计</a><span class="sep">/</span><span class="cur">C语言期末速通</span></nav>
+  </div>
+
+  <!-- ============ 标题块（横贯，左起第一眼） ============ -->
+  <div class="title-block">
+    <h1>C语言期末速通：基础语法 66 题精讲</h1>
+    <div class="byline">
+      <a class="au" href="#">
+        <span class="avatar-sq" style="width:28px;height:28px;border-radius:7px;font-size:12px;background:linear-gradient(135deg,#ff6b4a,#f59e0b);">温</span>
+        温昊璇
+        <span class="ac-check"><svg viewBox="0 0 24 24" width="8" height="8" fill="none"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </a>
+      <span class="muted">计算机与软件学院</span>
+      <span class="muted">·</span>
+      <span class="muted">09-08 收录</span>
+      <span class="muted">·</span>
+      <span class="stars">★★★★★</span>
+      <span class="muted">4.9（12 人评分）</span>
+    </div>
+    <div class="subline">
+      <span class="badge-free">免费</span>
+      <span class="stat-lite"><span>👁 <b>2.1k</b> 浏览</span><span>⬇ <b>89</b> 下载</span><span>♡ <b>45</b> 收藏</span></span>
+      <span class="tags"><span class="tag">#期末</span><span class="tag">#真题</span><span class="tag">#基础语法</span></span>
+    </div>
+  </div>
+
+  <!-- ============ 左主右辅 ============ -->
+  <div class="wd-body">
+    <div class="wd-main">
+
+      <!-- ① 简介（现在线上根本没渲染，这次补上） -->
+      <section class="abstract">
+        <div class="sec-label">简 介</div>
+        <p>把翁恺老师课程里期末真正会考的语法点整理成 66 道题：从变量与 printf 一路打到指针、结构体和文件读写。每题都给可编译的完整答案和一行讲解，13 个题组对应路线图的 13 个阶段，跟着做完基础语法关基本稳了。适合考前两周突击，也适合刚学完一轮想查漏补缺的人。</p>
+        <div class="meta">
+          <span>课程 <b>C语言程序设计</b></span>
+          <span>适用 <b>全专业 · 全年级</b></span>
+          <span>适合 <b>考前突击 / 查漏补缺</b></span>
+        </div>
+      </section>
+
+      <!-- ② 内嵌预览 -->
+      <section class="preview-sec">
+        <div class="pv-head">
+          <div class="sec-label" style="margin:0">预 览</div>
+          <button class="ghost-btn" onclick="openFs()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none"><path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>全屏</button>
+        </div>
+
+        <div class="pv-panel">
+          <!-- 页面打开即加载：直接展示前 30%，无需点击 -->
+          <div id="pvReader">
+            <div class="reading-bar"><span><b>完整版</b> · Markdown</span><span id="pvPos">已展示前 30%</span></div>
+            <div class="wd-reader reader-fade" id="pvPart">
+              <div class="md-body">
+                <h2>〇、先说三件事</h2>
+                <p>这份题集只覆盖期末会考的基础语法，不含算法设计大题。做题方式：先自己写，写不出再看答案，答案都在每题下方折叠区里。全部代码用 <code>gcc -std=c99 -Wall</code> 编译通过，零警告。</p>
+                <h2>一、变量与输入输出（题 1-8）</h2>
+                <p>这一组解决三件事：变量怎么声明、printf/scanf 的格式串、整数与浮点的坑。先看一个最小可运行程序：</p>
+                <pre><code><span class="kw">#include</span> <span class="str">&lt;stdio.h&gt;</span>
+<span class="fn">int</span> main(<span class="fn">void</span>) {
+    <span class="kw">int</span> n, sum = <span class="num">0</span>;
+    <span class="fn">scanf</span>(<span class="str">"%d"</span>, &amp;n);
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">1</span>; i &lt;= n; i++) sum += i;
+    <span class="fn">printf</span>(<span class="str">"%d\n"</span>, sum);
+    <span class="kw">return</span> <span class="num">0</span>;
+}</code></pre>
+                <p>题 3 是这组里最容易错的：<code>int</code> 相除会截断小数，<code>3/2</code> 得 1 而不是 1.5。要小数先转 <code>double</code>，或者写成 <code>3/2.0</code>。</p>
+                <h3>题组概览</h3>
+                <table>
+                  <tr><th>题组</th><th>范围</th><th>题数</th><th>建议用时</th></tr>
+                  <tr><td>一 变量与输入输出</td><td>printf / scanf / 类型转换</td><td>8</td><td>40 分钟</td></tr>
+                  <tr><td>二 分支</td><td>if-else / switch / 逻辑运算</td><td>6</td><td>30 分钟</td></tr>
+                  <tr><td>三 循环</td><td>for / while / break / continue</td><td>8</td><td>45 分钟</td></tr>
+                  <tr><td>……</td><td>共 13 组</td><td>66</td><td>6 小时</td></tr>
+                </table>
+                <p>每组做完去路线图对应阶段打卡，链接在每章开头。</p>
+              </div>
+            </div>
+
+            <!-- 剩余 70%：点「展开全文」后前端直接显示，不发第二次请求 -->
+            <div id="pvRest" hidden>
+              <div class="wd-reader" style="padding-top:0">
+                <div class="md-body">
+                  <h2>二、分支（题 9-14）</h2>
+                  <p>switch 的 case 只能放整型常量，漏 break 会穿到底——期末每年都考这两点。题 12 的分段函数是经典题：先用 if-else 写一遍，再用 switch 配整除技巧写一遍，对比着记。</p>
+                  <pre><code><span class="kw">if</span> (score &gt;= <span class="num">90</span>) grade = <span class="str">'A'</span>;
+<span class="kw">else if</span> (score &gt;= <span class="num">80</span>) grade = <span class="str">'B'</span>;
+<span class="kw">else if</span> (score &gt;= <span class="num">60</span>) grade = <span class="str">'C'</span>;
+<span class="kw">else</span> grade = <span class="str">'F'</span>;</code></pre>
+                  <h2>三、循环（题 15-22）</h2>
+                  <p>循环题的通解：先想清楚「循环不变量」——每轮结束时什么是对的。题 18 的斐波那契、题 20 的质数判断、题 22 的九九乘法表，全部只用一层或两层 for 就能写完。</p>
+                  <h2>四到十二、数组 / 函数 / 指针 / 字符串 / 结构体 / 文件（题 23-58）</h2>
+                  <p>指针是重头：&amp; 取地址、* 解引用、数组名在表达式里退化为首地址。题 41「用指针交换两个变量」和题 45「指针遍历数组」吃透，后面链表题才有底。结构体重点考 struct 定义、成员访问（. 与 -&gt; 的区别）、结构体数组排序。</p>
+                  <h2>十三、综合题（题 59-66）</h2>
+                  <p>八道小综合：学生成绩管理、简易计算器、字符串统计、二分查找、冒泡排序、链表反转、文件读写抄录、综合调试题。每题都给完整可编译代码和逐行讲解，做完这一组，期末编程大题的骨架就有了。</p>
+                  <p>—— 全文完，祝期末顺利。做错的题回到对应题组再刷一遍。 </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="reader-more">
+              <button class="start-btn" id="expandBtn" onclick="toggleExpand()">展开全文<svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <span class="note" id="expandNote">已展示前 30% · 剩余 70% 就在这里，点开不用等加载</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ③ 用户评价 -->
+      <section class="reviews">
+        <div class="sec-label">用户评价（12）</div>
+        <div class="rv-summary">
+          <div class="rv-big"><div class="v">4.9</div><div class="n">12 人评分</div></div>
+          <div class="rv-bars">
+            <div class="rv-bar"><span>5 星</span><div class="track"><div class="fill" style="width:92%"></div></div><span>92%</span></div>
+            <div class="rv-bar"><span>4 星</span><div class="track"><div class="fill" style="width:6%"></div></div><span>6%</span></div>
+            <div class="rv-bar"><span>3 星</span><div class="track"><div class="fill" style="width:2%"></div></div><span>2%</span></div>
+            <div class="rv-bar"><span>2 星</span><div class="track"><div class="fill" style="width:0%"></div></div><span>0%</span></div>
+            <div class="rv-bar"><span>1 星</span><div class="track"><div class="fill" style="width:0%"></div></div><span>0%</span></div>
+          </div>
+        </div>
+        <div class="rv-item">
+          <div class="rv-av" style="background:#6366f1;">李</div>
+          <div class="rv-body">
+            <div class="rv-top"><b>李同学</b><span class="stars">★★★★★</span><time>09-06</time></div>
+            <div class="rv-txt">题按难度排的，最后三道链表题正好期末考了。答案是能直接跑的，比班里传的截图版好太多。</div>
+            <div class="rv-useful">👍 有用 12</div>
+          </div>
+        </div>
+        <div class="rv-item">
+          <div class="rv-av" style="background:#10b981;">陈</div>
+          <div class="rv-body">
+            <div class="rv-top"><b>陈同学</b><span class="stars">★★★★★</span><time>09-03</time></div>
+            <div class="rv-txt">配合路线图刷的，13 组对着 13 个阶段，做完打卡很有成就感。指针那组讲解值得细看。</div>
+            <div class="rv-useful">👍 有用 8</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ④ 相关推荐 -->
+      <section class="related">
+        <div class="sec-label">相关推荐</div>
+        <div class="rel-grid">
+          <a class="rel-card" href="#"><div class="rel-glyph">🧭</div><div><div class="rel-t">C语言入门与期末过关（路线图）</div><div class="rel-m">温昊璇 · 13 阶段可打卡</div></div></a>
+          <a class="rel-card" href="#"><div class="rel-glyph">📄</div><div><div class="rel-t">深大 C语言期末真题 2024 回忆版</div><div class="rel-m">学长整理 · 👁 3.4k</div></div></a>
+          <a class="rel-card" href="#"><div class="rel-glyph">📘</div><div><div class="rel-t">指针专题：10 道题讲透指针与数组</div><div class="rel-m">温昊璇 · ⬇ 56</div></div></a>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ 右栏（辅助，sticky） ============ -->
+    <aside class="wd-side">
+      <div class="file-card">
+        <div class="fc-type">
+          <div class="fi"><svg viewBox="0 0 24 24" width="22" height="22" fill="none"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+          <div><b>Markdown 文档</b><span>.md · 可在线阅读</span></div>
+        </div>
+        <div class="fc-meta"><span>38 KB</span><span>66 题 · 13 组</span><span>09-08 更新</span></div>
+        <button class="dl-btn" onclick="toast('下载已开始')"><svg viewBox="0 0 24 24" width="17" height="17" fill="none"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>下载</button>
+        <div class="fc-row2">
+          <button class="soft-btn" id="favBtn" onclick="toggle(this)">♡ 收藏</button>
+          <button class="soft-btn" id="likeBtn" onclick="toggle(this)">♥ 点赞 45</button>
+        </div>
+        <div class="fc-minor"><a href="#" onclick="toast('链接已复制');return false">分享</a><span>·</span><a href="#" onclick="toast('举报面板（现有功能）');return false">举报</a></div>
+        <div class="fc-trust"><svg viewBox="0 0 24 24" width="12" height="12" fill="none"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>校园认证创作者 · 评分 4.9</div>
+      </div>
+
+      <div class="author-card">
+        <div class="ac-top">
+          <div class="ac-av">温</div>
+          <div style="flex:1;min-width:0">
+            <div class="ac-name">温昊璇 <span class="ac-check"><svg viewBox="0 0 24 24" width="8" height="8" fill="none"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+            <div class="ac-desc">计算机与软件学院 · 后端 / AI Agent</div>
+          </div>
+        </div>
+        <div class="ac-stats">
+          <div><b>38</b><span>已帮助</span></div>
+          <div><b>1.2k</b><span>粉丝</span></div>
+          <div><b>6</b><span>作品</span></div>
+          <div><b>4.9</b><span>好评</span></div>
+        </div>
+        <button class="ac-btn" onclick="toast('跳转个人主页')">主页 →</button>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- 全屏阅读弹窗（保留的选项） -->
+<div class="fs-overlay" id="fsOverlay" hidden onclick="if(event.target===this)closeFs()">
+  <div class="fs-modal" role="dialog" aria-label="全屏预览">
+    <div class="fs-bar">
+      <b>C语言期末速通：基础语法 66 题精讲</b>
+      <span>Markdown · 完整版</span>
+      <button class="ghost-btn" onclick="closeFs()">✕ 关闭</button>
+    </div>
+    <div class="fs-body">
+      <div class="wd-reader" style="padding:30px 44px">
+        <div class="md-body" id="fsContent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toastEl" hidden></div>
+
+<script>
+  function toast(msg) {
+    const el = document.getElementById('toastEl');
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => (el.hidden = true), 2200);
+  }
+  // 展开/收起全文：纯前端切换，不发第二次请求
+  function toggleExpand() {
+    const rest = document.getElementById('pvRest');
+    const part = document.getElementById('pvPart');
+    const btn = document.getElementById('expandBtn');
+    const note = document.getElementById('expandNote');
+    const pos = document.getElementById('pvPos');
+    const expanded = !rest.hidden;
+    rest.hidden = expanded;
+    part.classList.toggle('reader-fade', expanded);
+    if (expanded) {
+      btn.innerHTML = '展开全文<svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      note.textContent = '已展示前 30% · 剩余 70% 就在这里，点开不用等加载';
+      pos.textContent = '已展示前 30%';
+      part.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      btn.innerHTML = '收起<svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M18 15l-6-6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      note.textContent = '全文已展开 · 可随时收起';
+      pos.textContent = '全文';
+    }
+  }
+  function openFs() {
+    const src = document.getElementById('pvPart').querySelector('.md-body');
+    document.getElementById('fsContent').innerHTML = src ? src.innerHTML : '';
+    document.getElementById('fsOverlay').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeFs() {
+    document.getElementById('fsOverlay').hidden = true;
+    document.body.style.overflow = '';
+  }
+  function toggle(btn) {
+    const on = btn.classList.toggle('on');
+    if (btn.id === 'favBtn') btn.textContent = on ? '♥ 已收藏' : '♡ 收藏';
+    else btn.textContent = on ? '♥ 已赞 46' : '♥ 点赞 45';
+  }
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeFs());
+</script>
+</body>
+</html>
