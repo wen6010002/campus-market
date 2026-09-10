@@ -26,6 +26,7 @@ export const ErrorCode = {
   FILE_TOO_LARGE: 'FILE_TOO_LARGE',
   FILE_TYPE_DENIED: 'FILE_TYPE_DENIED',
   BAD_FILE: 'BAD_FILE',
+  COMMENT_REJECTED: 'COMMENT_REJECTED',
   INTERNAL: 'INTERNAL',
 } as const;
 
@@ -56,6 +57,7 @@ export const httpStatusByCode: Record<ErrorCode, number> = {
   FILE_TOO_LARGE: 413,
   FILE_TYPE_DENIED: 415,
   BAD_FILE: 400,
+  COMMENT_REJECTED: 400,
   INTERNAL: 500,
 };
 

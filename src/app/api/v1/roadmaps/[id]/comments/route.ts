@@ -6,12 +6,12 @@ import { createCommentSchema } from '@/lib/zod/comment';
 
 type Ctx = { params: { id: string } };
 
-/** 作品评论列表（公开；登录者另见自己的待审行） */
+/** 路线图评论列表（V12，公开；登录者另见自己的待审行） */
 export const GET = withErrorHandler(async (req: Request, ctx: Ctx) => {
   const url = new URL(req.url);
-  const s = await getSession(); // 可选身份：匿名只见 VISIBLE
+  const s = await getSession();
   const result = await commentService.list(
-    'WORK',
+    'ROADMAP',
     ctx.params.id,
     Number(url.searchParams.get('page') ?? 1),
     Number(url.searchParams.get('pageSize') ?? 20),
@@ -23,6 +23,12 @@ export const GET = withErrorHandler(async (req: Request, ctx: Ctx) => {
 export const POST = withErrorHandler(async (req: Request, ctx: Ctx) => {
   const s = await requireUser();
   const { content, parentId } = createCommentSchema.parse(await readJson(req));
-  const comment = await commentService.create(s.userId, 'WORK', ctx.params.id, content, parentId);
+  const comment = await commentService.create(
+    s.userId,
+    'ROADMAP',
+    ctx.params.id,
+    content,
+    parentId,
+  );
   return ok(comment, { status: 201 });
 });

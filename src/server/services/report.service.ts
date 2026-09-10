@@ -30,6 +30,7 @@ async function buildSnapshot(targetType: ReportTargetType, targetId: string) {
       where: { id: targetId, deletedAt: null },
       include: {
         work: { select: { id: true, title: true } },
+        roadmap: { select: { id: true, title: true } },
         user: { select: { id: true, username: true } },
       },
     });
@@ -37,7 +38,11 @@ async function buildSnapshot(targetType: ReportTargetType, targetId: string) {
     return {
       targetTitle: `${c.user.username} 的评论：${c.content.slice(0, 30)}`,
       targetAuthorId: c.userId,
-      targetSnapshot: { content: c.content, workTitle: c.work.title, authorName: c.user.username },
+      targetSnapshot: {
+        content: c.content,
+        workTitle: c.work?.title ?? c.roadmap?.title ?? '',
+        authorName: c.user.username,
+      },
     };
   }
   if (targetType === 'RATING') {

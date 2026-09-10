@@ -24,6 +24,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   FILE_TOO_LARGE: '文件超出 200MB 上限',
   FILE_TYPE_DENIED: '不支持该文件类型',
   BAD_FILE: '文件未上传成功，请重新上传',
+  COMMENT_REJECTED: '评论包含违规内容，请修改后重发',
   INTERNAL: '服务开小差了，请稍后再试',
 };
 

@@ -3,6 +3,7 @@ import { redis } from '../lib/redis';
 import { appError } from '../lib/errors';
 import { sanitize } from '../lib/sanitize';
 import { achievementService } from './achievement.service';
+import { checkBlocked } from '../moderation/words';
 import type { CreateRatingInput } from '@/lib/zod/rating';
 import type { RatingDist } from '../algos/rating';
 
@@ -46,6 +47,11 @@ const SORT_SQL: Record<string, { column: string; dir: 'asc' | 'desc' }> = {
 export const ratingService = {
   /** 提交评分（资格 + 唯一约束 + FOR UPDATE 锁 Work 行事务重算） */
   async create(userId: string, workId: string, input: CreateRatingInput) {
+    // V12：评价文字过黑名单（REJECT 级才拒，评价门槛本就高，只拦最硬的）
+    const hit = checkBlocked(input.text);
+    if (hit && hit.action === 'REJECT') {
+      throw appError('COMMENT_REJECTED', '评价包含违规内容，请修改后重发');
+    }
     const result = await prisma.$transaction(async (tx) => {
       const work = await tx.work.findFirst({
         where: { id: workId, deletedAt: null, status: 'PUBLISHED' },
@@ -177,6 +183,11 @@ export const ratingService = {
 
   /** 作者回复（该作品作者） */
   async reply(ratingId: string, authorUserId: string, text: string) {
+    // V12：回复文字过黑名单（REJECT 级）
+    const hit = checkBlocked(text);
+    if (hit && hit.action === 'REJECT') {
+      throw appError('COMMENT_REJECTED', '回复包含违规内容，请修改后重发');
+    }
     const rating = await prisma.workRating.findUnique({
       where: { id: ratingId },
       include: { work: true },

@@ -43,15 +43,19 @@ const validInput: WorkInput = {
 };
 
 describe('功能补全（V2-5）', () => {
-  it('评论：创建后 sanitize，非作者删除 403', async () => {
+  it('评论：创建后 sanitize 入库，非作者删除 403', async () => {
     const c = await commentService.create(
       STUDENT_ID,
+      'WORK',
       WORK_ID,
       '<script>alert(1)</script>很好<b>内容</b>',
     );
-    expect(c.content).toBe('很好<b>内容</b>');
+    // V12 先发后审：正常评论即时 VISIBLE；内容 sanitize 后落库
+    expect(c.status).toBe('VISIBLE');
+    const row = await prisma.comment.findUniqueOrThrow({ where: { id: c.id } });
+    expect(row.content).toBe('很好<b>内容</b>');
 
-    const list = await commentService.list(WORK_ID, 1, 10);
+    const list = await commentService.list('WORK', WORK_ID, 1, 10, STUDENT_ID);
     expect(list.data.some((x) => x.id === c.id)).toBe(true);
 
     await expect(commentService.remove(c.id, 'other_user', false)).rejects.toMatchObject({

@@ -1,25 +1,22 @@
-// BullMQ 调度器（pnpm worker 启动）：注册定时任务 + 消费。
+// BullMQ 调度器（pnpm worker 启动）：注册定时任务 + 消费（含 V12 on-demand 任务）。
 // 定时任务表见 BACKEND.md §11。
-import { Queue, Worker } from 'bullmq';
-import IORedis from 'ioredis';
+import { Worker } from 'bullmq';
 import { prisma } from '../db';
 import { redis } from '../lib/redis';
 import { cacheDel } from '../lib/cache';
 import { incomeService } from '../services/income.service';
 import { qualityService } from '../services/quality.service';
 import { achievementService } from '../services/achievement.service';
+import { commentService } from '../services/comment.service';
 import { logger } from '../lib/logger';
 import { assertProdEnv } from '../lib/env';
+import { getQueue, getQueueConnection } from './queue';
 
 // worker 容器用 tsx 直启、不经 Next instrumentation，生产 env 自检在此触发
 assertProdEnv();
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
-
-// BullMQ 要求 maxRetriesPerRequest=null（长连接阻塞）
-const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
-
-const queue = new Queue('campus-jobs', { connection });
+const connection = getQueueConnection();
+const queue = getQueue();
 
 const SCHEDULES: Array<[string, string]> = [
   ['income-settle', '0 3 * * *'], // 每日 3 点结算到期收益
@@ -65,7 +62,7 @@ async function syncViews() {
   return synced;
 }
 
-async function run(jobName: string) {
+async function run(jobName: string, data: Record<string, unknown> = {}) {
   switch (jobName) {
     case 'income-settle': {
       const n = await incomeService.settleDueIncomes();
@@ -104,6 +101,12 @@ async function run(jobName: string) {
       if (n > 0) logger.info({ n }, 'view-sync flushed');
       break;
     }
+    case 'comment-moderate': {
+      // V12 评论 AI 审核（on-demand）：commentId 由 enqueue 传入，幂等
+      const commentId = (data as { commentId?: string }).commentId;
+      if (commentId) await commentService.moderateComment(commentId);
+      break;
+    }
     default:
       break; // rank-refresh：榜单按需计算，暂不落缓存
   }
@@ -119,7 +122,7 @@ async function main() {
     'campus-jobs',
     async (job) => {
       try {
-        await run(job.name);
+        await run(job.name, job.data as Record<string, unknown>);
       } catch (e) {
         logger.error({ err: e, job: job.name }, 'job failed');
         throw e;
@@ -128,7 +131,21 @@ async function main() {
     { connection },
   );
 
-  worker.on('failed', (job, err) => logger.error({ job: job?.name, err }, 'worker job failed'));
+  worker.on('failed', async (job, err) => {
+    logger.error({ job: job?.name, err }, 'worker job failed');
+    // V12 评论审核重试耗尽 → fail-closed：评论转人工待审（绝不无审核放行）
+    const attempts = job?.opts?.attempts ?? 1;
+    if (job?.name === 'comment-moderate' && job.attemptsMade >= attempts) {
+      const commentId = (job.data as { commentId?: string }).commentId;
+      if (commentId) {
+        try {
+          await commentService.failCloseComment(commentId);
+        } catch (e) {
+          logger.error({ err: e, commentId }, 'comment-moderate fail-close 失败');
+        }
+      }
+    }
+  });
   logger.info('worker started');
 }
 
