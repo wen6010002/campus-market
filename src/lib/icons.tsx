@@ -2,6 +2,24 @@
 import React from 'react';
 
 const PATHS: Record<string, React.ReactNode> = {
+  home: (
+    <>
+      <path
+        d="m3.5 10 8.5-7 8.5 7v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-9Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M9 21v-6h6v6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </>
+  ),
   eye: (
     <>
       <path

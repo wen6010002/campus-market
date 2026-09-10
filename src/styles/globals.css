@@ -454,6 +454,11 @@ img {
   background: var(--bg-soft);
   color: var(--ink);
 }
+.nav-link.on {
+  background: var(--pri-50);
+  color: var(--pri-600);
+  font-weight: 600;
+}
 .nav-link svg {
   width: 17px;
   height: 17px;

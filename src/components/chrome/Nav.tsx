@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/common/UserAvatar';
@@ -12,6 +12,7 @@ export function Nav() {
   const { user } = useAuth();
   const logout = useLogout();
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ddRef = useRef<HTMLDivElement>(null);
@@ -65,6 +66,14 @@ export function Nav() {
         </div>
 
         <div className="nav-actions">
+          <Link
+            className={`nav-link ${pathname === '/' ? 'on' : ''}`}
+            href="/"
+            aria-label="回到首页"
+          >
+            <Icon name="home" width={17} />
+            <span>首页</span>
+          </Link>
           <button className="btn-upload" onClick={() => router.push('/upload')}>
             <Icon name="upload" width={14} />
             发布作品
@@ -120,7 +129,11 @@ export function Nav() {
                     <Icon name="bell" width={16} /> 通知中心{' '}
                     {unread > 0 ? <span className="pill">{unread}</span> : null}
                   </Link>
-                  <Link className="dropdown-item" href="/announcements" onClick={() => setOpen(false)}>
+                  <Link
+                    className="dropdown-item"
+                    href="/announcements"
+                    onClick={() => setOpen(false)}
+                  >
                     📢 全部公告
                   </Link>
                   {user.role === 'ADMIN' ? (

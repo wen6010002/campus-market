@@ -19,6 +19,7 @@ import { OrderModal } from '@/components/form/OrderModal';
 import { RatingModal } from '@/components/form/RatingModal';
 import { ReportModal } from '@/components/form/ReportModal';
 import { useDownload } from '@/hooks/useOrder';
+import { backOrHome } from '@/lib/nav';
 import { useLike } from '@/hooks/useSocial';
 import { useRatings } from '@/hooks/useRatings';
 import { useFavorite } from '@/hooks/useSocial';
@@ -113,7 +114,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
       <div className="page-head" style={{ marginBottom: 8 }}>
         <button
           className="btn btn-light btn-sm"
-          onClick={() => router.back()}
+          onClick={() => backOrHome(router)}
           style={{ marginRight: 4 }}
         >
           ← 返回
