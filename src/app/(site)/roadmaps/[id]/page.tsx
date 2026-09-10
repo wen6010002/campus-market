@@ -175,10 +175,15 @@ export default function RoadmapDetailPage() {
                 </div>
                 <div className="rm-streak">
                   🔥 连续打卡 <b>{progress.data?.streakDays ?? 0}</b> 天
+                  <small style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>
+                    （全站，学任意路线都算）
+                  </small>
                 </div>
                 <Heatmap byDay={progress.data?.byDay ?? {}} />
                 <CheckinCalendar byDay={progress.data?.byDay ?? {}} />
-                <p className="rm-side-tip">勾选左侧步骤即算当日打卡，热力图按当日完成步数着色。</p>
+                <p className="rm-side-tip">
+                  勾选任意路线图的步骤都算当日打卡，热力图按当日完成步数着色。
+                </p>
               </>
             ) : (
               <>

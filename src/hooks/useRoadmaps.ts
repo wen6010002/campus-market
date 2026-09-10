@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiFetchPage } from '@/lib/api/client';
+import { dayCn8 } from '@/lib/day';
 import type { RoadmapListItem, RoadmapDetail, RoadmapProgress } from '@/lib/types';
 
 export function useRoadmaps(params: {
@@ -67,9 +68,12 @@ export function useRoadmapCheck(id: string) {
       const prev = qc.getQueryData<RoadmapProgress>(['roadmaps', 'progress', id]);
       if (prev) {
         const checked_set = checked
-          ? [...prev.checked.filter((c) => c.stepId !== stepId), { stepId, createdAt: new Date().toISOString() }]
+          ? [
+              ...prev.checked.filter((c) => c.stepId !== stepId),
+              { stepId, createdAt: new Date().toISOString() },
+            ]
           : prev.checked.filter((c) => c.stepId !== stepId);
-        const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+        const today = dayCn8(new Date()); // UTC+8 日界，与 src/lib/day.ts 服务端口径一致
         const byDay = { ...prev.byDay };
         byDay[today] = Math.max((byDay[today] ?? 0) + (checked ? 1 : -1), 0);
         if (byDay[today] === 0) delete byDay[today];

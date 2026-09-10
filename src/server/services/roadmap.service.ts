@@ -6,6 +6,7 @@ import { notifyService } from './notify.service';
 import { workService } from './work.service';
 import { cacheGet, cacheSet, cacheDelByPattern } from '../lib/cache';
 import { parseRoadmapMd, validateRoadmap, type RoadmapContent } from '@/lib/roadmap/parse';
+import { dayCn8 } from '@/lib/day';
 import type { RoadmapInput, RoadmapQuery } from '@/lib/zod/roadmap';
 import type { Roadmap } from '@prisma/client';
 
@@ -14,10 +15,24 @@ import type { Roadmap } from '@prisma/client';
 // 性能（V4.1）：列表 60s 缓存（上架/审核通过时失效；收藏数变化容忍 TTL 内漂移，同 works:list 模式）；
 // PUBLISHED 详情的公共部分（content+works）内容不可变，300s 缓存，myFav 按访问者单独查。
 
-const UPLOADER_SELECT = { id: true, username: true, role: true, avatarColor: true, avatarKey: true, updatedAt: true };
+const UPLOADER_SELECT = {
+  id: true,
+  username: true,
+  role: true,
+  avatarColor: true,
+  avatarKey: true,
+  updatedAt: true,
+};
 
 type RoadmapWithUploader = Roadmap & {
-  uploader: { id: string; username: string; role: string; avatarColor: string; avatarKey: string | null; updatedAt: Date };
+  uploader: {
+    id: string;
+    username: string;
+    role: string;
+    avatarColor: string;
+    avatarKey: string | null;
+    updatedAt: Date;
+  };
 };
 
 /** 详情公共部分（不含 myFav，按访问者叠加） */
@@ -51,12 +66,6 @@ function toListItem(r: RoadmapWithUploader, myFav = false) {
     createdAt: r.createdAt.toISOString(),
     myFav,
   };
-}
-
-/** 北京时间（UTC+8）的 'YYYY-MM-DD'——打卡按日聚合的统一口径 */
-function dayCn8(d: Date): string {
-  const t = new Date(d.getTime() + 8 * 3600_000);
-  return t.toISOString().slice(0, 10);
 }
 
 async function assertStepExists(content: unknown, stepId: string) {
@@ -214,7 +223,9 @@ export const roadmapService = {
     });
   },
 
-  /** 打卡（勾选步骤=insert / 取消=delete；校验 stepId 属于该路线图） */
+  /** 打卡（勾选步骤=insert / 取消=delete；校验 stepId 属于该路线图）。
+   *  V12 站内统计：勾选（任意路线）同事务写 DailyCheckin 账本——当日首次勾选
+   *  streakDays=昨日+1（断签归 1），当日已有行则幂等跳过；取消勾选不回滚账本 */
   async toggleCheck(userId: string, roadmapId: string, stepId: string, checked: boolean) {
     await enforceRateLimit(`rl:check:${userId}`, 60, 60_000);
 
@@ -224,10 +235,24 @@ export const roadmapService = {
     const stepIdx = Number(stepId.split('-s')[1]);
 
     if (checked) {
-      await prisma.roadmapCheck.upsert({
-        where: { userId_roadmapId_stepId: { userId, roadmapId, stepId } },
-        update: {},
-        create: { userId, roadmapId, stepId, phaseIdx, stepIdx },
+      const today = dayCn8(new Date());
+      const yesterday = dayCn8(new Date(Date.now() - 86400_000));
+      await prisma.$transaction(async (tx) => {
+        await tx.roadmapCheck.upsert({
+          where: { userId_roadmapId_stepId: { userId, roadmapId, stepId } },
+          update: {},
+          create: { userId, roadmapId, stepId, phaseIdx, stepIdx },
+        });
+        // 站内账本：upsert 幂等（unique(userId,day)），已存在则不动（streak 保持当日首次计算值）
+        const yesterdayRow = await tx.dailyCheckin.findUnique({
+          where: { userId_day: { userId, day: yesterday } },
+          select: { streakDays: true },
+        });
+        await tx.dailyCheckin.upsert({
+          where: { userId_day: { userId, day: today } },
+          update: {},
+          create: { userId, day: today, streakDays: (yesterdayRow?.streakDays ?? 0) + 1 },
+        });
       });
     } else {
       await prisma.roadmapCheck.deleteMany({ where: { userId, roadmapId, stepId } });
@@ -235,7 +260,50 @@ export const roadmapService = {
     return { stepId, checked };
   },
 
-  /** 我的进度：勾选列表 + 按日聚合（UTC+8）+ 连续天数 */
+  /** 我的站内打卡统计（V12）：streak 取账本（今日行优先，否则昨日行=未断但今天还没打）；
+   *  byDay 为全路线勾选步数按日聚合（热力图强度），账本日兜底 ≥1 保证打卡日至少亮一格 */
+  async checkinStats(userId: string) {
+    const today = dayCn8(new Date());
+    const yesterday = dayCn8(new Date(Date.now() - 86400_000));
+    const [todayRow, yesterdayRow, totalDays, checks, checkinDays] = await Promise.all([
+      prisma.dailyCheckin.findUnique({
+        where: { userId_day: { userId, day: today } },
+        select: { streakDays: true },
+      }),
+      prisma.dailyCheckin.findUnique({
+        where: { userId_day: { userId, day: yesterday } },
+        select: { streakDays: true },
+      }),
+      prisma.dailyCheckin.count({ where: { userId } }),
+      prisma.roadmapCheck.findMany({
+        where: { userId, createdAt: { gte: new Date(Date.now() - 365 * 86400_000) } },
+        select: { createdAt: true },
+      }),
+      prisma.dailyCheckin.findMany({
+        where: { userId, day: { gte: dayCn8(new Date(Date.now() - 365 * 86400_000)) } },
+        select: { day: true },
+      }),
+    ]);
+
+    const byDay: Record<string, number> = {};
+    for (const c of checks) {
+      const day = dayCn8(c.createdAt);
+      byDay[day] = (byDay[day] ?? 0) + 1;
+    }
+    for (const row of checkinDays) {
+      if (!byDay[row.day]) byDay[row.day] = 1; // 账本日（步骤后来被取消）至少亮一格
+    }
+
+    return {
+      today: !!todayRow,
+      streakDays: (todayRow ?? yesterdayRow)?.streakDays ?? 0,
+      totalDays,
+      byDay,
+    };
+  },
+
+  /** 我的进度：勾选列表（本图，勾选框状态用）+ 站内口径 byDay/streak（V12 起热力图
+   *  与连续天数都是全站统计——学任何路线都算打卡） */
   async progress(userId: string, roadmapId: string) {
     const r = await prisma.roadmap.findFirst({
       where: { id: roadmapId, deletedAt: null },
@@ -243,35 +311,19 @@ export const roadmapService = {
     });
     if (!r) throw appError('NOT_FOUND', '路线图不存在');
 
-    const checks = await prisma.roadmapCheck.findMany({
-      where: { userId, roadmapId },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const byDay: Record<string, number> = {};
-    for (const c of checks) {
-      const day = dayCn8(c.createdAt);
-      byDay[day] = (byDay[day] ?? 0) + 1;
-    }
-
-    // 连续打卡天数：从今天（UTC+8）往前数；今天没打则从昨天起算（streak 不断在昨天截止）
-    let streakDays = 0;
-    const today = dayCn8(new Date());
-    let cursor = new Date();
-    if (!byDay[today]) cursor = new Date(Date.now() - 86400_000);
-    for (let i = 0; i < 366; i++) {
-      const day = dayCn8(cursor);
-      if (byDay[day]) {
-        streakDays++;
-        cursor = new Date(cursor.getTime() - 86400_000);
-      } else break;
-    }
+    const [checks, stats] = await Promise.all([
+      prisma.roadmapCheck.findMany({
+        where: { userId, roadmapId },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.checkinStats(userId),
+    ]);
 
     return {
       roadmapId,
       checked: checks.map((c) => ({ stepId: c.stepId, createdAt: c.createdAt.toISOString() })),
-      byDay,
-      streakDays,
+      byDay: stats.byDay,
+      streakDays: stats.streakDays,
       totalChecked: checks.length,
       stepsCount: r.stepsCount,
     };
@@ -341,7 +393,12 @@ export const roadmapService = {
   },
 
   /** 管理端：审核（APPROVE → PUBLISHED / REJECT → REJECTED；通知上传者） */
-  async adminAudit(id: string, action: 'APPROVE' | 'REJECT', note: string | undefined, adminId: string) {
+  async adminAudit(
+    id: string,
+    action: 'APPROVE' | 'REJECT',
+    note: string | undefined,
+    adminId: string,
+  ) {
     const r = await prisma.roadmap.findFirst({ where: { id, deletedAt: null } });
     if (!r) throw appError('NOT_FOUND', '路线图不存在');
     if (r.status !== 'PENDING') throw appError('VALIDATION', '该路线图不在待审核状态');
