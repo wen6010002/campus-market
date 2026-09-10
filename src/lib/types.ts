@@ -213,6 +213,32 @@ export interface Rating {
   _mine?: boolean;
 }
 
+/** V12 评论（两级：一级评论含 replies；status 仅 VISIBLE/PENDING_REVIEW 会下发，
+ *  REJECTED 不出库；自己的 PENDING 行带「审核中」标记仅自见） */
+export interface Comment {
+  id: string;
+  content: string;
+  status: 'VISIBLE' | 'PENDING_REVIEW';
+  createdAt: string;
+  user: {
+    id: string;
+    username: string;
+    avatarColor: string;
+    hasAvatar?: boolean;
+    avatarVer?: number;
+    badge?: {
+      key: string;
+      title: string;
+      rarity: string;
+      symbol: string;
+      description?: string | null;
+    } | null;
+  };
+  parentId: string | null;
+  _mine?: boolean;
+  replies?: Comment[];
+}
+
 export interface RatingSummary {
   rating: string;
   ratingCount: number;

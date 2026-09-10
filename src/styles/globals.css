@@ -8597,3 +8597,218 @@ body {
     grid-template-columns: 56px 1fr;
   }
 }
+
+/* ===================== V12 评论区 ===================== */
+
+/* 区块：标题与 wd-sec 同体系，列表区隔用细分隔线而非卡片堆叠 */
+.cm-section {
+  margin-top: 28px;
+}
+.cm-section .wd-sec {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.cm-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.cm-total:empty {
+  display: none;
+}
+
+/* 表单 */
+.cm-form {
+  margin: 12px 0 4px;
+}
+.cm-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 72px;
+  transition: border-color 0.15s ease;
+}
+.cm-form textarea:focus {
+  outline: none;
+  border-color: var(--pri);
+}
+.cm-form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+.cm-count {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.cm-count.near {
+  color: var(--pri-600);
+  font-weight: 600;
+}
+.cm-login-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  margin: 12px 0 4px;
+}
+.cm-replying {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.cm-replying button {
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+}
+.cm-form-reply textarea {
+  min-height: 52px;
+}
+
+/* 列表 */
+.cm-list {
+  margin-top: 10px;
+}
+.cm-loading {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.cm-item {
+  display: flex;
+  gap: 10px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.cm-item:last-child {
+  border-bottom: 0;
+}
+.cm-main {
+  flex: 1;
+  min-width: 0;
+}
+.cm-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cm-user {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+.cm-user:hover {
+  color: var(--pri-600);
+}
+.cm-time {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.cm-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ad6800;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.cm-pending .cm-content {
+  opacity: 0.55;
+}
+.cm-content {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.cm-content b,
+.cm-content strong {
+  font-weight: 700;
+}
+.cm-ops {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+}
+.cm-ops button {
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  min-height: 28px;
+}
+.cm-ops button:hover {
+  color: var(--pri-600);
+}
+.cm-ops .cm-danger:hover {
+  color: #e5484d;
+}
+
+/* 回归楼（缩进一层，浅背景区分） */
+.cm-replies {
+  margin-left: 40px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.cm-reply .cm-content {
+  font-size: 13.5px;
+}
+.cm-reply-box {
+  margin: 0 0 12px 40px;
+  padding-left: 12px;
+  border-left: 2px solid var(--pri-50);
+}
+
+/* 加载更多 */
+.cm-more {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+/* 手机：回归楼缩进收窄、触控目标放大 */
+@media (max-width: 680px) {
+  .cm-replies,
+  .cm-reply-box {
+    margin-left: 34px;
+    padding-left: 10px;
+  }
+  .cm-ops button {
+    min-height: 44px;
+    padding: 0 4px;
+  }
+  .cm-item {
+    padding: 12px 0;
+  }
+}

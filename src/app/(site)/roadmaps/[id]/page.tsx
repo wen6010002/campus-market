@@ -12,6 +12,7 @@ import {
 import { Heatmap } from '@/components/roadmap/Heatmap';
 import { CheckinCalendar } from '@/components/roadmap/CheckinCalendar';
 import { StepRichText } from '@/components/roadmap/StepRichText';
+import { CommentSection } from '@/components/comment/CommentSection';
 import { WorkCard } from '@/components/work/WorkCard';
 import { FineCard } from '@/components/work/FineCard';
 import { ROADMAP_CATEGORY_LABEL } from '@/lib/constants';
@@ -150,6 +151,11 @@ export default function RoadmapDetailPage() {
                 )}
               </div>
             </section>
+          ) : null}
+
+          {/* V12 评论区（仅上架后展示） */}
+          {r.status === 'PUBLISHED' ? (
+            <CommentSection targetType="ROADMAP" targetId={r.id} targetLabel={`《${r.title}》`} />
           ) : null}
         </div>
 

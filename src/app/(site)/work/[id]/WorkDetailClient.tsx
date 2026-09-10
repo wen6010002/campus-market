@@ -13,6 +13,7 @@ import { FineCard } from '@/components/work/FineCard';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import { PreviewModal } from '@/components/work/PreviewModal';
 import { WorkPreviewInline } from '@/components/work/WorkPreviewInline';
+import { CommentSection } from '@/components/comment/CommentSection';
 import { ReviewItem } from '@/components/work/ReviewItem';
 import { Empty } from '@/components/common/Empty';
 import { OrderModal } from '@/components/form/OrderModal';
@@ -307,6 +308,9 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               onFullscreen={openPreview}
             />
           ) : null}
+
+          {/* V12 评论区（登录即可评，不需下载过；预览即看即可评） */}
+          <CommentSection targetType="WORK" targetId={work.id} targetLabel={`《${work.title}》`} />
 
           {/* 评价区 */}
           <div className="review-section">
