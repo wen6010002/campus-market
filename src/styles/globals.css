@@ -7837,29 +7837,6 @@ body {
     padding: 5px 11px;
     font-size: 12px;
   }
-
-  /* 双区 tab 并排：副标题折到按钮第二行，两个半宽分格 */
-  .zt-bar {
-    flex-wrap: nowrap;
-    gap: 6px;
-    margin-bottom: 18px;
-  }
-  .zt-btn {
-    flex: 1;
-    min-width: 0;
-    flex-wrap: wrap;
-    justify-content: center;
-    padding: 7px 6px 6px;
-    font-size: 13px;
-    gap: 3px 5px;
-    border-radius: 9px;
-  }
-  .zt-btn small {
-    flex-basis: 100%;
-    text-align: center;
-    font-size: 10px;
-  }
-
   /* 资料条紧凑化：日期列收回左侧，隐藏描述行，压缩留白 */
   .feed-row {
     grid-template-columns: 46px 1fr;
@@ -7960,37 +7937,6 @@ body {
   .f-arrow {
     display: none;
   }
-
-  /* 路线图大行：图标收小、去掉右侧按钮列 */
-  .rz-row {
-    grid-template-columns: 44px 1fr;
-    gap: 0 12px;
-    padding: 12px 8px 12px 10px;
-  }
-  .rz-ico {
-    width: 44px;
-    height: 44px;
-    font-size: 21px;
-    border-radius: 10px;
-  }
-  .rz-eyebrow {
-    font-size: 10.5px;
-  }
-  .rz-title {
-    font-size: 15px;
-  }
-  .rz-desc {
-    font-size: 12px;
-  }
-  .rz-meta {
-    font-size: 11px;
-    gap: 10px;
-    margin-top: 4px;
-  }
-  .rz-go {
-    display: none;
-  }
-
   /* 侧栏「资料分类」目录手机隐藏：顶部滚动分类条已覆盖，砍掉重复长列表 */
   .sc-cats {
     display: none;
@@ -8134,6 +8080,58 @@ body {
   color: var(--pri-600);
   border-color: var(--pri);
   background: #fff;
+}
+
+/* V10.1 移动端：本段必须置于上方 base 规则之后（同优先级后来者胜出） */
+@media (max-width: 640px) {
+  .zt-bar {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .zt-btn {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 7px 6px 6px;
+    font-size: 13px;
+    gap: 3px 5px;
+    border-radius: 9px;
+  }
+  .zt-btn small {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 10px;
+  }
+  .rz-row {
+    grid-template-columns: 44px 1fr;
+    gap: 0 12px;
+    padding: 12px 8px 12px 10px;
+  }
+  .rz-ico {
+    width: 44px;
+    height: 44px;
+    font-size: 21px;
+    border-radius: 10px;
+  }
+  .rz-eyebrow {
+    font-size: 10.5px;
+  }
+  .rz-title {
+    font-size: 15px;
+  }
+  .rz-desc {
+    font-size: 12px;
+  }
+  .rz-meta {
+    font-size: 11px;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .rz-go {
+    display: none;
+  }
 }
 @media (max-width: 640px) {
   .rz-go {
