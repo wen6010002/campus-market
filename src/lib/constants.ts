@@ -157,6 +157,9 @@ export const NotificationType = {
   AUDIT_RESULT: 'AUDIT_RESULT',
   ACHIEVEMENT: 'ACHIEVEMENT',
   SYSTEM: 'SYSTEM',
+  WORK_COMMENTED: 'WORK_COMMENTED', // 作品/路线图收到新评论（V12）
+  COMMENT_REPLIED: 'COMMENT_REPLIED', // 评论被回复（V12）
+  COMMENT_REJECTED: 'COMMENT_REJECTED', // 评论未通过审核（V12）
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 

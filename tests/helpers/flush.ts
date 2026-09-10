@@ -32,6 +32,7 @@ const TABLES = [
   'roadmap_work_links',
   'roadmap_favorites',
   'roadmap_checks',
+  'daily_checkins', // V12 站内打卡账本
 ] as const;
 
 /** 清空所有表（按依赖顺序，TRUNCATE ... CASCADE 兜底）+ 清业务缓存（V4.1 起服务层有 Redis 缓存，

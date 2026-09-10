@@ -154,6 +154,14 @@ enum DynamicType {
   CHECKIN
 }
 
+// 评论审核状态（V12）：先发后审——VISIBLE 即时可见，AI 异步复审翻状态；
+// PENDING_REVIEW = 含链接/广告类词/AI 不确定或故障，暂不公开；REJECTED = 命中黑名单或 AI 判违规（留痕）
+enum CommentStatus {
+  VISIBLE
+  PENDING_REVIEW
+  REJECTED
+}
+
 enum NotificationType {
   FOLLOW_NEW_WORK
   INCOME
@@ -162,6 +170,9 @@ enum NotificationType {
   AUDIT_RESULT
   ACHIEVEMENT
   SYSTEM
+  WORK_COMMENTED // 作品/路线图收到新评论（V12）
+  COMMENT_REPLIED // 评论被回复（V12）
+  COMMENT_REJECTED // 评论未通过审核（V12）
 }
 
 enum AchievementKey {
@@ -197,6 +208,7 @@ model User {
   avatarColor   String       @default("#FF6B4A")
   avatarKey     String?      // 头像图片（MinIO avatars/，V3-5）；空则用 avatarColor 首字母
   bio           String?      @db.VarChar(200) // 个人简介（用户层，V3-5；创作者档案 bio 为历史兜底）
+  dorm          String?      @db.VarChar(30) // 宿舍楼（V12 打卡榜副标题用；只到楼不到房间，可不填）
   bannedAt      DateTime?
   bannedReason  String?
   lastLoginAt   DateTime?
@@ -229,6 +241,7 @@ model User {
   reviewedRoadmaps      Roadmap[]            @relation("RoadmapReviewer")
   roadmapFavorites      RoadmapFavorite[]
   roadmapChecks         RoadmapCheck[]
+  dailyCheckins         DailyCheckin[]
 
   @@index([status])
   @@map("users")
@@ -385,21 +398,31 @@ model WorkRatingTag {
   @@map("work_rating_tags")
 }
 
+// 评论（V2-5 建，V12 扩展）：workId/roadmapId 二选一（service 层校验互斥，Prisma 无 CHECK）；
+// parentId 只允许一级（回复的 parentId 必为 null，service 守卫）
 model Comment {
-  id        String    @id @default(cuid())
-  workId    String
-  userId    String
-  parentId  String?
-  content   String    @db.VarChar(600)
-  likes     Int       @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  work      Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id])
-  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies   Comment[] @relation("CommentReplies")
+  id         String        @id @default(cuid())
+  workId     String? // 作品评论（V12 起可空：路线图评论走 roadmapId）
+  roadmapId  String? // 路线图评论（V12）
+  userId     String
+  parentId   String?
+  content    String        @db.VarChar(600)
+  likes      Int           @default(0)
+  status     CommentStatus @default(VISIBLE) // 审核状态机（V12）；存量行默认 VISIBLE 行为不变
+  modReason  String?       @db.VarChar(200) // 审核未过原因（类别+命中词/AI 理由，管理端展示）
+  modSource  String?       @db.VarChar(20) // KEYWORD / URL_HOLD / AI / AI_FAIL / ADMIN
+  reviewedAt DateTime? // AI/管理员复审完成时间
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  deletedAt  DateTime?
+  work       Work?         @relation(fields: [workId], references: [id], onDelete: Cascade)
+  roadmap    Roadmap?      @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id])
+  parent     Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[]     @relation("CommentReplies")
   @@index([workId, createdAt(sort: Desc)])
+  @@index([roadmapId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)]) // 管理端按状态取队列
   @@map("comments")
 }
 
@@ -679,6 +702,7 @@ model Roadmap {
   workLinks       RoadmapWorkLink[]
   favorites_rel   RoadmapFavorite[]
   checks          RoadmapCheck[]
+  comments        Comment[]
 
   @@index([status, category, favs(sort: Desc)])
   @@index([status, publishedAt(sort: Desc)])
@@ -722,4 +746,20 @@ model RoadmapCheck {
   @@unique([userId, roadmapId, stepId])
   @@index([userId, roadmapId, createdAt])
   @@map("roadmap_checks")
+}
+
+// 每日打卡账本（V12 站内统计）：勾任意路线任意步骤 = 当日打卡一次；
+// streakDays 写时计算（昨日行 +1，断签归 1）；unique(userId,day) 保幂等；
+// 取消勾选步骤不回滚本表（修复旧设计「取消勾选追溯抹记录」缺陷）
+model DailyCheckin {
+  id         String   @id @default(cuid())
+  userId     String
+  day        String   @db.VarChar(10) // YYYY-MM-DD（UTC+8 日界，dayCn8）
+  streakDays Int // 截至 day 的连续打卡天数
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, day])
+  @@index([streakDays(sort: Desc)]) // 排行榜扫描
+  @@index([day])
+  @@map("daily_checkins")
 }
