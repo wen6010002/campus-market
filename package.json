@@ -9,6 +9,7 @@
     "build": "pnpm prepare:pdf-worker && next build",
     "start": "next start",
     "worker": "tsx src/server/jobs/scheduler.ts",
+    "build:words": "tsx scripts/build-words.ts",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",

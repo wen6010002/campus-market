@@ -47,6 +47,12 @@ export function collectEnvIssues(): EnvIssue[] {
     });
   }
 
+  // V12 评论 AI 审核：缺 key 时审核任务全部失败 → 评论只能进人工队列（fail-closed），
+  // 生产必须在部署时写入（容器重建前）
+  if (!process.env.DEEPSEEK_API_KEY) {
+    issues.push({ key: 'DEEPSEEK_API_KEY', problem: '缺失（评论 AI 审核不可用）' });
+  }
+
   return issues;
 }
 
@@ -59,6 +65,6 @@ export function assertProdEnv(): void {
     throw new Error(`生产环境配置校验失败：${issues.map((i) => i.key).join(', ')}（详见上方日志）`);
   }
   logger.info(
-    '生产环境配置校验通过（AUTH_SECRET / PASSWORD_PEPPER / S3_SECRET_KEY / PAYMENT_MODE）',
+    '生产环境配置校验通过（AUTH_SECRET / PASSWORD_PEPPER / S3_SECRET_KEY / PAYMENT_MODE / DEEPSEEK_API_KEY）',
   );
 }
