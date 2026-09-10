@@ -42,7 +42,7 @@ export function CommentSection({ targetType, targetId, targetLabel }: Props) {
           <div className="cm-loading">评论加载中…</div>
         ) : list.data.length ? (
           list.data.map((c) => (
-            <div key={c.id}>
+            <div key={c.id} className="cm-thread">
               <CommentItem
                 comment={c}
                 targetType={targetType}

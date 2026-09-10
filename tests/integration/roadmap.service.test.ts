@@ -144,7 +144,9 @@ describe('打卡与进度', () => {
     ).toBe(0);
   });
 
-  it('进度：连续三天（今天起）streak=3；今天缺失则从昨天起算', async () => {
+  it('进度（V12 站内口径）：streak 读账本；取消勾选不回滚（修复旧缺陷）', async () => {
+    // 上一用例的 toggleCheck 已写今天的账本行——先清，本用例自建三天账本
+    await prisma.dailyCheckin.deleteMany({ where: { userId: STUDENT_ACTOR } });
     const day = 86400_000;
     const mk = (i: number, ago: number) =>
       prisma.roadmapCheck.create({
@@ -160,17 +162,34 @@ describe('打卡与进度', () => {
     await mk(0, 0);
     await mk(1, day);
     await mk(2, 2 * day);
-    let p = await roadmapService.progress(STUDENT_ACTOR, rmId);
-    expect(p.streakDays).toBe(3);
-    expect(Object.keys(p.byDay)).toHaveLength(3);
+
+    // 账本：今天 3 连、昨天 2、前天 1（toggleCheck 写入的等价形态）
+    const { dayCn8 } = await import('@/lib/day');
+    const today = dayCn8(new Date());
+    const yesterday = dayCn8(new Date(Date.now() - day));
+    const dayBefore = dayCn8(new Date(Date.now() - 2 * day));
+    await prisma.dailyCheckin.create({
+      data: { userId: STUDENT_ACTOR, day: dayBefore, streakDays: 1 },
+    });
+    await prisma.dailyCheckin.create({
+      data: { userId: STUDENT_ACTOR, day: yesterday, streakDays: 2 },
+    });
+    await prisma.dailyCheckin.create({
+      data: { userId: STUDENT_ACTOR, day: today, streakDays: 3 },
+    });
+
+    const p = await roadmapService.progress(STUDENT_ACTOR, rmId);
+    expect(p.streakDays).toBe(3); // 账本单一事实源
+    expect(Object.keys(p.byDay)).toHaveLength(3); // 热力图仍按勾选步数按日聚合
     expect(p.totalChecked).toBe(3);
 
-    // 清掉今天的打卡 → streak 从昨天起算仍为 2（宽容策略：断链不立即归零）
+    // V12 行为变化：取消今天的勾选不再追溯抹掉打卡（账本行不回滚）
     await prisma.roadmapCheck.deleteMany({
       where: { userId: STUDENT_ACTOR, roadmapId: rmId, stepId: 'p1-s0' },
     });
-    p = await roadmapService.progress(STUDENT_ACTOR, rmId);
-    expect(p.streakDays).toBe(2);
+    const p2 = await roadmapService.progress(STUDENT_ACTOR, rmId);
+    expect(p2.streakDays).toBe(3); // 仍 3（旧实现会掉到 2）
+    expect(p2.byDay[today]).toBeGreaterThanOrEqual(1); // 账本日兜底亮一格
   });
 
   it('按日聚合用 UTC+8 口径：UTC 16:30 计入次日', async () => {

@@ -39,6 +39,18 @@ c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/roadmaps/$RM_ID/progress"); ck "GET progress" 200 "$c" "连续$(J "d['data']['streakDays']" </tmp/sm.json)天/已勾$(J "d['data']['totalChecked']" </tmp/sm.json)"
 c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/v1/works/$WK_ID/favorite" -H "Origin: $BASE"); ck "DELETE 取消收藏(幂等)" 200 "$c"
 
+# ---- V12 评论 + 打卡榜 ----
+c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/works/$WK_ID/comments" -H "Origin: $BASE" -H 'content-type: application/json' -d "{\"content\":\"冒烟巡检评论 $(date +%s)\"}"); ck "POST 评论(先发后审)" 201 "$c" "status=$(J "d['data']['status']" </tmp/sm.json)"
+SM_CM_ID=$(J "d['data']['id']" </tmp/sm.json)
+c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' -X POST "$BASE/api/v1/works/$WK_ID/comments" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"content":"课搭测试违禁词"}'); ck "POST 违禁词被拒" 400 "$c" "$(J "d['error']['code']" </tmp/sm.json)"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/works/$WK_ID/comments"); ck "GET 作品评论(公开)" 200 "$c" "共$(J "d['pagination']['total']" </tmp/sm.json)条"
+c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/me/checkin-stats"); ck "GET 打卡统计" 200 "$c" "连续$(J "d['data']['streakDays']" </tmp/sm.json)天"
+c=$(curl -s -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/ranks/checkin"); ck "GET 打卡榜" 200 "$c" "top$(J "len(d['data'])" </tmp/sm.json)"
+c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/roadmaps/rank"); ck "页面 /roadmaps/rank" 200 "$c"
+if [ -n "$SM_CM_ID" ] && [ "$SM_CM_ID" != "None" ]; then
+  c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/v1/comments/$SM_CM_ID" -H "Origin: $BASE"); ck "DELETE 巡检评论(清理)" 200 "$c"
+fi
+
 # ---- 登录 admin ----
 c=$(curl -s -c /tmp/sm2.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/auth/login" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"email":"admin@szu.edu.cn","password":"Kedahub2026"}'); ck "POST login(admin)" 200 "$c"
 c=$(curl -s -b /tmp/sm2.jar -o /dev/null -w '%{http_code}' "$BASE/api/v1/admin/stats");        ck "GET admin/stats" 200 "$c"

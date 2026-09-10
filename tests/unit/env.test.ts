@@ -9,6 +9,7 @@ describe('生产环境配置自检', () => {
     'S3_SECRET_KEY',
     'S3_ACCESS_KEY',
     'PAYMENT_MODE',
+    'DEEPSEEK_API_KEY',
     'NODE_ENV',
   ] as const;
   // Next 类型把 NODE_ENV 声明为 readonly，测试里需要改写，走宽松映射
@@ -32,6 +33,7 @@ describe('生产环境配置自检', () => {
     setEnv('S3_SECRET_KEY', 'strong-s3-secret-1234567890ab');
     setEnv('S3_ACCESS_KEY', 'minioadmin'); // 生产合法：用户名默认但密钥强
     setEnv('PAYMENT_MODE', 'off');
+    setEnv('DEEPSEEK_API_KEY', 'sk-test-moderation-key'); // V12 评论 AI 审核
   };
 
   it('生产同款配置（含 S3_ACCESS_KEY=minioadmin）→ 零问题', () => {
@@ -68,6 +70,12 @@ describe('生产环境配置自检', () => {
     expect(collectEnvIssues().map((i) => i.key)).toContain('PAYMENT_MODE');
     setEnv('PAYMENT_MODE', undefined);
     expect(collectEnvIssues().map((i) => i.key)).toContain('PAYMENT_MODE');
+  });
+
+  it('DEEPSEEK_API_KEY：缺失拦截（V12 审核 fail-fast）', () => {
+    setGood();
+    setEnv('DEEPSEEK_API_KEY', undefined);
+    expect(collectEnvIssues().map((i) => i.key)).toContain('DEEPSEEK_API_KEY');
   });
 
   it('assertProdEnv：production 坏配置抛错，好配置通过', () => {
