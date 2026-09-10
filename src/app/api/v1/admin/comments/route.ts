@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { withErrorHandler } from '@/server/lib/http';
+import { withErrorHandler, ok } from '@/server/lib/http';
 import { requireAdmin } from '@/server/auth/session';
 import { commentService } from '@/server/services/comment.service';
 
@@ -14,9 +13,6 @@ export const GET = withErrorHandler(async (req: Request) => {
     Number(url.searchParams.get('page') ?? 1),
     Number(url.searchParams.get('pageSize') ?? 20),
   );
-  return NextResponse.json({
-    data: result.data,
-    pagination: result.pagination,
-    watchlist: result.watchlist,
-  });
+  // 与 /admin/reports 同构：data 内嵌 {data, pagination, watchlist}
+  return ok(result);
 });

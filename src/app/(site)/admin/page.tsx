@@ -10,6 +10,7 @@ import { toast } from '@/stores/ui';
 import { useAuth } from '@/hooks/useAuth';
 import { Empty } from '@/components/common/Empty';
 import { WorksManage } from '@/components/admin/WorksManage';
+import { CommentModeration } from '@/components/admin/CommentModeration';
 
 type PendingWork = { id: string; title: string; course: string; author: { username: string } };
 type ReportGroup = {
@@ -93,6 +94,7 @@ const TABS = [
   { key: 'roadmaps', label: '路线图审核' },
   { key: 'announcements', label: '公告管理' },
   { key: 'reports', label: '举报队列' },
+  { key: 'comments', label: '评论审核' },
   { key: 'payouts', label: '提现审批' },
   { key: 'creators', label: '创作者认证' },
   { key: 'users', label: '用户管理' },
@@ -580,6 +582,8 @@ function AdminContent() {
           ) : null}
         </div>
       )}
+
+      {tab === 'comments' && <CommentModeration />}
 
       {tab === 'payouts' && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
