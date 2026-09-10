@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { messageFor } from '@/lib/api/errors';
+import { renderMd } from '@/lib/md';
 import { toast } from '@/stores/ui';
 
 interface PreviewResult {
@@ -34,13 +33,6 @@ interface Props {
  *  PDF：iframe 原生查看器；MD：服务端回文本 → marked 转 HTML → DOMPurify 消毒后渲染（用户上传的 md 可嵌脚本，必须消毒）。
  *  full = 免费或有权限 → 原文件全量；sample = 付费未购 → 试读副本（PDF 前 5 页 / MD 前 30%）+ 水印 + 购买卡。
  *  打开即 POST /works/:id/preview（该端点负责取内容与观看去重计数）。 */
-
-// md → 安全 HTML（同步解析；GFM 表格/删除线默认开）
-function renderMd(text: string): string {
-  return DOMPurify.sanitize(marked.parse(text, { async: false }), {
-    FORBID_TAGS: ['style', 'form', 'input', 'iframe'],
-  });
-}
 
 export function PreviewModal({
   open,

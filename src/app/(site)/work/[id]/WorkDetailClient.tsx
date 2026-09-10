@@ -3,16 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWork } from '@/hooks/useWork';
 import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/lib/api/client';
 import { Stars } from '@/components/common/Stars';
 import { RatingBars } from '@/components/work/RatingBars';
 import { FineCard } from '@/components/work/FineCard';
-import { WorkCover } from '@/components/work/WorkCover';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import { PreviewModal } from '@/components/work/PreviewModal';
+import { WorkPreviewInline } from '@/components/work/WorkPreviewInline';
 import { ReviewItem } from '@/components/work/ReviewItem';
 import { Empty } from '@/components/common/Empty';
 import { OrderModal } from '@/components/form/OrderModal';
@@ -37,6 +37,13 @@ interface Props {
   isAdmin?: boolean;
 }
 
+const FILE_TYPE_LABEL: Record<string, string> = {
+  MD: 'Markdown 文档',
+  PDF: 'PDF 文档',
+  DOCX: 'Word 文档',
+  ZIP: '压缩包',
+};
+
 export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -55,6 +62,12 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const like = useLike(id); // V8 点赞（含成就/通知链路）
   const [likeBurst, setLikeBurst] = useState(false);
   const [favBurst, setFavBurst] = useState(false);
+
+  // 手机端：本页用底部操作条替代全站 tabbar，避免双层底栏
+  useEffect(() => {
+    document.body.classList.add('work-detail-page');
+    return () => document.body.classList.remove('work-detail-page');
+  }, []);
 
   const audit = useMutation({
     mutationFn: (action: 'APPROVE' | 'REJECT') =>
@@ -96,9 +109,14 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
       </main>
     );
 
+  // hook 数据在闭包内不保留早退收窄，用 const 捕获已判空的 work
+  const wk = work;
   const isAuthor = user?.id === work.author.id;
-  const qb =
-    work.quality === 'SELECTED' ? '🏅 平台精选' : work.quality === 'HIGH' ? '⭐ 高评分' : '';
+  const publishedAt = work.publishedAt ?? work.updatedAt;
+  const d = new Date(publishedAt);
+  const dateLabel = Number.isNaN(d.getTime())
+    ? ''
+    : `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} 收录`;
 
   function doDownload() {
     download.mutate(undefined, {
@@ -109,9 +127,38 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
     });
   }
 
+  async function doShare() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast('链接已复制', 'ok');
+    } catch {
+      toast('链接已复制', 'ok');
+    }
+  }
+
+  function doLike() {
+    if (!user) return router.push('/login');
+    if (!wk.myLiked) setLikeBurst(true);
+    like.mutate(!wk.myLiked);
+  }
+
+  function doFav() {
+    if (!user) return router.push('/login');
+    if (!wk.myFav) setFavBurst(true);
+    favorite.mutate(!wk.myFav);
+  }
+
+  function openPreview() {
+    if (!user && !free) return router.push('/login');
+    setPreviewOpen(true);
+  }
+
+  const previewable = work.fileType === 'PDF' || work.fileType === 'MD';
+  const hasAccess = free || work.myAccess;
+
   return (
-    <main className="page" style={{ paddingTop: 18 }}>
-      <div className="page-head" style={{ marginBottom: 8 }}>
+    <main className="page wd-page">
+      <div className="page-head" style={{ marginBottom: 14 }}>
         <button
           className="btn btn-light btn-sm"
           onClick={() => backOrHome(router)}
@@ -125,43 +172,6 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
           <Link href={`/search?q=${encodeURIComponent(work.course)}`}>{work.course}</Link>
           <span className="sep">/</span>
           <span className="cur">{work.title}</span>
-        </div>
-        <div className="right">
-          <button className="btn btn-light btn-sm" onClick={() => toast('链接已复制', 'ok')}>
-            分享
-          </button>
-          <button
-            className={`btn btn-light btn-sm burst pink ${likeBurst ? 'on' : ''}`}
-            onClick={() => {
-              if (!user) return router.push('/login');
-              if (!work.myLiked) setLikeBurst(true);
-              like.mutate(!work.myLiked);
-            }}
-          >
-            {work.myLiked ? '♥ 已赞' : '♡ 点赞'}
-            <span className="num-bump" style={{ marginLeft: 4 }}>
-              {work.likes}
-            </span>
-          </button>
-          <button
-            className={`btn btn-light btn-sm burst ${favBurst ? 'on' : ''}`}
-            onClick={() => {
-              if (!user) return router.push('/login');
-              if (!work.myFav) setFavBurst(true);
-              favorite.mutate(!work.myFav);
-            }}
-          >
-            {work.myFav ? '♥ 已收藏' : '♡ 收藏'}
-          </button>
-          {!isAuthor ? (
-            <button
-              className="btn btn-light btn-sm"
-              style={{ color: 'var(--ink-soft)' }}
-              onClick={() => setReportOpen(true)}
-            >
-              ··· 举报
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -208,88 +218,94 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
         </div>
       ) : null}
 
-      <div className="wd">
-        {/* 左栏 */}
-        <div className="wd-left">
-          <div className="wd-cover">
-            <WorkCover
-              work={work}
-              containerClassName="cover-top"
-              badges={
-                <div className="badges">
-                  {free ? (
-                    <span className="badge-free">
-                      {FREE_MODE && !work.isFree ? '限时免费' : '免费'}
-                    </span>
-                  ) : (
-                    <span className="badge-fine">💎 精品</span>
-                  )}
-                  {qb ? (
-                    <span className="qb" style={{ background: 'rgba(255,255,255,.92)' }}>
-                      {qb}
-                    </span>
-                  ) : null}
-                </div>
-              }
-            />
-            <div className="cover-meta">
-              <span>
-                <Icon name="file" width={13} />
-                {work.fileType}
-              </span>
-              <span>{(work.fileSize / 1024 / 1024).toFixed(1)} MB</span>
-              {work.pages ? <span>📄 {work.pages} 页</span> : null}
-              {free ? (
-                <span>
-                  <Icon name="eye" width={13} />
-                  {formatNum(Number(work.views))} 观看
+      {/* 标题块（横贯）：标题 → 作者行 → 统计/徽章/标签 */}
+      <header className="wd-hero">
+        <h1 className="wd-title">{work.title}</h1>
+        <div className="wd-byline">
+          <Link className="wd-author" href={`/user/${work.author.id}`}>
+            <UserAvatar id={work.author.id} user={work.author} size={28} radius={7} />
+            <b>{work.author.username}</b>
+            <span className="dh-check" title="校园认证创作者">
+              <Icon name="check" width={8} />
+            </span>
+          </Link>
+          <span className="wd-dot">·</span>
+          <span>{work.author.college}</span>
+          <span className="wd-dot">·</span>
+          <span>{dateLabel}</span>
+          <span className="wd-dot">·</span>
+          <span className="wd-rating">
+            <Stars value={Number(work.rating)} size="sm" />
+            <b>{work.rating}</b>
+            <em>（{work.ratingCount} 人评分）</em>
+          </span>
+        </div>
+        <div className="wd-subline">
+          {free ? (
+            <span className="badge-free">{FREE_MODE && !work.isFree ? '限时免费' : '免费'}</span>
+          ) : (
+            <span className="badge-fine">💎 精品</span>
+          )}
+          <span className="wd-stats">
+            <span>
+              <Icon name="eye" width={13} /> {formatNum(Number(work.views))} 浏览
+            </span>
+            <span>
+              <Icon name="dl" width={13} /> {work.downloads} 下载
+            </span>
+            <span>
+              <Icon name="fav" width={13} /> {work.favs} 收藏
+            </span>
+          </span>
+          {work.tags.length ? (
+            <span className="wd-tags">
+              {work.tags.map((t) => (
+                <span key={t} className="chip gray">
+                  #{t}
                 </span>
-              ) : (
-                <span>
-                  <Icon name="dl" width={13} />
-                  {work.downloads} 次下载
-                </span>
-              )}
-              <span>
-                <Icon name="fav" width={13} />
-                {work.favs} 收藏
-              </span>
-            </div>
-          </div>
+              ))}
+            </span>
+          ) : null}
+        </div>
+      </header>
 
-          {/* 在线预览入口（V3-4，md 扩展）：PDF/MD 可预览；免费全量 / 付费试读 */}
-          {work.fileType === 'PDF' || work.fileType === 'MD' ? (
-            <div
-              className="preview-entry"
-              role="button"
-              tabIndex={0}
-              onClick={() => setPreviewOpen(true)}
-              onKeyDown={(e) => e.key === 'Enter' && setPreviewOpen(true)}
-            >
-              <span className="pe-ico">▶</span>
-              <div className="pe-txt">
-                <b>在线预览</b>
-                <small>
-                  {free || work.myAccess
-                    ? work.fileType === 'MD'
-                      ? '无需下载，直接阅读全文'
-                      : '无需下载，直接翻阅完整内容'
-                    : work.hasSample
-                      ? work.fileType === 'MD'
-                        ? '免费试读部分内容，购买解锁完整版'
-                        : '免费试读前 5 页，购买解锁完整版'
-                      : '在线查看内容'}
-                </small>
-              </div>
-              <span className="pe-arrow">→</span>
+      {/* 左主右辅 */}
+      <div className="wd-body">
+        <div className="wd-main">
+          {/* 简介：V11 前详情页从未渲染 description */}
+          <section className="wd-abstract">
+            <h2 className="wd-sec">简 介</h2>
+            <p className="wd-abstract-text">
+              {work.description || '作者没有留下简介，可以直接翻预览了解内容。'}
+            </p>
+            <div className="wd-meta">
+              <span>
+                课程 <b>{work.course}</b>
+              </span>
+              <span>
+                适用 <b>{work.applyMajor ?? '全专业'}</b> · <b>{work.applyGrade ?? '全年级'}</b>
+              </span>
+              {work.applyCrowd ? (
+                <span>
+                  适合 <b>{work.applyCrowd}</b>
+                </span>
+              ) : null}
             </div>
+          </section>
+
+          {/* 内嵌预览：进视口自动加载，前 30% + 展开全文 */}
+          {previewable ? (
+            <WorkPreviewInline
+              workId={work.id}
+              fileType={work.fileType}
+              onBuy={() => setOrderOpen(true)}
+              onFullscreen={openPreview}
+            />
           ) : null}
 
           {/* 评价区 */}
           <div className="review-section">
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
-              用户评价（{work.ratingCount}）
-            </h3>
+            <h2 className="wd-sec">用户评价（{work.ratingCount}）</h2>
             <div className="review-summary">
               <div className="review-big">
                 <div className="v">{work.rating}</div>
@@ -341,14 +357,9 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
 
           {/* 相关推荐 */}
           {related.data?.length ? (
-            <div className="preview-box" style={{ padding: 18 }}>
-              <div
-                className="preview-head"
-                style={{ padding: '0 0 12px', borderBottom: '1px solid var(--line-2)' }}
-              >
-                <h3>相关推荐</h3>
-              </div>
-              <div className="hfeed" style={{ paddingTop: 14 }}>
+            <div className="wd-related">
+              <h2 className="wd-sec">相关推荐</h2>
+              <div className="hfeed" style={{ paddingTop: 4 }}>
                 {related.data.map((w) => (
                   <FineCard key={w.id} work={w} />
                 ))}
@@ -357,106 +368,63 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
           ) : null}
         </div>
 
-        {/* 右栏 */}
-        <div className="wd-right">
-          <div className="info-card">
-            <h1>{work.title}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {free ? (
-                <span className="badge-free">免费作品</span>
-              ) : (
-                <span className="badge-fine">💎 精品作品</span>
-              )}
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: 12.5,
-                  color: 'var(--ink-soft)',
-                }}
-              >
-                <Stars value={Number(work.rating)} size="sm" />
-                <b style={{ color: 'var(--ink)', fontWeight: 700 }}>{work.rating}</b> ·{' '}
-                {work.ratingCount} 人评分
+        {/* 右栏：文件卡 + 作者卡 */}
+        <aside className="wd-side">
+          <div className="wd-file-card">
+            <div className="wd-fc-type">
+              <span className="wd-fc-ico">
+                <Icon name="file" width={22} />
               </span>
-            </div>
-            <div className="info-row">
-              <span className="lb">热度</span>
-              <span className="v">
-                {free
-                  ? `观看 ${formatNum(Number(work.views))} · 下载 ${work.downloads} · 收藏 ${work.favs}`
-                  : `下载 ${work.downloads} · 收藏 ${work.favs} · 观看 ${formatNum(Number(work.views))}`}
-              </span>
-            </div>
-            <div className="info-row">
-              <span className="lb">课程</span>
-              <span className="v">{work.course}</span>
-            </div>
-            <div className="info-row">
-              <span className="lb">适用</span>
-              <span className="v">
-                {work.applyMajor ?? '全专业'} · {work.applyGrade ?? '全年级'}
-              </span>
-            </div>
-            {work.applyCrowd ? (
-              <div className="info-row">
-                <span className="lb">适合</span>
-                <span className="v">{work.applyCrowd}</span>
-              </div>
-            ) : null}
-            <div className="info-row">
-              <span className="lb">标签</span>
-              <span className="v">
-                <span className="chips">
-                  {work.tags.map((t) => (
-                    <span key={t} className="chip gray">
-                      {t}
-                    </span>
-                  ))}
-                </span>
-              </span>
-            </div>
-            <div className="info-actions">
-              {free || work.myAccess ? (
-                <>
-                  <button
-                    className="btn btn-mint btn-block btn-lg"
-                    onClick={() => setPreviewOpen(true)}
-                  >
-                    ▶ 在线预览
-                  </button>
-                  <button className="btn btn-light btn-block btn-lg" onClick={doDownload}>
-                    ⬇ 下载
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    className="btn btn-primary btn-block btn-lg"
-                    onClick={() => setOrderOpen(true)}
-                  >
-                    ¥{work.price} 立即购买
-                  </button>
-                  {work.fileType === 'PDF' || work.fileType === 'MD' ? (
-                    <button
-                      className="btn btn-light btn-block btn-lg"
-                      onClick={() => setPreviewOpen(true)}
-                    >
-                      ▶ {work.fileType === 'MD' ? '免费试读' : '试读前 5 页'}
-                    </button>
-                  ) : null}
-                </>
-              )}
-              <div style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center' }}>
-                {free || work.myAccess
-                  ? '在线观看 + 本地下载，下载后可评价'
-                  : '购买后获得永久下载权限，可随时评价'}
+              <div>
+                <b>{FILE_TYPE_LABEL[work.fileType] ?? work.fileType}</b>
+                <small>{previewable ? '支持在线阅读' : '下载后查看'}</small>
               </div>
             </div>
-            <div className="info-trust">
-              <Icon name="check" width={12} />
-              校园认证创作者 · 评分 {work.rating} · 已帮助 {formatNum(work.author.helped)} 位同学
+            <div className="wd-fc-meta">
+              <span>{(work.fileSize / 1024 / 1024).toFixed(1)} MB</span>
+              {work.pages ? <span>{work.pages} 页</span> : null}
+              <span>{FILE_TYPE_LABEL[work.fileType] ? '' : work.fileType}</span>
+            </div>
+            <div className="wd-fc-actions">
+              {hasAccess ? (
+                <button className="btn btn-primary btn-block btn-lg" onClick={doDownload}>
+                  <Icon name="dl" width={16} /> 下载
+                </button>
+              ) : (
+                <button
+                  className="btn btn-primary btn-block btn-lg"
+                  onClick={() => setOrderOpen(true)}
+                >
+                  ¥{work.price} 立即购买
+                </button>
+              )}
+              <div className="wd-fc-row2">
+                <button className={`btn btn-light burst ${favBurst ? 'on' : ''}`} onClick={doFav}>
+                  {work.myFav ? '♥ 已收藏' : '♡ 收藏'}
+                </button>
+                <button
+                  className={`btn btn-light burst pink ${likeBurst ? 'on' : ''}`}
+                  onClick={doLike}
+                >
+                  {work.myLiked ? '♥ 已赞' : '♡ 点赞'}
+                  <span className="num-bump" style={{ marginLeft: 4 }}>
+                    {work.likes}
+                  </span>
+                </button>
+              </div>
+              <div className="wd-fc-minor">
+                <button onClick={doShare}>分享</button>
+                <span>·</span>
+                {!isAuthor ? (
+                  <button onClick={() => setReportOpen(true)}>举报</button>
+                ) : (
+                  <span>我的作品</span>
+                )}
+              </div>
+              <div className="wd-fc-trust">
+                <Icon name="check" width={12} />
+                校园认证创作者 · 已帮助 {formatNum(work.author.helped)} 位同学
+              </div>
             </div>
           </div>
 
@@ -509,7 +477,30 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
               </div>
             </div>
           </div>
-        </div>
+        </aside>
+      </div>
+
+      {/* 手机端底部常驻操作条（≤680px 显示；全屏弹窗打开时隐藏） */}
+      <div className="wd-actionbar" aria-label="快捷操作">
+        <Link className="ab-btn" href="/" aria-label="回到首页">
+          <Icon name="home" width={20} />
+          <span>首页</span>
+        </Link>
+        {previewable ? (
+          <button className="ab-btn" onClick={openPreview}>
+            <span className="ab-play">▶</span>
+            <span>预览</span>
+          </button>
+        ) : null}
+        {hasAccess ? (
+          <button className="ab-dl" onClick={doDownload}>
+            <Icon name="dl" width={16} /> 下载
+          </button>
+        ) : (
+          <button className="ab-dl" onClick={() => setOrderOpen(true)}>
+            ¥{work.price} 购买
+          </button>
+        )}
       </div>
 
       <OrderModal
