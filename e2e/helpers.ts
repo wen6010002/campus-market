@@ -60,20 +60,25 @@ export async function register(page: Page, email: string, username: string) {
   await dismissAnnounceIfOpen(page);
 }
 
-/** 管理员 API 操作（用 APIRequestContext 登录 admin 后调接口） */
+/** 管理员 API 操作（用 APIRequestContext 登录 admin 后调接口）。
+ *  APIRequestContext 不带 Origin/Referer，V10.2 起敏感写路由 strict CSRF 会 403，
+ *  统一补 Origin 头（与 smoke-prod.sh 同理）。 */
 export async function adminApi(
   request: APIRequestContext,
   path: string,
   method: 'GET' | 'POST' = 'POST',
   body?: unknown,
 ) {
+  const base = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
   // 登录 admin 拿 cookie（request 上下文会保留 cookie）
   await request.post('/api/v1/auth/login', {
     data: { email: 'admin@szu.edu.cn', password: 'demo1234' },
+    headers: { Origin: base },
   });
   const res = await request.fetch(`/api/v1${path}`, {
     method,
     data: body,
+    headers: { Origin: base },
   });
   expect(res.ok()).toBeTruthy();
   return res.json();

@@ -50,7 +50,7 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   const { data: work, isLoading } = useWork(id, initialWork);
   // V7 全站免费：付费开关关闭时按免费作品展示（原定价保留在库，恢复付费即还原）
   const free = !!work && (work.isFree || FREE_MODE);
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [orderOpen, setOrderOpen] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -137,18 +137,21 @@ export default function WorkDetailClient({ id, initialWork, isAdmin }: Props) {
   }
 
   function doLike() {
+    if (authLoading) return; // auth 未水合时忽略点击，避免把已登录用户误弹去登录页
     if (!user) return router.push('/login');
     if (!wk.myLiked) setLikeBurst(true);
     like.mutate(!wk.myLiked);
   }
 
   function doFav() {
+    if (authLoading) return;
     if (!user) return router.push('/login');
     if (!wk.myFav) setFavBurst(true);
     favorite.mutate(!wk.myFav);
   }
 
   function openPreview() {
+    if (authLoading) return; // auth 未水合时忽略点击，避免误判
     if (!user && !free) return router.push('/login');
     setPreviewOpen(true);
   }

@@ -81,6 +81,8 @@ test('3. 创作者发布 → 审核通过 → 我的作品出现', async ({ page
 test('4. 收藏 → 我的收藏', async ({ page }) => {
   await login(page, 'demo@szu.edu.cn');
   await page.goto('/work/w_db1');
+  // 等 auth 水合（新文档加载后 /auth/me 需重新请求），再点收藏
+  await expect(page.locator('.avatar-wrap .avatar')).toBeVisible();
   const btn = page.locator('button', { hasText: '收藏' }).first();
   await btn.waitFor();
   if ((await btn.textContent())?.includes('已收藏')) {
@@ -132,9 +134,10 @@ test('6. 收益明细 → 提现申请', async ({ page }) => {
 test('7. 搜索 → 详情', async ({ page }) => {
   await page.goto('/search?q=%E6%95%B0%E6%8D%AE%E5%BA%93');
   await expect(page.getByText('搜索「数据库」')).toBeVisible();
-  // 点第一个结果进详情
+  // 点第一个结果进详情（V11 论文式重排：标题块横贯顶部 + 简介区）
   await page.locator('.work-card').first().click();
-  await expect(page.getByText('在线预览').first()).toBeVisible(); // V3-4 预览入口
+  await expect(page.locator('.wd-title')).toBeVisible();
+  await expect(page.locator('.wd-abstract')).toBeVisible();
 });
 
 // ===== V3 新增核心路径 =====
@@ -147,12 +150,13 @@ test('8. 分类浏览（V3-2）：explore 大类/标签过滤', async ({ page })
   ).toBeVisible();
 });
 
-test('9. 在线预览（V3-4）：免费作品匿名可看 + 观看计数', async ({ page, request }) => {
+test('9. 在线预览（V3-4 → V11 内嵌）：免费作品匿名可看 + 观看计数', async ({ page, request }) => {
   const before = await request.get('/api/v1/works/w_fresh1').then((r) => r.json());
   await page.goto('/work/w_fresh1');
-  await page.click('.preview-entry');
-  await expect(page.locator('.pv-frame')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.pv-pages')).toContainText('完整版');
+  // V11：预览区内嵌页面，进视口自动加载（无 ▶ 入口条）
+  await page.locator('.pv-inline').scrollIntoViewIfNeeded();
+  await expect(page.locator('.pvi-frame')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.pvi-status')).toContainText('完整版');
   // 观看 +1（去重口径：同上下文一次）
   const key = await request.post('/api/v1/works/w_fresh1/preview').then((r) => r.json());
   expect(['full', 'sample']).toContain(key.data.mode);
