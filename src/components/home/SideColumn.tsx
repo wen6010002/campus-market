@@ -76,9 +76,7 @@ function SideRank() {
                 {e.username ?? e.title}
                 <BadgeInline badge={av.badge ?? r.work?.author?.badge} size={18} />
                 <small>
-                  {tab === 'checkin'
-                    ? r.user.dorm || r.user.college || ''
-                    : e.direction || e.course || ''}
+                  {tab === 'checkin' ? r.user.college || '' : e.direction || e.course || ''}
                 </small>
               </span>
               <span className="sr-metric">

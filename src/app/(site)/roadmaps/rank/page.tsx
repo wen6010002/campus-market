@@ -24,9 +24,9 @@ type CheckinRow = {
 
 type MyStats = { today: boolean; streakDays: number; totalDays: number };
 
-/** 副标题：宿舍楼优先，回退学院（「X栋的xxx」巧思；隐私只到楼不到房间） */
+/** 副标题：学院归属（宿舍楼展示暂缓上线，后端字段已就绪） */
 function subLabel(u: CheckinRow['user']) {
-  return u.dorm ? `${u.dorm}的同学` : u.college || '深大同学';
+  return u.college || '深大同学';
 }
 
 export default function CheckinRankPage() {
