@@ -120,7 +120,7 @@ function SideCats() {
   const counts = useCategoryCounts();
 
   return (
-    <div className="side-box">
+    <div className="side-box sc-cats">
       <h3>🗂️ 资料分类</h3>
       <div className="sb-sub">点击进入目录</div>
       {CATEGORIES.map((c) => (

@@ -7380,6 +7380,10 @@ body {
   color: var(--ink-2);
   margin-top: 9px;
   max-width: 58ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .hp-meta {
   display: flex;
@@ -7801,33 +7805,194 @@ body {
   .blog-mast-side {
     display: none;
   }
+  .blog-sec {
+    margin-bottom: 26px;
+  }
   .hero-post h3 {
     font-size: 21px;
   }
-  .feed-row {
-    grid-template-columns: 1fr;
-    gap: 2px;
+  .hero-post .hp-desc {
+    -webkit-line-clamp: 2;
   }
-  .feed-date {
-    display: flex;
+
+  /* 分类行：横向滚动条，不再折行占三排 */
+  .blog-cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     gap: 6px;
-    align-items: baseline;
-    margin-bottom: 3px;
+    padding: 12px 0 14px;
+    margin-bottom: 20px;
+  }
+  .blog-cats::-webkit-scrollbar {
+    display: none;
+  }
+  .blog-cats .bc-label,
+  .blog-cats .bc-chip {
+    flex: none;
+  }
+  .bc-chip {
+    white-space: nowrap;
+    padding: 5px 11px;
+    font-size: 12px;
+  }
+
+  /* 双区 tab 并排：副标题折到按钮第二行，两个半宽分格 */
+  .zt-bar {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .zt-btn {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 7px 6px 6px;
+    font-size: 13px;
+    gap: 3px 5px;
+    border-radius: 9px;
+  }
+  .zt-btn small {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  /* 资料条紧凑化：日期列收回左侧，隐藏描述行，压缩留白 */
+  .feed-row {
+    grid-template-columns: 46px 1fr;
+    gap: 0 12px;
+    padding: 11px 8px 11px 10px;
+  }
+  .feed-date b {
+    font-size: 15px;
+  }
+  .feed-date small {
+    font-size: 9.5px;
+  }
+  .feed-eyebrow {
+    font-size: 10.5px;
+    margin-bottom: 1px;
+  }
+  .feed-title {
+    font-size: 14.5px;
+    line-height: 1.3;
+  }
+  .feed-desc {
+    display: none;
+  }
+  .feed-meta {
+    gap: 9px;
+    font-size: 11px;
+    margin-top: 3px;
   }
   .feed-arrow,
   .rec-arrow {
     display: none;
   }
+
+  /* 编辑推荐行（emoji 块左列）同密度收紧 */
+  .rec-row {
+    grid-template-columns: 40px 1fr;
+    gap: 0 12px;
+    padding: 10px 8px 10px 10px;
+  }
+  .rec-ico {
+    width: 40px;
+    height: 40px;
+    font-size: 19px;
+    border-radius: 9px;
+  }
+  .rec-title {
+    font-size: 14.5px;
+  }
+  .rec-sub {
+    font-size: 10.5px;
+  }
+  .rec-meta {
+    gap: 9px;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
   .fresh-zone {
-    padding: 16px 14px 12px;
+    padding: 14px 12px 10px;
+  }
+  .fresh-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 10px;
+  }
+  .fresh-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .fchip {
+    flex: none;
+    white-space: nowrap;
+    padding: 4px 10px;
   }
   .f-row {
     grid-template-columns: 1fr;
+    padding: 9px 10px 9px 12px;
+  }
+  .f-eyebrow {
+    font-size: 10.5px;
+    margin-bottom: 1px;
+  }
+  .f-title {
+    font-size: 14px;
+  }
+  .f-desc {
+    display: none;
+  }
+  .f-meta {
+    margin-top: 3px;
+    gap: 9px;
+    font-size: 11px;
   }
   .f-no {
     display: none;
   }
   .f-arrow {
+    display: none;
+  }
+
+  /* 路线图大行：图标收小、去掉右侧按钮列 */
+  .rz-row {
+    grid-template-columns: 44px 1fr;
+    gap: 0 12px;
+    padding: 12px 8px 12px 10px;
+  }
+  .rz-ico {
+    width: 44px;
+    height: 44px;
+    font-size: 21px;
+    border-radius: 10px;
+  }
+  .rz-eyebrow {
+    font-size: 10.5px;
+  }
+  .rz-title {
+    font-size: 15px;
+  }
+  .rz-desc {
+    font-size: 12px;
+  }
+  .rz-meta {
+    font-size: 11px;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .rz-go {
+    display: none;
+  }
+
+  /* 侧栏「资料分类」目录手机隐藏：顶部滚动分类条已覆盖，砍掉重复长列表 */
+  .sc-cats {
     display: none;
   }
 }
