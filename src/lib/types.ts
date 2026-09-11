@@ -143,6 +143,8 @@ export interface UserProfile {
   works: number;
   rate: string;
   myFollow: boolean;
+  /** V12.1 连续打卡天数（公开，主页统计条展示；0=未打卡/已断签） */
+  checkinStreak: number;
   isSelf: boolean;
   /** V8 佩戴勋章栏（≤5，公开；无佩戴为空数组） */
   badges: {

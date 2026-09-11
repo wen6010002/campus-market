@@ -9035,3 +9035,60 @@ body {
     white-space: normal;
   }
 }
+
+/* ===================== V12.1 打卡可见性强化 ===================== */
+
+/* 首页独立打卡榜盒：火焰暖色调，与创作者榜视觉区隔 */
+.side-checkin {
+  border: 1.5px solid rgba(255, 107, 74, 0.22);
+  background: linear-gradient(180deg, #fff7f4 0%, #ffffff 42%);
+}
+.side-checkin h3 {
+  color: var(--pri-600);
+}
+
+/* 今日已打卡徽章（榜行/侧栏通用） */
+.ck-today {
+  display: inline-flex;
+  align-items: center;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0d8a5f;
+  background: #e8f8f1;
+  border: 1px solid #b9ecd8;
+  border-radius: 5px;
+  padding: 0 5px;
+  margin-left: 6px;
+  line-height: 16px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* 主页统计条首格：连续打卡（可点进榜页，火焰强调） */
+.stat-card-checkin {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1.5px solid rgba(255, 107, 74, 0.28);
+  background: linear-gradient(160deg, #fff3ee 0%, #ffffff 80%);
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.stat-card-checkin:hover {
+  border-color: var(--pri);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(237, 78, 45, 0.14);
+}
+.stat-card-checkin .lb {
+  color: var(--pri-600);
+  font-weight: 700;
+}
+.stat-card-checkin .v small {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-left: 3px;
+}

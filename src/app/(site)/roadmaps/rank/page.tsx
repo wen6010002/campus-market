@@ -20,6 +20,7 @@ type CheckinRow = {
     college: string;
   };
   metric: number;
+  today?: boolean;
 };
 
 type MyStats = { today: boolean; streakDays: number; totalDays: number };
@@ -42,13 +43,16 @@ export default function CheckinRankPage() {
   const mine = user ? rows.find((r) => r.user.id === user.id) : undefined;
   const last = rows[rows.length - 1];
   const gap = !mine && last && stats.data ? last.metric - stats.data.streakDays : 0;
+  const todayCount = rows.filter((r) => r.today).length;
 
   return (
     <main className="page" style={{ maxWidth: 760 }}>
       <div className="page-head">
         <div>
           <h1>🔥 连续打卡榜</h1>
-          <div className="sub">学任意路线图的任意步骤都算当日打卡 · 断一天清零 · 前 30 名</div>
+          <div className="sub">
+            学任意路线图的任意步骤都算当日打卡 · 断一天清零 · 前 30 名 · 今日 {todayCount} 人已打卡
+          </div>
         </div>
         <Link className="btn btn-light" href="/roadmaps">
           ← 全部路线图
@@ -104,7 +108,10 @@ export default function CheckinRankPage() {
                   radius={12}
                 />
                 <b>{r.user.username}</b>
-                <small>{subLabel(r.user)}</small>
+                <small>
+                  {subLabel(r.user)}
+                  {r.today ? <em className="ck-today">今日✓</em> : null}
+                </small>
                 <em>
                   {r.metric} <span>天</span>
                 </em>
@@ -121,6 +128,7 @@ export default function CheckinRankPage() {
                   <UserAvatar id={r.user.id} user={r.user} size={32} radius={8} />
                   <span className="ck-name">
                     {r.user.username}
+                    {r.today ? <em className="ck-today">今日✓</em> : null}
                     <small>{subLabel(r.user)}</small>
                   </span>
                   <span className="ck-days">

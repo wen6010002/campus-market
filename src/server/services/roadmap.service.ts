@@ -237,7 +237,7 @@ export const roadmapService = {
     if (checked) {
       const today = dayCn8(new Date());
       const yesterday = dayCn8(new Date(Date.now() - 86400_000));
-      await prisma.$transaction(async (tx) => {
+      const streakDays = await prisma.$transaction(async (tx) => {
         await tx.roadmapCheck.upsert({
           where: { userId_roadmapId_stepId: { userId, roadmapId, stepId } },
           update: {},
@@ -253,7 +253,13 @@ export const roadmapService = {
           update: {},
           create: { userId, day: today, streakDays: (yesterdayRow?.streakDays ?? 0) + 1 },
         });
+        const row = await tx.dailyCheckin.findUniqueOrThrow({
+          where: { userId_day: { userId, day: today } },
+          select: { streakDays: true },
+        });
+        return row.streakDays;
       });
+      return { stepId, checked, streakDays }; // V12.1 前端 toast 展示连续天数
     } else {
       await prisma.roadmapCheck.deleteMany({ where: { userId, roadmapId, stepId } });
     }

@@ -91,6 +91,7 @@ export const rankService = {
           college: r.user.student?.college ?? '',
         },
         metric: r.streakDays,
+        today: r.day === today, // 今日已打卡（前端亮点标识）
       }));
     } else if (type === 'fav') {
       const works = await prisma.work.findMany({

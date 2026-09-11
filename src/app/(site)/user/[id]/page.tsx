@@ -163,8 +163,15 @@ function UserContent() {
         </div>
       </div>
 
-      {/* 数据条 */}
+      {/* 数据条（V12.1 连续打卡首格：打卡要被看到，全员公开） */}
       <div className="stat-grid" style={{ margin: '16px 0 20px' }}>
+        <Link className="stat-card stat-card-checkin" href="/roadmaps/rank">
+          <div className="lb">🔥 连续打卡</div>
+          <div className="v">
+            {profile.checkinStreak}
+            <small>天</small>
+          </div>
+        </Link>
         <div className="stat-card">
           <div className="lb">粉丝</div>
           <div className="v">{formatNum(profile.fans)}</div>

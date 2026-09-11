@@ -3,6 +3,7 @@ import { appError } from '../lib/errors';
 import { redis } from '../lib/redis';
 import { notifyService } from './notify.service';
 import { achievementService } from './achievement.service';
+import { dayCn8 } from '@/lib/day';
 
 const ratingStr = (d: { toFixed(n: number): string }): string => d.toFixed(1);
 
@@ -104,23 +105,34 @@ export const socialService = {
     });
     if (!user) throw appError('NOT_FOUND', '用户不存在');
 
-    const [helped, fans, following, works, avgRating, myFollow, badges] = await Promise.all([
-      prisma.work.aggregate({ where: { authorId: userId }, _sum: { downloads: true } }),
-      prisma.follow.count({ where: { followingId: userId } }),
-      prisma.follow.count({ where: { followerId: userId } }),
-      prisma.work.count({ where: { authorId: userId, status: 'PUBLISHED', deletedAt: null } }),
-      prisma.work.aggregate({
-        where: { authorId: userId, ratingCount: { gt: 0 } },
-        _avg: { rating: true },
-      }),
-      viewerId
-        ? prisma.follow.findUnique({
-            where: { followerId_followingId: { followerId: viewerId, followingId: userId } },
-          })
-        : Promise.resolve(null),
-      // V8：佩戴勋章栏（≤5，限时过期自动隐藏）
-      achievementService.listPinned(userId),
-    ]);
+    const [helped, fans, following, works, avgRating, myFollow, badges, checkin] =
+      await Promise.all([
+        prisma.work.aggregate({ where: { authorId: userId }, _sum: { downloads: true } }),
+        prisma.follow.count({ where: { followingId: userId } }),
+        prisma.follow.count({ where: { followerId: userId } }),
+        prisma.work.count({ where: { authorId: userId, status: 'PUBLISHED', deletedAt: null } }),
+        prisma.work.aggregate({
+          where: { authorId: userId, ratingCount: { gt: 0 } },
+          _avg: { rating: true },
+        }),
+        viewerId
+          ? prisma.follow.findUnique({
+              where: { followerId_followingId: { followerId: viewerId, followingId: userId } },
+            })
+          : Promise.resolve(null),
+        // V8：佩戴勋章栏（≤5，限时过期自动隐藏）
+        achievementService.listPinned(userId),
+        // V12.1：主页统计条「连续打卡」（公开——打卡要被看到；取最近一行账本，
+        // 昨日行也算（今天还没打 streak 未断），更早的行视为已断签）
+        prisma.dailyCheckin.findFirst({
+          where: {
+            userId,
+            day: { in: [dayCn8(new Date()), dayCn8(new Date(Date.now() - 86400_000))] },
+          },
+          orderBy: { day: 'desc' },
+          select: { streakDays: true },
+        }),
+      ]);
 
     return {
       id: user.id,
@@ -146,6 +158,7 @@ export const socialService = {
       myFollow: !!myFollow,
       isSelf: viewerId === userId,
       badges, // V8 佩戴勋章栏（≤5，公开）
+      checkinStreak: checkin?.streakDays ?? 0, // V12.1 连续打卡天数（公开）
     };
   },
 

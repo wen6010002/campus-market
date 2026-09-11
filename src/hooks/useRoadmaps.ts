@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiFetchPage } from '@/lib/api/client';
 import { dayCn8 } from '@/lib/day';
+import { toast } from '@/stores/ui';
 import type { RoadmapListItem, RoadmapDetail, RoadmapProgress } from '@/lib/types';
 
 export function useRoadmaps(params: {
@@ -61,7 +62,14 @@ export function useRoadmapCheck(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { stepId: string; checked: boolean }) =>
-      apiFetch(`/roadmaps/${id}/check`, { method: 'POST', body: JSON.stringify(input) }),
+      apiFetch<{ stepId: string; checked: boolean; streakDays?: number }>(`/roadmaps/${id}/check`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (r) => {
+      // V12.1 打卡反馈：连续天数直接可见（断签重开也有感知）
+      if (r.checked) toast(`打卡成功，已连续 ${r.streakDays ?? 1} 天 🔥`, 'ok');
+    },
     onMutate: async ({ stepId, checked }) => {
       // 乐观更新进度（勾选列表 + 按日聚合 + 总数）
       await qc.cancelQueries({ queryKey: ['roadmaps', 'progress', id] });

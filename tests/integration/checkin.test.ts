@@ -182,6 +182,7 @@ describe('V12 连续打卡榜（checkin 分支）', () => {
     expect(rows[0]).toMatchObject({ rank: 1, metric: 10 });
     expect(rows[0].user.id).toBe(STUDENT_ID); // 同分早达成者优先
     expect(rows[0].user.dorm).toBe('紫薇斋');
+    expect(rows[0].today).toBe(true); // 今日已打卡标识（V12.1）
     expect(rows[1].user.id).toBe(CREATOR_ID);
     expect(rows[2]).toMatchObject({ rank: 3, metric: 5 });
     // creator 无 dorm → college 回退（seed 的计软）
@@ -203,5 +204,6 @@ describe('V12 连续打卡榜（checkin 分支）', () => {
     });
     const rows = (await rankService.ranks('checkin')) as Array<any>;
     expect(rows[0]).toMatchObject({ metric: 7, rank: 1 });
+    expect(rows[0].today).toBe(false); // 只打了昨天，今日标识不亮
   });
 });
