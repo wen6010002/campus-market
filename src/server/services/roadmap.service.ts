@@ -261,7 +261,19 @@ export const roadmapService = {
       });
       return { stepId, checked, streakDays }; // V12.1 前端 toast 展示连续天数
     } else {
-      await prisma.roadmapCheck.deleteMany({ where: { userId, roadmapId, stepId } });
+      await prisma.$transaction(async (tx) => {
+        await tx.roadmapCheck.deleteMany({ where: { userId, roadmapId, stepId } });
+        // 当日已无任何勾选步骤（全站口径）→ 当日打卡不成立，删账本行。
+        // 与「取消不追溯抹历史」不冲突：当天只要还勾着至少一步就保留记录。
+        const today = dayCn8(new Date());
+        const todayStart = new Date(`${today}T00:00:00+08:00`);
+        const remain = await tx.roadmapCheck.count({
+          where: { userId, createdAt: { gte: todayStart } },
+        });
+        if (remain === 0) {
+          await tx.dailyCheckin.deleteMany({ where: { userId, day: today } });
+        }
+      });
     }
     return { stepId, checked };
   },

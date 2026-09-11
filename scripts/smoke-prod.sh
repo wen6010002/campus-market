@@ -37,6 +37,8 @@ c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/auth/
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/me/roadmap-favorites"); ck "GET 我的路线图收藏" 200 "$c" "共$(J "len(d['data'])" </tmp/sm.json)条"
 c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/roadmaps/$RM_ID/check" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"stepId":"p0-s0","checked":true}'); ck "POST 打卡" 200 "$c"
 c=$(curl -s -b /tmp/sm.jar -o /tmp/sm.json -w '%{http_code}' "$BASE/api/v1/roadmaps/$RM_ID/progress"); ck "GET progress" 200 "$c" "连续$(J "d['data']['streakDays']" </tmp/sm.json)天/已勾$(J "d['data']['totalChecked']" </tmp/sm.json)"
+# 打卡痕迹清理：取消勾选；当日已无勾选步骤时服务端连带删当日账本行（打卡榜不露冒烟账号）
+c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/roadmaps/$RM_ID/check" -H "Origin: $BASE" -H 'content-type: application/json' -d '{"stepId":"p0-s0","checked":false}'); ck "POST 取消打卡(清痕迹)" 200 "$c"
 c=$(curl -s -b /tmp/sm.jar -o /dev/null -w '%{http_code}' -X DELETE "$BASE/api/v1/works/$WK_ID/favorite" -H "Origin: $BASE"); ck "DELETE 取消收藏(幂等)" 200 "$c"
 
 # ---- V12 评论 + 打卡榜 ----

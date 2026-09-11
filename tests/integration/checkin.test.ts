@@ -116,18 +116,25 @@ describe('V12 打卡站内账本', () => {
     expect(row.streakDays).toBe(1);
   });
 
-  it('取消勾选不回滚账本（修复旧缺陷），但热力图步数归零、账本日兜底 ≥1', async () => {
+  it('取消勾选：当日还有别的勾选时账本保留；全部取消则当日账本一并删（冒烟不露痕迹）', async () => {
+    // 学生今日已有 RM p0-s0 + RM2 p0-s0 两步勾选（前序用例）
     await roadmapService.toggleCheck(STUDENT_ID, RM_ID, 'p0-s0', true);
-    await roadmapService.toggleCheck(STUDENT_ID, RM_ID, 'p0-s0', false); // 取消
+    await roadmapService.toggleCheck(STUDENT_ID, RM2_ID, 'p0-s0', true);
     const today = dayCn8(new Date());
-    // 账本行仍在（今天还打过——之前用例已建行；此处验证取消后不删除）
-    const row = await prisma.dailyCheckin.findFirst({
-      where: { userId: STUDENT_ID, day: today },
-    });
+
+    // 取消第一步：另一路线还有勾选 → 账本保留
+    await roadmapService.toggleCheck(STUDENT_ID, RM_ID, 'p0-s0', false);
+    let row = await prisma.dailyCheckin.findFirst({ where: { userId: STUDENT_ID, day: today } });
     expect(row).toBeTruthy();
-    // byDay：当日该步骤被取消 → 计数回落；但账本日保证 ≥1
+
+    // 全部取消 → 当日打卡不成立，账本行删除
+    await roadmapService.toggleCheck(STUDENT_ID, RM2_ID, 'p0-s0', false);
+    row = await prisma.dailyCheckin.findFirst({ where: { userId: STUDENT_ID, day: today } });
+    expect(row).toBeNull();
+
     const stats = await roadmapService.checkinStats(STUDENT_ID);
-    expect(stats.byDay[today]).toBeGreaterThanOrEqual(1);
+    expect(stats.today).toBe(false);
+    expect(stats.byDay[today]).toBeUndefined(); // 热力图当日格子也没了
   });
 
   it('progress：站内口径（checked 是本图勾选，streak 是全站）', async () => {

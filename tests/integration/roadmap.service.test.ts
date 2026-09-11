@@ -183,7 +183,8 @@ describe('打卡与进度', () => {
     expect(Object.keys(p.byDay)).toHaveLength(3); // 热力图仍按勾选步数按日聚合
     expect(p.totalChecked).toBe(3);
 
-    // V12 行为变化：取消今天的勾选不再追溯抹掉打卡（账本行不回滚）
+    // 直接删勾选行（绕过服务）不触碰账本——历史 streak 稳定；
+    // 经 toggleCheck 取消的清理路径见 checkin.test（当日全部取消才删当日账本行）
     await prisma.roadmapCheck.deleteMany({
       where: { userId: STUDENT_ACTOR, roadmapId: rmId, stepId: 'p1-s0' },
     });
